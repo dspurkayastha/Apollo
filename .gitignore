@@ -1,5 +1,5 @@
 # ============================================
-# Apollo — Thesis Generator Pipeline
+# Apollo — AI-Powered Thesis Generation Platform
 # ============================================
 
 # --- LaTeX auxiliary files ---
@@ -45,8 +45,12 @@ input/synopsis.txt
 input/dataset.csv
 input/literature_review.md
 
+# --- Plan document (internal, not for repo) ---
+docs/PLAN.md
+
 # --- Claude Code local settings (user-specific permissions) ---
 .claude/settings.local.json
+.mcp.json
 
 # --- macOS ---
 .DS_Store
@@ -73,18 +77,29 @@ __pycache__/
 venv/
 env/
 
-# --- Node.js (future app) ---
+# --- Node.js / Next.js ---
 node_modules/
 dist/
 build/
 .next/
 .turbo/
+.vercel/
+.eslintcache
+*.tsbuildinfo
+
+# --- Playwright ---
+playwright-report/
+test-results/
+blob-report/
 
 # --- Environment / secrets ---
 .env
 .env.local
 .env.*.local
 *.pem
+
+# --- Docker ---
+docker/volumes/
 
 # --- Temporary files ---
 /tmp/

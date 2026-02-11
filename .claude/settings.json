@@ -18,11 +18,27 @@
       "Bash(diff:*)",
       "Bash(pdftotext:*)",
       "Bash(ls:*)",
+      "Bash(pnpm:*)",
+      "Bash(npx:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(gh:*)",
       "WebSearch"
     ],
     "deny": [
       "Bash(rm -rf /)",
-      "Bash(sudo:*)"
+      "Bash(sudo:*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)"
     ]
   }
 }
