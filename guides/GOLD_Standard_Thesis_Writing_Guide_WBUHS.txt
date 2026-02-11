@@ -1,0 +1,660 @@
+**GOLD STANDARD**
+
+**THESIS WRITING GUIDE**
+
+For MD/MS/DM/MCh/MDS Courses
+
+**Srimanta Sankaradeva University of Health Sciences**
+
+(SSUHS), Assam
+
+*Comprehensive Ruleset and Instructions Document*
+
+Integrating SSUHS Guidelines, Vancouver Citation Style,
+
+and Medical Science Writing Standards
+
+Reference Institution: Silchar Medical College and Hospital
+
+Version 1.0 \| December 2024
+
+TABLE OF CONTENTS
+
+---
+
+## UNIVERSITY COMPLIANCE LAYER (ADDED)
+
+### Active university ruleset
+If an official university guideline PDF is provided, **that PDF is the single source of truth** for formatting and chapter sequence. This document becomes a â€œGOLD standardâ€ wrapper around the university rules.
+
+**Detected guideline**: *WBUHS â€“ Guidelines for Dissertation Writing of Modern Medicine*.
+
+### WBUHS mandatory structure (Modern Medicine dissertation)
+
+Follow this sequence:
+
+1. Title Page
+2. Certificates (Guide + Coâ€‘guide if any; HOD; Head of Institution; IEC)
+3. Declaration
+4. Acknowledgements
+5. Table of Contents
+6. Structured Abstract (â‰¤1000 words)
+7. Chapter 1: Introduction
+8. Chapter 2: Aims & Objectives
+9. Chapter 3: Review of Literature
+10. Chapter 4: Materials & Methods
+11. Chapter 5: Results
+12. Chapter 6: Discussion
+13. Chapter 7: Conclusion
+14. List of Additional Figures
+15. List of Additional Tables
+16. List of Abbreviations
+17. References (Vancouver)
+18. Appendices
+
+### WBUHS mandatory formatting
+
+- Font: Times New Roman
+- Font size: 12 pt main text, 14 pt headings
+- Spacing: **Double** for main text; **single** for footnotes & references
+- Margins: **1.0 inch on all sides**
+- Page numbers: bottom centre **or** top right; same font as text (TNR 12)
+- Paragraph indent: first line **0.5 inches**
+- Alignment: **Justified**
+
+> Note: These WBUHS requirements override any conflicting values elsewhere in this document (e.g., binding margin, line spacing, abstract word count).
+
+---
+
+PART I: DOCUMENT FORMATTING SPECIFICATIONS
+
+> 1.1 Paper and Language Requirements
+>
+> 1.2 Font Specifications
+>
+> 1.3 Margins and Spacing
+>
+> 1.4 Pagination Rules
+
+PART II: THESIS STRUCTURE AND SEQUENCE
+
+> 2.1 Mandatory Sequence of Contents
+>
+> 2.2 Preliminary Pages
+>
+> 2.3 Main Chapters
+>
+> 2.4 Annexures
+
+PART III: VANCOUVER CITATION SYSTEM
+
+> 3.1 In-Text Citation Rules
+>
+> 3.2 Reference List Formatting
+>
+> 3.3 Citation Examples by Source Type
+
+PART IV: TABLES, FIGURES, AND DATA PRESENTATION
+
+PART V: MEDICAL WRITING CONVENTIONS
+
+PART VI: ETHICS AND COMPLIANCE
+
+PART VII: SUBMISSION REQUIREMENTS
+
+PART VIII: TEMPLATES AND CHECKLISTS
+
+PART I: DOCUMENT FORMATTING SPECIFICATIONS
+
+This section contains the mandatory formatting requirements as specified
+by SSUHS. These specifications supersede all other general guidelines
+and must be strictly followed.
+
+1.1 Paper and Language Requirements
+
+-   **Paper Size:** A4 size (210 Ã— 297 mm)
+
+-   **Paper Quality:** Good quality bond paper (minimum 80 GSM)
+
+-   **Language:** British English (NOT American English)
+
+-   **Printing:** Single-sided printing only
+
+CRITICAL: Use British spellings throughout (e.g., colour, behaviour,
+analyse, haemoglobin, oestrogen, organisation)
+
+1.2 Font Specifications
+
+  -----------------------------------------------------------------------
+  **Element**            **Font**                   **Size**
+  ---------------------- -------------------------- ---------------------
+  Running Text (Body)    Times New Roman            12 pt
+
+  Title & Chapter        Times New Roman, Bold      \>12 pt but \<18 pt
+  Headings                                          
+
+  Legends (Table/Figure) Times New Roman            10 pt
+  -----------------------------------------------------------------------
+
+1.3 Margins and Spacing
+
+Margin Specifications
+
+-   **Left Margin (Binding Edge):** 1.5 inches (SSUHS) **OR** 1.0 inch (WBUHS, all sides) (3.81 cm)
+
+-   **Right Margin:** 1 inch (2.54 cm)
+
+-   **Top Margin:** 1 inch (2.54 cm)
+
+-   **Bottom Margin:** 1 inch (2.54 cm)
+
+Spacing and Alignment
+
+-   **Line Spacing:** 1.5 (SSUHS) **OR** double-spacing for main text (WBUHS)
+
+-   **Paragraph Indent:** 1 tab (5 spaces) for first line
+
+-   **Text Alignment:** Justified (both margins aligned)
+
+-   **Hyphenation:** NO hyphenation for paragraph breaks
+
+All written and illustrative material must fall within these margins.
+
+1.4 Pagination Rules
+
+-   **Position:** Right bottom corner of each page
+
+-   **Preliminary Pages:** NOT numbered (Front Cover through List of
+    Abbreviations)
+
+-   **Arabic Numbering STARTS:** From Introduction chapter (Page 1)
+
+-   **Arabic Numbering ENDS:** At the end of Bibliography section
+
+-   **Annexures:** Use Roman numerals (Annexure I, II, III, etc.)
+
+PART II: THESIS STRUCTURE AND SEQUENCE
+
+2.1 Mandatory Sequence of Contents
+
+The thesis must follow this exact sequence. Deviation from this order is
+not permitted.
+
+  -----------------------------------------------------------------------
+  **Sl.     **Section**                           **Page Numbering**
+  No.**                                           
+  --------- ------------------------------------- -----------------------
+  1         Front Cover                           *Not numbered*
+
+  2         Title Page                            *Not numbered*
+
+  3         Declaration by the Candidate          *Not numbered*
+
+  4         Certificate by Guide/HOD/Head of      *Not numbered*
+            Institution                           
+
+  5         Acknowledgements                      *Not numbered*
+
+  6         Table of Contents                     *Not numbered*
+
+  7         Abstract/Synopsis                     *Not numbered*
+
+  8         List of Figures, Tables or            *Not numbered*
+            Illustrations                         
+
+  9         List of Abbreviations/Glossary        *Not numbered*
+
+  **10**    **Introduction**                      **Page 1 STARTS HERE**
+
+  11        Aims and Objectives                   Continues
+
+  12        Review of Literature                  Continues
+
+  13        Materials and Methods                 Continues
+
+  14        Results and Analysis                  Continues
+
+  15        Discussion                            Continues
+
+  16        Summary and Conclusion                Continues
+
+  **17**    **Bibliography**                      **Numbering ENDS HERE**
+
+  18        Annexures (I, II, III\...)            *Roman numerals*
+  -----------------------------------------------------------------------
+
+2.2 Preliminary Pages Specifications
+
+Abstract/Synopsis Requirements
+
+-   **Word Count:** 250-300 words (SSUHS) **OR** up to 1000 words (WBUHS Modern Medicine â€” if WBUHS ruleset active).
+
+-   **Content:** Must be self-complete and standalone
+
+-   **Citations:** NO citations allowed in the abstract
+
+-   **Structure:** Background, Objectives, Methods, Results, Conclusion
+
+2.3 Main Chapter Guidelines
+
+  ------------------------------------------------------------------------------
+  **Chapter**                **Recommended    **Word Count**      **Tense**
+                             Pages**                              
+  -------------------------- ---------------- ------------------- --------------
+  Introduction               2-3              500-750             Present
+
+  Aims and Objectives        1                150-200             Present
+
+  Review of Literature       10-15            2,500-3,500         Past/Present
+
+  Materials and Methods      5-10             1,500-2,500         Past
+
+  Results and Analysis       15-20            3,000-5,000         Past
+
+  Discussion                 8-10             2,000-2,500         Present/Past
+
+  Summary and Conclusion     2-3              500-750             Present
+
+  **TOTAL (Main Text)**      **50-75 pages**  **15,000-20,000**   \-
+  ------------------------------------------------------------------------------
+
+MAXIMUM LIMIT: 100 pages and 30,000 words (excludes bibliography,
+annexures, and preliminaries)
+
+2.4 Annexures (Mandatory)
+
+1.  **Annexure I:** IHEC Clearance Certificate
+
+2.  **Annexure II:** Plagiarism Certificate (Turnitin/iThenticate
+    Report)
+
+3.  **Annexure III:** Informed Consent Form
+
+4.  **Annexure IV:** Patient Information Sheet
+
+5.  **Annexure V:** Proforma/Case Record Form
+
+6.  **Annexure VI:** Master Chart
+
+PART III: VANCOUVER CITATION SYSTEM
+
+SSUHS mandates the **Vancouver citation style** (also known as ICMJE
+style). This is the standard for medical and biomedical publications
+worldwide.
+
+3.1 In-Text Citation Rules
+
+Numbering System
+
+-   Citations are numbered consecutively in the order they first appear
+    in the text
+
+-   Use Arabic numerals in square brackets: \[1\], \[2\], \[3\]
+
+-   The same number is used for subsequent citations of the same source
+
+-   Multiple citations are separated by commas: \[1,3,5\] or as ranges:
+    \[1-5\]
+
+Placement Rules
+
+-   Place citation numbers AFTER punctuation (periods, commas)
+
+-   Numbers appear in superscript OR in square brackets at baseline
+    (SSUHS accepts both)
+
+-   When citing at end of sentence: \"\...as reported previously.\[1\]\"
+    or \"\...as reported previously.Â¹\"
+
+Examples of In-Text Citations
+
+> **Single source:** \"Cirrhosis affects liver function
+> significantly.\[1\]\"
+>
+> **Multiple sources:** \"Several studies have confirmed this
+> finding.\[2,4,7\]\"
+>
+> **Consecutive sources:** \"As demonstrated in previous
+> research.\[3-6\]\"
+>
+> **Author mention:** \"According to Sharma et al.\[8\], the
+> prevalence\...\"
+
+3.2 Reference List (Bibliography) Formatting
+
+-   List references in numerical order (order of first citation)
+
+-   Use standard journal abbreviations (Index Medicus/MEDLINE style)
+
+-   Include DOI when available
+
+-   List up to 6 authors; if more than 6, list first 6 followed by \"et
+    al.\"
+
+3.3 Citation Examples by Source Type
+
+Journal Article (Standard)
+
+> Sharma A, Kumar R, Patel S. Cardiovascular outcomes in diabetic
+> patients: A cohort study from North India. Indian J Med Res.
+> 2023;157(3):234-41.
+
+Journal Article with DOI
+
+> Morgan MY, Jakobovits AW, Gore MBR. Serum prolactin in liver disease.
+> Gut. 1978;19:170-4. doi:10.1136/gut.19.3.170
+
+Book
+
+> Fauci AS, Kasper DL, Hauser SL, Longo DL, Jameson JL, editors.
+> Harrison\'s Principles of Internal Medicine. 21st ed. New York:
+> McGraw-Hill Education; 2022.
+
+Book Chapter
+
+> Kumar V, Abbas AK. Acute and chronic inflammation. In: Kumar V, Abbas
+> AK, Aster JC, editors. Robbins and Cotran Pathologic Basis of Disease.
+> 10th ed. Philadelphia: Elsevier; 2021. p. 71-113.
+
+Website/Online Source
+
+> World Health Organization. Global tuberculosis report 2023
+> \[Internet\]. Geneva: WHO; 2023 \[cited 2024 Jan 15\]. Available from:
+> https://www.who.int/teams/global-tuberculosis-programme/tb-reports
+
+Government/Organizational Document
+
+> Indian Council of Medical Research. National Ethical Guidelines for
+> Biomedical and Health Research Involving Human Participants. New
+> Delhi: ICMR; 2017.
+
+PART IV: TABLES, FIGURES, AND DATA PRESENTATION
+
+4.1 Tables
+
+1.  Number tables sequentially using Arabic numerals (Table 1, Table 2,
+    etc.)
+
+2.  Place table number and title ABOVE the table
+
+3.  Title should be descriptive and concise
+
+4.  Include units of measurement in column headers
+
+5.  Use horizontal lines only (top, below header, bottom) - avoid
+    vertical lines
+
+6.  Legends and footnotes go BELOW the table in 10pt font
+
+7.  Every table must be referenced in the text before it appears
+
+8.  Insert tables as close as possible to the text that refers to them
+
+4.2 Figures and Images
+
+1.  Number figures sequentially (Figure 1, Figure 2, etc.) - separate
+    from tables
+
+2.  Place figure number and caption BELOW the figure
+
+3.  Use high resolution images (minimum 300 DPI for print)
+
+4.  Scan photographs and images at good resolution
+
+5.  De-identify all patient images (remove DICOM headers, patient
+    details)
+
+6.  Include scale bars for microscopy images
+
+7.  Explain all abbreviations and symbols in the legend
+
+4.3 Statistical Presentation
+
+-   **P-values:** Report exact values (p=0.032), use p\<0.001 for very
+    small values
+
+-   **Confidence Intervals:** Report as 95% CI (lower-upper) or \[lower,
+    upper\]
+
+-   **Continuous data:** Mean Â± SD (normal distribution) or Median (IQR)
+    (skewed)
+
+-   **Categorical data:** n (%) format
+
+-   **Effect sizes:** Include OR, RR, HR with confidence intervals
+
+PART V: MEDICAL WRITING CONVENTIONS
+
+5.1 Drug Nomenclature
+
+-   Use generic (nonproprietary) names in lowercase throughout
+
+-   Brand names (if necessary) in parentheses on first mention only,
+    capitalised
+
+-   **Example:** \"Patients received metformin (Glucophage) 500 mg twice
+    daily.\"
+
+5.2 Abbreviations
+
+1.  Define all abbreviations at first use in each major section
+
+2.  Apply the \"three-use rule\" - only abbreviate terms appearing three
+    or more times
+
+3.  Standard abbreviations (MRI, CT, ECG, DNA, HIV) need no definition
+
+4.  List all abbreviations in the \"List of Abbreviations\" section
+
+5.  Do not begin sentences with abbreviations
+
+5.3 Numbers and Units
+
+-   Spell out numbers one through nine; use numerals for 10 and above
+
+-   Always use numerals with units: 5 mg, 3 ml, 7 days
+
+-   Never begin a sentence with a numeral - spell it out or restructure
+
+-   Use SI units as the primary system
+
+5.4 Reporting Guidelines by Study Type
+
+  -----------------------------------------------------------------------
+  **Study Type**             **Guideline**          **Key Requirement**
+  -------------------------- ---------------------- ---------------------
+  Randomised Controlled      CONSORT 2010/2025      Flow diagram
+  Trial                                             
+
+  Systematic                 PRISMA 2020            PRISMA flow diagram
+  Review/Meta-analysis                              
+
+  Observational Study        STROBE                 22-item checklist
+
+  Diagnostic Study           STARD                  30-item checklist
+
+  Case Report                CARE                   Timeline figure
+  -----------------------------------------------------------------------
+
+PART VI: ETHICS AND COMPLIANCE
+
+6.1 Institutional Human Ethics Committee (IHEC) Approval
+
+All research involving human participants requires IHEC approval BEFORE
+data collection begins.
+
+Ethics Statement Template (for Silchar Medical College and Hospital)
+
+> *\"This study was approved by the Institutional Human Ethics Committee
+> (IHEC) of Silchar Medical College and Hospital, Silchar, Assam (IHEC
+> Approval No. SMCH/IHEC/2024/XXX dated DD/MM/YYYY). The study was
+> conducted in accordance with ICMR National Ethical Guidelines for
+> Biomedical and Health Research Involving Human Participants (2017) and
+> the Declaration of Helsinki. Written informed consent was obtained
+> from all participants prior to enrolment.\"*
+
+Replace XXX with actual approval number and DD/MM/YYYY with actual date
+
+6.2 Plagiarism Requirements
+
+-   **Software:** Turnitin, iThenticate, or ShodhShuddhi
+
+-   **Acceptable Limit:** Less than 10% similarity (as per UGC 2018
+    regulations)
+
+-   **Required:** Plagiarism certificate must be attached with thesis
+
+  -----------------------------------------------------------------------
+  **Level**          **Similarity %**       **Consequence**
+  ------------------ ---------------------- -----------------------------
+  **Level 0**        Up to 10%              ACCEPTABLE - No penalty
+
+  **Level 1**        10-40%                 Revise and resubmit within 6
+                                            months
+
+  **Level 2**        40-60%                 Debarred from resubmission
+                                            for 1 year
+
+  **Level 3**        Above 60%              **Registration CANCELLED**
+  -----------------------------------------------------------------------
+
+PART VII: SUBMISSION REQUIREMENTS
+
+7.1 Timeline for Submission
+
+  -----------------------------------------------------------------------
+  **Milestone**                         **Deadline**
+  ------------------------------------- ---------------------------------
+  Thesis Performa submission to         Within 6 months of admission
+  department                            
+
+  Scientific Committee approval         Within 7-8 months of admission
+
+  IHEC approval                         Within 9-10 months of admission
+
+  Protocol/synopsis to University       Within 11-12 months of admission
+
+  **THESIS SUBMISSION TO UNIVERSITY**   **26 months from admission (6
+                                        months before exam)**
+
+  Exit/Final Examination                35-36 months from admission
+  -----------------------------------------------------------------------
+
+Late submission: With penal fee, within 7 days after cut-off date only
+
+7.2 Copies Required
+
+1.  **6 hard bound copies:** 3 for examiners, 1 for COE Office, 1 for
+    library, 1 for department
+
+2.  **Soft copy:** PDF format in Pendrive (properly labelled)
+
+3.  **Email submission:** One PDF copy to thesis.ssuhs123@gmail.com
+
+7.3 Binding Specifications
+
+-   **Type:** Hard binding (rexine/leatherette)
+
+-   **Colour for MD/MS/MDS:** Dark Cherry Red
+
+-   **Front Cover:** Course name, thesis title, month & year, candidate
+    name, supervisor name
+
+-   **Spine:** Abbreviated title, author surname, degree, year
+
+7.4 Documents to be Submitted Separately
+
+1.  Declaration by student
+
+2.  Declaration by guide
+
+3.  IHEC approval certificate
+
+4.  Plagiarism certificate
+
+5.  PG Dissertation Copyright form
+
+6.  Payment receipt
+
+7.5 Examination Process
+
+-   **Examiners:** 3 total (1 internal + 2 external)
+
+-   **Prerequisite:** Candidate allowed to appear for theory and
+    practical/clinical examination ONLY after thesis acceptance by
+    examiners
+
+PART VIII: PRE-SUBMISSION CHECKLIST
+
+Use this checklist before final submission to ensure completeness.
+
+8.1 Formatting Checklist
+
+-   Paper: A4, good quality bond paper, single-sided
+
+-   Language: British English throughout
+
+-   Font: Times New Roman 12pt (body), \>12pt \<18pt (headings), 10pt
+    (legends)
+
+-   Margins: 1.5\" left, 1\" other sides
+
+-   Line spacing: 1.5 throughout
+
+-   Alignment: Justified, no hyphenation
+
+-   Page numbers: Right bottom corner, starting from Introduction
+
+8.2 Content Checklist
+
+-   All sections present in correct sequence
+
+-   Abstract: 250-300 words, no citations
+
+-   All objectives addressed in Results and Discussion
+
+-   Tables and figures numbered consecutively and referenced in text
+
+-   All abbreviations listed and defined
+
+-   References: Vancouver style, numbered in order of citation
+
+-   Word count: 15,000-20,000 (max 30,000)
+
+-   Page count: 50-75 pages (max 100)
+
+8.3 Documentation Checklist
+
+-   All certificates signed and stamped
+
+-   IHEC approval certificate attached
+
+-   Plagiarism report attached (\<10% similarity)
+
+-   Informed consent form in annexures
+
+-   Proforma included
+
+-   Master chart included
+
+-   Copyright form completed
+
+8.4 Final Submission Checklist
+
+-   6 hard bound copies prepared
+
+-   Binding colour: Dark Cherry Red
+
+-   Soft copy in PDF on Pendrive
+
+-   Email copy sent to thesis.ssuhs123@gmail.com
+
+-   All separate documents ready for submission
+
+-   Payment receipt obtained
+
+**END OF DOCUMENT**
+
+*For queries, contact SSUHS at www.ssuhs.in*
+
+*Reference: https://www.citethisforme.com/Vancouver*

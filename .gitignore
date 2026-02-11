@@ -1,0 +1,91 @@
+# ============================================
+# Apollo — Thesis Generator Pipeline
+# ============================================
+
+# --- LaTeX auxiliary files ---
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.synctex.gz
+*.synctex(busy)
+*.nav
+*.snm
+*.vrb
+*.dvi
+*.ps
+*.brf
+*.idx
+*.ilg
+*.ind
+*.nlo
+*.nls
+*.run.xml
+*-blx.bib
+
+# --- Output directories (generated content, topic-specific) ---
+# Keep directory structure (.gitkeep) but exclude all generated content
+output/thesis/*
+!output/thesis/.gitkeep
+output/figures/*
+!output/figures/.gitkeep
+output/stats/*
+!output/stats/.gitkeep
+output/packages/*
+!output/packages/.gitkeep
+
+# --- User-specific input (not part of the template) ---
+input/synopsis.txt
+input/dataset.csv
+input/literature_review.md
+
+# --- Claude Code local settings (user-specific permissions) ---
+.claude/settings.local.json
+
+# --- macOS ---
+.DS_Store
+**/.DS_Store
+
+# --- Backup / editor files ---
+*.bak
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# --- R artifacts ---
+.Rhistory
+.RData
+Rplots.pdf
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# --- Node.js (future app) ---
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+
+# --- Environment / secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+
+# --- Temporary files ---
+/tmp/
+*.tmp

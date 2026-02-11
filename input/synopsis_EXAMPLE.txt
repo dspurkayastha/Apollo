@@ -1,0 +1,882 @@
+
+
+=== PDF Page 8 ===
+
+A CLINICAL STUDY ON POST ERCP BILIARY STONE MANAGEMENT IN A TERTIARY CARE CENTRE
+INTRODUCTION
+Biliary stone disease is responsible for about 1.8 million ambulatory care visits and more than
+700 000 surgeries yearly in the United States.â€ Gallstone disease is the second most common
+reason for hospital admissions (with an estimated cost of US$5.8 billion annually), although only
+15% of people with gallstones have related symptoms.*~ One complication is the occurrence of
+stones in the common bile duct++
+Stones in the common bile duct most commonly result from the passage of gallstones through
+the cystic duct into the common bile duct. Less frequently, they may originate in the common
+bile duct itself. Stones in the common bile duct can cause biliary obstruction, cholangitis,
+pancreatitis, or secondary biliary cirrhosis in patients who have had the stones for a long time.
+More than 1 in 10 patients (10%-18%) undergoing cholecystectomy for gallstones have
+concomitant common bile duct stones,* and up to 3.8% have symptoms related to common bile
+duct stones during the first year after cholecystectomyâ€œ
+There are controversies regarding timing of laparoscopic cholecystectomy after ERCP , ERCP
+intervention of biliary stone causes inflammatory responses .It may cause difficulties in
+subsequent laparoscopic or open cholecystectomy with longer operation time , operator
+conversion rates , increased operative time , blood loss etc . These inflammatory responses
+increases with time after ERCP and may take 4-6 weeks to resolve .
+From 10 % to 18 % of patients undergoing Laparoscopic Cholecystectomy (LC) for gallbladder
+stones have synchronous CBD stones [2, 3]. These should be diagnosed and treated even if
+asymptomatic [4]. Prior to the development of minimally invasive surgery, when the surgical
+approach to CBD stones consisted of choledocholithotomy by open surgery, there was
+considerable morbidity (11-14 %) [5]. With the advent of endoscopic and laparoscopic
+techniques, In majority CBD stones were removed preoperatively by ERCP though a novel
+approach for bile duct stone removal has its limitations .It many cause cholangitis , acute
+pancreatitis , duodenal injury ete, it is not also applicable in all cases of biliary stones [6]. With
+refinements in laparoscopic techniques and experience many centers have started performing
+laparoscopic CBD exploration with acceptable results and complications [7]. Simultaneous or
+single-stage laparoscopic cholecystectomy and CBD exploration has not yet become standard
+management. There are only a few randomized trials available comparing the single stage with
+sequential management (ERCP followed by LC) of patients with concomitant gallstones and CBD
+stones [8, 9]. Combined single stage laparoendoscopic approach to the management of
+choledocholithiasis has also been advocated by established centres [1, 10] with results
+comparable to sequential management and single stage total laparoscopic exploration.
+ERCP may not be successful in all cases due to several reasons ,In those cases CBD stones are to
+be dealt during cholecystectomy , which may laparoscopic /open procedure.
+
+
+
+=== PDF Page 9 ===
+
+REVIEW OF LITERATURE
+
+Literature search was performed using online search engines, Google, Pubmed, the online
+Springer link library and the Cochrane Database Systematic Review. Textbooks of
+gastrointestinal surgery and laparoscopy were also reviewed. Review articles, prospective and
+retrospective studies which detailed or compared the various treatment strategies for CBD
+stones were selected and analyzed. Case reports were not reviewed for the article.
+
+Several studies have compared a â€œlaparoscopic- firstâ€ approach to the management of CBD
+stones with the more commonly used â€œsequential treatmentâ€ i.e. endoscopic extraction followed
+by laparoscopic cholecystectomy. Laparoscopic CBD exploration involves either transcystic
+approach (fluoroscopy guided or choledochoscopy) or laparoscopic choledochotomy and stone
+extraction.
+
+1) The treatment of known CBD stonesâ€”preoperative EST followed by LC vs. LCBDE was
+compared in two randomized control trials [8, 9]. The results of the two approaches are
+similar, although the length of hospital stay is shorter with LCBDE in the Cuscheiri, et al.
+study, The weakness inherent in these studies is that they fail to include the morbidity of
+negative preoperative ERCP.
+
+2)Costi et al. [2] performed a case-control study comparing a single stage laparoscopic
+approach with sequential treatment. No difference emerged concerning early and late
+complications, mortality, or laparotomies needed to accomplish cholecystectomy and CBD
+clearance. The postoperative hospital stay was shorter in the single stage group. In this group,
+only 22 patients underwent choledochotomy (45 %), and 15 patients underwent perioperative
+ERCP (30 %). Conversions decreased with practice. After choledochotomy, an increasing number
+of patients underwent primary closure of the CBD (with no biliary drain), without
+complications. They came to the conclusion that a single stage laparoscopic approach to
+gallbladder/CBD tones is safe and feasible. It may allow the majority of surgeons to avoid
+excessively difficult/dangerous surgical procedures as well as unnecessary ERCPs in most cases.
+A tendency toward a lower incidence of conversions and a rarer use of biliary drains may lead to,
+an improved immediate outcome for patients undergoing a single stage approach.
+
+3)Bansal et al. [6] conducted a prospective randomized trial which compared single stage
+laparoscopic treatment with sequential treatment of CBD stones. 15 patients were randomized
+to each group and the two groups had comparable demographic and clinical profile. In group I
+there was a success rate of 93.5 % in comparison with 86.7 % in group II (p = 0.32, Fisher's exact
+test). The complications were similar in the two groups. The results showed equivalent success
+rate in terms of morbidity and hospital stay. They concluded that laparoscopic approach seems
+to be favorable because of the smaller number of procedures and hospital visits.
+
+4)Chander et al. [13] operated on 150 patients with documented CBD stones. Of these, 4
+patients underwent laparoscopic transcystic exploration of CBD and 146 patients had their CBD
+stones removed through the laparoscopic transcholedochal route. There were 34 men and 116
+women patients with age ranging from 15 to 72 years. The mean size of the CBD on ultrasound
+was 11.7 + 3.7 mm and on MRCP 13.8 + 4.7 mm. The number of stones extracted varied from 1 to
+70 and the size of the extracted stones from 5 to 30 mm. The average duration of surgery was
+139.9 + 26.3 min and the mean intraoperative blood loss was 103.4 + 85.9 ml. There were 6
+conversions to open procedures, 1 postoperative death (0.7 %), and 23 patients (15 %) had
+nonfatal postoperative complications. Three patients had retained stones (2 %) and one
+developed recurrent stone (0.7 %). In their opinion LCBDE when performed by an experienced
+
+
+
+=== PDF Page 10 ===
+
+surgeon results in no additional morbidity or mortality as compared to open surgery, with
+excellent success rates (98 % in this series), and thus specially benefits the subgroup of patients
+with multiple, large, impacted stones in a dilated CBD who were traditionally subjected to open
+exploration.
+
+5)Ahmed et al. [10] compared preoperative versus intraoperative endoscopic sphincterotomy
+for management of CBD stones. 198 patients diagnosed preoperatively with gallbladder and CBD
+stones were eligible. They were randomly divided into two groups: Preoperative endoscopic
+Sphincterotomy (PEST)/LC group (n = 100) and LC/Intraoperative endoscopic Sphincterotomy
+(1OEST) group (n = 98). The operative duration, surgical success rate, number of stone extracted,
+postoperative complications, retained common bile duct stones, and postoperative lengths of
+stay were compared prospectively. There were no statistically significant differences in surgical
+time, surgical success rate, CBD diameter, stone size, or stone number between the two groups.
+The success rate was 95.3 % and 97.8 % for PEST/LC and LC/IOEST, respectively. There were no
+significant difference in postoperative retained stones, surgical time, and complications, but the
+total hospital stay was significantly shorter in the LC/IOEST group. They concluded that
+PEST/LC and LC/1OEST are both good options for dealing with preoperatively diagnosed CBDS,
+but when there is enough experience and facilities, LC/IOEST, as a single-stage treatment, should
+be preferable.
+
+6) Hong et al. [12] compared laparoscopic cholecystectomy combined with intraoperative
+endoscopic sphincterotomy with laparoscopic CBD exploration. For this study, 234 patients with
+cholelithiasis and choledocholithiasis diagnosed by preoperative B-ultrasonography and
+intraoperative cholangiogram were divided at random into an LC-LCBDE group (141cases) and
+an LC-IOEST group (93 cases). There was no difference between the two groups in terms of
+surgical time, surgical success rate, number of stone extractions, postoperative complications,
+retained common bile duct stones, postoperative length of stay, and hospital charge. It was
+concluded that both LC-IOEST and LC-LCBDE were shown to be safe, effective, minimally
+invasive treatments for concomitant gallbladder and CBD stones.
+
+7) Greca et al. [1] reviewed the simultaneous laparoendoscopic rendezvous(RV) for the
+treatment of CBD stones with single stage totally laparoscopic (TL) treatment and sequential
+treatments (ST). Data was collected from 27 papers concerning 795 patients. The overall
+effectiveness of RV was 92.3 %. The morbidity rate was 5.1 %, and the mortality rate was
+
+0.37 %. Almost all the authors were satisfied with the procedure. The authorsâ€™ comparison to ST
+and TL showed that the advantages outweigh the disadvantages mostly related to logistical
+problems. They were of the view that the results are at least comparable with those of the other
+available approaches. The effectiveness of RV is greater with reciprocal implementation of
+surgical and endoscopic procedures. The morbidity and the risk of iatrogenic damage seem
+lower than with ERCP-ES and the risk of residual stones lower than with TL treatment. The RV
+procedure is safe and can sometimes be the preferable option, but collaboration between
+surgeon and endoscopist is mandatory.
+
+
+=== PDF Page 11 ===
+
+AIM AND OBJECTIVES
+AIM-To look at different management methods of biliary stones
+OBJECTIVES-
+1)To find out operative time and conversion rate in lap cholecystectomy in cases of post
+ERCP cleared CBD stones
+2)To assess relationship of operative complications with time gap after ERCP.
+3)To find out which surgical modality was used for CBD stone removal after failed ERCP
+4)To assess the perioperative complication in Lap cholecystectomy in post ERCP cases
+compared with conventional cholecystectomy without ERCP.
+Material and Methods:
+Study Area:
+Patients attending Department of General Surgery, IPGME&R and SSKM Hospital, Kolkata.
+Study population: Patients who presented with biliary stones after ERCP procedure
+Period of study: 2023-2026
+Sample size:100
+Study design: Institution based prospective observational study
+Parameters to be studied:
+a)Demographic characteristics of study population
+b)Symptomatology
+c)Examination findings
+d)Investigation findings
+e)Follow up
+Inclusion criteria:
+1.Patients with biliary stones proven on any imaging modality after ERCP procedure.
+2. Age of patient >18 years
+Exclusion criteria:
+
+
+
+=== PDF Page 12 ===
+
+a. Patient unwilling to take part in the study
+
+b. Patients unfit for surgery due to comorbidities
+
+Plan for analysis:
+
+a) Detailed History. Prospective Data from selected cases will be analyzed by standard statistical tests
+& by the use of software's like SSSP/Epi Info.
+
+b) Clinical Examination.
+
+c) Pathological tests Hematological & Biochemical& Histopathological
+
+d) Radiological tests -USG WHOLE ABDOMEN , MRCP
+
+f) Outcome of surgery in patients undergoing biliary stone management
+
+Standard, appropriate analysis of the observational data in the population under study with the help
+of:
+
+1. HISTORY
+
+2. CLINICAL EXAMINATION
+
+3. INVESTIGATION
+
+4. Histopathological examination
+
+REFERENCES
+
+1. NIH state-of-the-science statement on endoscopic retrograde
+cholangiopancreatography (ERCP) for diagnosis and therapy NIH Consens State
+Sci Statements 2002;19:1-26 [PubMed] [Google Scholar]
+
+2. Everhart JE, Ruhl! CE. Burden of digestive diseases in the United States. Part III:
+liver, biliary tract, and pancreas. Gastroenterology 2009;136:1134-44
+
+[PubMed] [Google Scholar
+
+3. Urbach DR, Stukel TA. Rate of elective cholecystectomy and the incidence of
+severe gallstone disease. CMAJ 2005;172:1015-9 [PMC free
+
+article] [PubMed] [Google Scholar
+
+4. Tse F, Barkun JS, Barkun AN. The elective evaluation of patients with suspected
+choledocholithiasis undergoing laparoscopic cholecystectomy. Gastrointest
+Endosc 2004;60:437-48 [PubMed] [Google Scholar]
+
+
+
+=== PDF Page 13 ===
+
+5. Abboud PA, Malet PF, Berlin JA, et al. Predictors of common bile duct stones
+prior to cholecystectomy: a meta-analysis. Gastrointest Endosc 1996;44:450-5
+[PubMed] [Google Scholar
+
+6. Liu TH, Consorti ET, Kawashima A, et al. Patient evaluation and management
+with selective use of magnetic resonance cholangiography and endoscopic
+retrograde cholangiopancreatography before laparoscopic cholecystectomy. Ann
+Surg 2001;234:33-40 [PMC free article] [PubMed] [Google Scholar]
+
+7. Martin DJ, Vernon DR, Toouli J. Surgical versus endoscopic treatment of bile
+duct stones. Cochrane Database Syst Rev 2006; CD003327. [PubMed] [Google
+Scholar]
+
+8. Jarhult J. Is preoperative evaluation of the biliary tree necessary in
+uncomplicated gallstone disease? Results of a randomized trial. Scand J
+
+Surg 2005;94:31-3 [PubMed] [Google Scholar]
+
+9. Hauer-Jensen M, Karesen R, Nygaard K, et al. Prospective randomized study of
+routine intraoperative cholangiography during open cholecystectomy: long-term
+follow-up and multivariate analysis of predictors of
+
+choledocholithiasis. Surgery 1993;113:318-23 [PubMed] [Google Scholar]
+
+10. Kama NA, Atli M, Doganay M, et al. Practical recommendations for the
+prediction and management of common bile duct stones in patients with
+gallstones. Surg Endosc 2001;15:942-5 [PubMed] [Google Scholar]
+
+11. Onken JE, Brazer SR, Eisen GM, et al. Predicting the presence of
+choledocholithiasis in patients with symptomatic cholelithiasis. Am J
+Gastroenterol 1996;91:762-7 [PubMed] [Google Scholarâ€™
+
+12. Graham SM, Flowers JL, Scott TR, et al. Laparoscopic cholecystectomy and
+common bile duct stones. The utility of planned perioperative endoscopic
+retrograde cholangiography and sphincterotomy: experience with 63
+
+patients. Ann Surg 1993;218:61-7 [PMC free article] [PubMed] [Google Scholar]
+13. Sharma AK, Cherry R, Fielding JW. A randomised trial of selective or routine
+on-table cholangiography. Ann R Coll Surg Engl 1993;75:245-8 [PMC free
+article] [PubMed] [Google Scholar]
+
+14. Huguier M, Bornet P, Charpak Y, et al. Selective contraindications based on
+multivariate analysis for operative cholangiography in biliary lithiasis. Surg
+Gynecol Obstet 1991;172:470-4 [PubMed] [Google Scholar]
+
+15. Barkun AN, Barkun JS, Fried GM, et al. Useful predictors of bile duct stones in
+patients undergoing laparoscopic cholecystectomy. McGill Gallstone Treatment
+Group. Ann Surg 1994;220:32-9 [PMC free article] [PubMed] [Google Scholar
+16. Roston AD, Jacobson IM. Evaluation of the pattern of liver tests and yield of
+cholangiography in symptomatic choledocholithiasis: a prospective
+
+study. Gastrointest Endosc 1997;45:394-9 [PubMed] [Google Scholar]
+
+
+=== PDF Page 14 ===
+
+17. Maple JT, Ben-Menachem T, Anderson MA, et al. The role of endoscopy in the
+evaluation of suspected choledocholithiasis. Gastrointest Endosc 2010;71:1-9
+[PubMed] [Google Scholar
+
+18. Tham TC, Lichtenstein DR, Vandervoort J, et al. Role of endoscopic retrograde
+cholangiopancreatography for suspected choledocholithiasis in patients
+undergoing laparoscopic cholecystectomy. Gastrointest Endosc 1998;47:50-6
+[PubMed] [Google Scholar
+
+19. Williams EJ, Green J, Beckingham I, et al. Guidelines on the management of
+common bile duct stones (CBDS). Gut 2008;57: 1004-21 [PubMed] [Google
+Scholar]
+
+20. Banks PA, Freeman ML. Practice guidelines in acute pancreatitis. Am J
+Gastroenterol 2006;101:2379-400 [PubMed] [Google Scholar
+
+21. American Gastroenterological Association (AGA) Institute on â€œManagement of
+Acute Pancreatitsâ€ Clinical Practice and Economics Committee; AGA Institute
+Governing Board AGA Institute medical position statement on acute
+pancreatitis. Gastroenterology 2007;132:2019-21 [PubMed] [Google Scholar
+22. Gan SI, Rajan E, Adler DG, et al. Role of EUS. Gastrointest
+
+Endosc 2007;66:425-34 [PubMed] [Google Scholar]
+
+23. Adler DG, Baron TH, Davila RE, et al. ASGE guideline: the role of ERCP in
+diseases of the biliary tract and the pancreas. Gastrointest Endosc 2005;62:1-8
+[PubMed] [Google Scholar]
+
+24. Overby DW, Apelgren KN, Richardson W, et al. SAGES guidelines for the
+clinical application of laparoscopic biliary tract surgery. Surg
+
+Endosc 2010;24:2368-86 [PubMed] [Google Scholar]
+
+25. Society for Surgery of the Alimentary Tract SSAT patient care guidelines.
+Treatment of gallstone and gallbladder disease. J Gastrointest
+
+Surg 2007;11:1222-4 [PubMed] [Google Scholar
+
+26. Nagino M, Takada T, Kawarada Y, et al. Methods and timing of biliary drainage
+for acute cholangitis: Tokyo guidelines. J Hepatobiliary Pancreat
+
+Surg 2007;14:68-77 [PMC free article] [PubMed] [Google Scholar]
+
+27. Yumi H. Guidelines for diagnosis, treatment, and use of laparoscopy for
+surgical problems during pregnancy: this statement was reviewed and approved
+by the Board of Governors of the Society of American Gastrointestinal and
+Endoscopic Surgeons (SAGES), September 2007. It was prepared by the SAGES
+Guidelines Committee. Surg Endosc 2008;22:849-61 [PubMed] [Google Scholar]
+28. Schumacher B, Frieling T, Haussinger D, et al. Endoscopic treatment of
+symptomatic choledocholithiasis. Hepatogastroenterology 1998;45:672-6
+[PubMed] [Google Scholar]
+
+
+
+=== PDF Page 15 ===
+
+29. Clayton ES, Connor S, Alexakis N, et al. Meta-analysis of endoscopy and
+surgery versus surgery alone for common bile duct stones with the gallbladder in
+situ. Br J Surg 2006;93:1185-91 [PubMed] [Google Scholar
+
+30. Rabago LR, Vicente C, Soler F, et al. Two-stage treatment with preoperative
+endoscopic retrograde cholangiopancreatography (ERCP) compared with
+single-stage treatment with intraoperative ERCP for patients with symptomatic
+cholelithiasis with possible choledocholithiasis. Endoscopy 2006;38:779-86
+[PubMed] [Google Scholar
+
+31. Morino M, Baracchi F, Miglietta C, et al. Preoperative endoscopic
+sphincterotomy versus laparoendoscopic rendezvous in patients with gallbladder
+and bile duct stones. Ann Surg 2006;244:889-93 [PMC free
+
+article] [PubMed] [Google Scholar]
+
+32. Lella F, Bagnolo F, Rebuffat C, et al. Use of the laparoscopic-endoscopic
+approach, the so-called â€œrendezvousâ€ technique, in cholecystocholedocholithiasis:
+a valid method in cases with patient-related risk factors for post-ERCP
+pancreatitis. Surg Endosc 2006;20:419-23 [PubMed] [Google Scholar
+
+33. Freeman ML, Nelson DB, Sherman Â§, et al. Complications of endoscopic biliary
+sphincterotomy. N Engl J Med 1996;335:909-18 [PubMed] [Google Scholar]
+
+34. Weinberg BM, Shindy W, Lo S. Endoscopic balloon sphincter dilation
+(sphincteroplasty) versus sphincterotomy for common bile duct stones. Cochrane
+Database Syst Rev 2006;CD004890. [PMC free article] [PubMed] [Google Scholar]
+35. Ito Y, Tsujino T, Togawa O, et al. Endoscopic papillary balloon dilation for the
+management of bile duct stones in patients 85 years of age and older. Gastrointest
+Endosc 2008;68:477-82 [PubMed] [Google Scholar
+
+36. DiSario JA. Endoscopic balloon dilation of the sphincter of Oddi for stone
+extraction in the elderly: Is the juice worth the squeeze? Gastrointest
+
+Endosc 2008;68:483-6 [PubMed] [Google Scholar]
+
+37. Baron TH, Harewood GC. Endoscopic balloon dilation of the biliary sphincter
+compared to endoscopic biliary sphincterotomy for removal of common bile duct
+stones during ERCP: a meta-analysis of randomized, controlled trials. Am J
+Gastroenterol 2004;99:1455-60 [PubMed] [Google Scholar
+
+38. Heo JH, Kang DH, Jung HJ, et al. Endoscopic sphincterotomy plus large-balloon
+dilation versus endoscopic sphincterotomy for removal of bile-duct
+
+stones. Gastrointest Endosc 2007;66:720-6 [PubMed] [Google Scholar]
+
+39. Yasuda I, Fujita N, Maguchi H, et al. Long-term outcomes after endoscopic
+sphincterotomy versus endoscopic papillary balloon dilation for bile duct
+
+stones. Gastrointest Endosc 2010;72:1185-91 [PubMed] [Google Scholar]
+
+40. Chopra KB, Peters RA, O'Toole PA, et al. Randomised study of endoscopic
+biliary endoprosthesis versus duct clearance for bileduct stones in high-risk
+patients. Lancet 1996;348:791-3 [PubMed] [Google Scholar
+
+
+
+=== PDF Page 16 ===
+
+41. Katsinelos P, Kountouras J, Paroutoglou G, et al. Combination of
+endoprostheses and oral ursodeoxycholic acid or placebo in the treatment of
+difficult to extract common bile duct stones. Dig Liver Dis 2008; 40:453-9
+[PubMed] [Google Scholar
+
+42. Johnson AG, Hosking SW. Appraisal of the management of bile duct stones. Br
+J Surg 1987;74:555-60 [PubMed] [Google Scholar]
+
+43. Hauer-Jensen M, Karesen R, Nygaard K, et al. Consequences of routine
+peroperative cholangiography during cholecystectomy for gallstone disease: a
+prospective, randomized study. World J Surg 1986; 10:996-1002
+
+[PubMed] [Google Scholar]
+
+44. Murison MS, Gartell PC, McGinn FP. Does selective peroperative
+cholangiography result in missed common bile duct stones? J R Coll Surg
+
+Edinb 1993;38:220-4 [PubMed] [Google Scholar]
+
+45. Soper NJ, Dunnegan DL. Routine versus selective intra-operative
+cholangiography during laparoscopic cholecystectomy. World J
+
+Surg 1992;16:1133-40 [PubMed] [Google Scholar]
+
+46. Khan OA, Balaji S, Branagan G, et al. Randomized clinical trial of routine
+on-table cholangiography during laparoscopic cholecystectomy. Br J
+
+Surg 2011;98:362-7 [PubMed] [Google Scholar]
+
+47. Greiner L, Munks C, Heil W, et al. Gallbladder stone fragments in feces after
+biliary extracorporeal shock-wave lithotripsy. Gastroenterology 1990;98:1620-4
+[PubMed] [Google Scholar]
+
+48. Collins C, Maguire D, Ireland A, et al. A prospective study of common bile duct
+calculi in patients undergoing laparoscopic cholecystectomy: natural history of
+choledocholithiasis revisited. Ann Surg 2004;239:28-33 [PMC free
+
+article] [PubMed] [Google Scholar]
+
+49. Liu CL, Lo CM, Chan JK, et al. EUS for detection of occult cholelithiasis in
+patients with idiopathic pancreatitis. Gastrointest Endosc 2000;51:28-32
+[PubMed] [Google Scholar]
+
+50. Neoptolemos JP, Carr-Locke DL, London NJ, et al. Controlled trial of urgent
+endoscopic retrograde cholangiopancreatography and endoscopic
+sphincterotomy versus conservative treatment for acute pancreatitis due to
+gallstones. Lancet 1988;2:979-83 [PubMed] [Google Scholar]
+
+51. Zhou MQ, Li NP, Lu RD. Duodenoscopy in treatment of acute gallstone
+pancreatitis. Hepatobiliary Pancreat Dis Int 2002;1:608-10 [PubMed] [Google
+Scholar]
+
+52. Acosta JM, Katkhouda N, Debian KA, et al. Early ductal decompression versus
+conservative management for gallstone pancreatitis with ampullary obstruction:
+a prospective randomized clinical trial. Ann Surg 2006;243:33-40 [PMC free
+article] [PubMed] [Google Scholar]
+
+
+=== PDF Page 17 ===
+
+53. FÃ©lsch UR, Nitsche R, Ludtke R, et al. Early ERCP and papillotomy compared
+with conservative treatment for acute biliary pancreatitis. The German Study
+Group on Acute Biliary Pancreatitis. N Engl J Med 1997;336:237-42
+
+[PubMed] [Google Scholar
+
+54. Oria A, Cimmino D, Ocampo C, et al. Early endoscopic intervention versus
+early conservative management in patients with acute gallstone pancreatitis and
+biliopancreatic obstruction: a randomized clinical trial. Ann
+
+Surg 2007;245:10-7 [PMC free article] [PubMed] [Google Scholar]
+
+55. Fan ST, Lai EC, Mok FP, et al. Early treatment of acute biliary pancreatitis by
+endoscopic papillotomy. N Engl J Med 1993;328:228-32 [PubMed] [Google
+Scholar]
+
+56. Kelly TR, Wagner DS. Gallstone pancreatitis: a prospective randomized trial of
+the timing of surgery. Surgery 1988;104:600-5 [PubMed] [Google Scholar]
+
+57. Petrov MS, van Santvoort HC, Besselink MG, et al. Early endoscopic retrograde
+cholangiopancreatography versus conservative management in acute biliary
+pancreatitis without cholangitis: a meta-analysis of randomized trials. Ann
+
+Surg 2008;247:250-7 [PubMed] [Google Scholar]
+
+58. Petrov MS, Uchugina AF, Kukosh MV. Does endoscopic retrograde
+cholangiopancreatography reduce the risk of local pancreatic complications in
+acute pancreatitis? A systematic review and metaanalysis. Surg
+
+Endosc 2008;22:2338-43 [PubMed] [Google Scholar]
+
+59, Kelly TR. Gallstone pancreatitis: the timing of
+
+surgery. Surgery 1980;88:345-50 [PubMed] [Google Scholar]
+
+60. Srinathan SK, Barkun JS, Mehta SN, et al. Evolving management of
+mild-to-moderate gallstone pancreatitis. J Gastrointest Surg 1998;2:385-90
+[PubMed] [Google Scholar]
+
+61. McAlister VC, Davenport E, Renouf E. Cholecystectomy deferral in patients
+with endoscopic sphincterotomy. Cochrane Database Syst
+
+Rev 2007;CD006233. [PMC free article] [PubMed] [Google Scholar]
+
+
+
+=== PDF Page 18 ===
+
+CASE RECORD FORM
+
+TITLE -A CLINICAL STUDY ON POST ERCP BILIARY STONE MANAGEMENT INA
+TERTIARY CARE CENTRE
+
+Date of examination
+
+PATIENT PARTICULARS
+
+a) Name
+
+b) Age
+
+c) Sex
+
+d) Religion
+
+e) Occupation
+
+f) Address
+
+g) Registration no
+
+COMPLAIN WITH DURATION OF PRESENTATION:
+A. Pain abdomen
+
+B. Vomiting
+
+C. Yellowing of skin and sclera
+D. Fever
+
+E. Aggravating factors
+
+Past history
+
+Personal history
+
+Family history
+
+Dietary history
+
+
+
+=== PDF Page 19 ===
+
+Treatment history
+GENERAL EXAMINATION
+Facies
+
+Build and nutrition
+Mental state and intelligence
+Pulse rate
+
+Skin
+
+LOCAL EXAMINATION
+
+1) INSPECTION
+
+a) Shape and contor of abdomen
+b) Umbilicus
+
+c) Skin over abdomen
+
+d) Movements
+
+e) Any scar
+
+f) Any visible lump
+
+2) PALPATION
+
+a) Temperature
+
+b) Tenderness
+
+c) Feel of abdomen
+
+d) Deep palpation
+
+e) Murphyâ€™s sign
+
+f) Palpation of organs
+
+g) Hernia sites
+
+3) PERCUSSION
+
+4) AUSCULTATION
+
+5) INVESTIGATIONS
+
+
+=== PDF Page 20 ===
+
+a) USG
+
+b) MRCP
+
+c) LFT
+
+6) INTRAOPERATIVE FINDINGS
+a) Adhesions
+
+b) stent in situ
+
+c) bile duct
+
+d) cystic duct
+
+e) cystic artery
+
+f) Surgical outcome
+
+7) POST OPERATIVE COMPLICATIONS
+a) bile in ADK
+
+b) blood in ADK
+
+c) Acute pain abdomen
+
+
+
+=== PDF Page 21 ===
+
+SUBJECT INFORMATION BROCHURE
+A CLINICAL STUDY ON POST ERCP BILIARY STONE MANAGEMENT INA
+TERTIARY CARE CENTRE
+
+DEPARTMENT OF GENERAL SURGERY
+INSTITUTE OF POSTGRADUATE MEDICAL EDUCATION AND RESEARCH
+224A and B, A.J.C BOSE ROAD, KOLKATA -700020
+You are being invited to participate in a clinical research study. The following is for you to
+understand why the research is being done and what it will involve. Please take time to read
+it carefully and discuss with friends, relatives and your family doctor if you wish. Please feel
+free to ask us if there is anything that is not clear or if you would like more information. Take
+time to decide whether or not you wish to take part. Please sign the Informed Consent Form
+only if you are fully satisfied with the information given to you and you understand the
+procedure involved the in study.
+*What is the purpose of the study?
+The purpose of the study is to study different methods of management of biliary stones (Gall
+bladder and bile duct )after attempted ERCP procedure for bile duct stone removal that
+includes cholecystectomy for successful ERCP and cholecystectomy with bile duct stone
+removal in failed ERCP and also to observe changes that may occur in operative field after
+ERCP.
+*Why have | been chosen?
+You are going to undergo surgical management and as you have met the inclusion criteria of
+this study.
+*Do | necessarily need to take part?
+No, it is up to you to decide whether or not to take part. If you decide to take part you will
+be asked to sign a consent form. Even after you have decided to take part, you are still free
+to withdraw anytime you choose without giving a reason. A decision to withdraw, ora
+decision not to take part, will not affect the quality of care you receive.
+â€œWhat happens during the study?
+
+
+
+=== PDF Page 22 ===
+
+Once you agree to participate in the study and the doctor is assured that you are going to
+undergo surgery, you will be evaluated through medical history, clinical examination and
+investigation performed as per case record form.
+
+*What do | have to do?
+
+After enrolment, you will have
+
+To answer questionnaire
+
+To undergo treatment here.
+
+To attend follow-up.
+
+*What are the possible benefits of taking part?
+
+This study may not benefit you directly but may help in assessing the post operative
+complications
+
+â€œAre there any possible disadvantages of taking part?
+
+As the study involves history taking & examination there is no predictable hazard except for
+blood withdrawal, having minimal risk of mild pain.
+
+*Will my taking part in this study be kept confidential?
+
+Yes. All data obtained from the study will be kept confidential. The data would be archived
+for an appropriate period. Only authorized persons will use this data for scientific purposes.
+*What will happen to the results of the study?
+
+A study report will be finalized soon after the study closes. This will be submitted to the
+ethics committee of the institute to carry out the study, and also to government authorities
+if needed.
+
+The results may be published in a scientific journal or discussed at a scientific forum. You will
+however, not be identified in any report/publication.
+
+Contact for further information:
+
+The doctors conducting this study can discuss it in more detail with you and reply to any
+query, when it arises. The contact persons are:
+
+Principal Investigator
+
+Dr Kaushiki Maulik, PGT
+
+Department of General Surgery,
+
+SSKM Hospital & IPGMER
+
+
+=== PDF Page 23 ===
+
+fasa quer faeces
+qdius dwere te 4 oiee Sait ha wath water oy we aries HEAT
+_ SITs Bt fast
+atarax farce Ren vd seraerast Weer fava waren faaxietrar
+224u 3 a, Usha ate US, HrosTaT -700020
+aga Ua teria arte Heer Ft set cet & fore se ear ST yer et
+
+far far ener eat ear Sr war niet
+eT | HINT Se Carat S Teet & fore Ga Pract He Bie 3G ae ct ateai, Redan she
+aaa aed & at won ase eae TS we aa aes & fae waa a 3g HT aT
+Hed â‚¬ U1 ael| Sua Bild BEATS wl Uy aa RETEN Ht te HY CaS TAT F
+Qi ate dave at sik seaaa A enter wiser Ht WAST BT
+*HeMTe HI Feel FATE?
+staal ST ze et aol Fr at & fae Uisha & ae Pa
+aha SIR & fae Heiress sy spe Samet F Pa elt Ar geht Hr
+fearon ae
+Het aa Tell aT?
+31 Bisihel Watt B TS SE F HT HI SH eae Baraat AretGst St AT
+ax fers
+a AS Wess STS HT et HT HAAG?
+aÃ©l, Fe HH aa ate & Re sa Aa FS AT AMT Ale 30g st Sat aT fla aa FS aT
+HITS Uap BEA WI TL RECTAL Selet ah FO SET S| HTS GAT ST cet ar FeO
+aa ae Sf, fear afr aa & fae vas F
+ae oat ar eee, aT
+Heat a oa a facta, gat aa are Ceaser Hr Tora Hl ysis ast HLA
+Heat oh Get Fa Bla RP
+
+
+
+=== PDF Page 24 ===
+
+f& arr arett 3 Aetna ABT
+fair a ai ;
+SHS Fa FREE?
+aaa} Se HT OTH BIT
+Weasel Hl Say eat & fre
+Ogi Sos ARE B.
+aga artes A are cet & few,
+*SeT Sal & Hla A FATA?
+Aicoasit ar Heber at A Hag AL Tea
+Â£ sie ;
+df tae F sfaere cat 3k ae axa enfta &, safew wa feet & Herat HIS
+Hea We Al B, Bes ae HL yA SATA BL
+UL Se sea A AL stent Ht arses Lar Sea?
+Pen ST aor Hip Salsa HT SH Scr HT STAT aatetsH SagVaT & fore Het
+*HeATa H acta Hl FAT ET?
+Fees ag Ble RN ae UH He Role at fea wo fea sma SS Hea
+Ars Eas ar sft
+ear se
+Ufone freft denies oer a cerita fav on wane & ar eee dorfets Ae oy Tat Fr
+ST Hapa 8) sroifen, feng aft Rote renter Ff ah Geers aret AY Sesh)
+sities stern & fore aos ae:
+amg aft Wet Foot WL THAT Sa S Wert B| WI afer B:
+wy wes
+st. alfa alien, distr
+sare wait fas,
+ECR HET HH HSMSTAS ITT
+faz Oy TTA
+
+
+
+=== PDF Page 25 ===
+
+oof BAPTA ATA CFE CIPS ZOTAR PPT CO NIECES OIA Iho Ff ere
+soe
+
+CATT TST FSTT
+RaPoEb ae Boas ASA Pres 948 TAT
+224A I B, A.J.C TT ATS, FAFTST-700020
+SUT IHG SPT TTT MSA TATRA Ge STAT ST AER. TTT PT
+FARR IT MS A HSS ASS OANA ot Rei arena aT! Bea eta Ae
+ACTATT ALSTS ASIA GA AT fee Is SAPS BRET TH TMITIOHAT Is SIPTTA TTS
+UISTSS AY SITET SPT) BATT SS Pasa SETA Pea Sava lh ae Fy ATE AT
+"AB AT ST SAA AM SAS OA GA SPAfer aA farce bret Fea wr Brave fice ses fever) Garter
+lh AAS HSA OCIA AL APYATC HPS TF IA TAT TIAGA WI Sow Taher
+FA WAT ORR FITS TARG THis BHO AA FPA
+*TAAT GSoT FHP
+SAS Cor a1 Fs ATA TAA STATA ST ERCP Talos CEI FATA TH Praxis TT
+(TATA o%% Fre aT) TPT Palo Tals SAA SAT ATA AAT HT ERCP IA AT
+cholecystectomy 248 35x ERCP-2 Fs ATA AAA SIATTACHA AM cholecystectomy TESS
+AGE! ERCP-8 TSA AATAlS PHS I AMAIGASH AOS ANE UI TAA SPA
+* Spe a PSS FATA?
+SUA ANAS PATA AST PHT WERT I TAY MAA 13 MSINA TASTES HAAS
+FAT SRA
+*onTTa fe Sores a7 FATS AAP
+A, TT Ce FF CTT AT OT SPAT GAA fA SA SPA ST COATA Fras fat STATE
+osfb ate WEl ASA FAS ST RS) VAS SWAT BT SATA PAS CASITA TAS, CSTE
+PAT BSR SM I IA FAT TOIT FAS WAST! AORTA FATA Pras, TAT AT
+Gis Pals SIA MS ABA STATA TOAS FAS AT
+* SUA AAT St TG?
+SWAT IFAS TAA TAIT FAS TNS WAT IA CIS AIS Wl I SAA AGATA FAS
+TIE, STATS BASS HT SSA, HST TAHT IAs HH AHS BH TATA FAT OSA ATT
+JENA FATA!
+â€œOMe fF SAWS A?
+ARIES TA, SIT AT
+aaa Gea fe
+SAT BES AT FATS AAI
+WET-MCT UTAAA GAY |
+TTA TST PAST St SH?
+
+
+=== PDF Page 26 ===
+
+a8 Seats SPAS HATHA CAPS AG FAW NE OS TAA TATE HOTS FAT
+FRAY FAS A
+* ATTRA TA AST HPSS SCR FR?
+TRY AAAS SMA VT IT TAHT GHGS, CHAT AS TSAI SGT CHAT FATS FIAT
+RS, WAST INA PAST HS AA!
+* 93 NAN SATA SNATRA FF CNA STAT AA?
+Wi THIN CAS MS HAT SA CAT AAT AA GAT AFG CS WIAA TA WASNT Ce
+FAIG. SAAS TAS Aha ASMAS GHC 12 GBI SAA FAST |
+* TSS STS BAA?
+ETRA CY VGA AA MSS IFAS MAA ASTIVA HOTS FAT AA Ifo SAATTT STETA SAT
+RaPoRos Horas SCS Is TATA HAFTAL PY AHA FIR GM CHAT AAI
+WAHAB ISS AGTH HAT THATS I AGHAST SUTIBA FAT AS AE
+FRAT, A ACG / TST STATA PES FAT AS AT
+TAS GAIA HA AINA PPA:
+SRSA WRSHATFTA CISA SPATS AT CS SIS PMS SITS FATS TTT
+S38 CIS AGIA Cea Fite NSA, AAT AAG SET) STENTS SIRE BOTA:
+FATA CASFTAT
+or Prat htt, Ftsie
+SSKM 2791S 148 IPGMER
+INFORMED CONSENT FORM
+A CLINICAL STUDY ON POST ERCP BILLIARY STONE MANAGEMENT IN A
+TERTIARY CARE CENTRE
+Patientâ€™s: Name: sign
+Age: Sex:
+
+1. | confirm that | have read and understood the information sheet for the above study
+
+and have had the opportunity to ask questions []
+
+2. | understand that my participation in the study is voluntary and that | am Free to withdraw
+at any time, without having to give a reason, and Without my medical care or legal rights
+being affected [ ]
+3. |understand that my data would be kept confidential but individuals Authorized by the
+Principal Investigator, the ethics committee of the institute Where the study will be
+conducted and government drug regulatory authority Will have access to my health records
+
+
+
+=== PDF Page 27 ===
+
+both in respect of the current study and further research that may be conducted in relation
+to it. Even if | withdraw, | agree to this access. However, | understand that my identity will
+not be Revealed and confidentiality of information will be maintained
+[ ]
+4. | agree not to restrict the authorized use of any data or results that arise from this study.
+[ ]
+5. | agree to voluntarily take part in the above study [ ]
+Signature / Thumb impression of the subject::
+Date: Place:
+Study doctorâ€™s name:
+Study doctorâ€™s signature: Date: Place:
+Mandatory where subject has provided thumb impression:
+Signature of the witness:
+Date: Place:
+Name & Address of the witness:
+Relation to the subject, if any:

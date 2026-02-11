@@ -1,0 +1,324 @@
+%% ============================================================
+%% MEDICAL THESIS TEMPLATE (Topic-Agnostic)
+%% Compatible with: sskm-thesis.cls (WBUHS) and ssuhs-thesis.cls (SSUHS)
+%% ============================================================
+%%
+%% INSTRUCTIONS:
+%% 1. Choose your university by uncommenting the appropriate \documentclass line
+%% 2. Fill in all metadata fields below with your thesis details
+%% 3. Follow the GOLD Standard Phased Plan for content generation
+%%
+%% COMPILATION:
+%% pdflatex main.tex → bibtex main → pdflatex main.tex → pdflatex main.tex
+%% OR: latexmk -pdf -interaction=nonstopmode main.tex
+%% ============================================================
+
+%% --- UNIVERSITY SELECTION (uncomment ONE) ---
+\documentclass{sskm-thesis}    % IPGMER/SSKM Hospital, WBUHS, Kolkata
+%\documentclass{ssuhs-thesis}  % SMCH/SSUHS, Silchar/Guwahati
+
+%% ============================================================
+%% THESIS METADATA — Fill in ALL fields
+%% ============================================================
+
+%% -------- THESIS TITLE --------
+\thesistitle{[YOUR THESIS TITLE HERE]}
+
+%% -------- CANDIDATE INFORMATION --------
+\candidatename{Dr. [Your Name]}
+\candidatedesignation{Post Graduate Trainee}
+\registrationno{[Registration Number]}
+\academicsession{[Start Year]--[End Year]}
+\studyperiod{[Start Year]--[End Year]}
+
+%% -------- GUIDE/SUPERVISOR --------
+\supervisorname{Prof (Dr.) [Guide Name]}
+\supervisordesignation{[Professor/Associate Professor/Assistant Professor]}
+
+%% -------- CO-GUIDE (uncomment if applicable) --------
+%\cosupervisorname{Dr. [Co-Guide Name]}
+%\cosupervisordesignation{[Designation]}
+%\cosupervisordepartment{[Department if different]}
+
+%% -------- HEAD OF DEPARTMENT --------
+\hodname{Prof (Dr.) [HOD Name]}
+\hoddesignation{Professor and Head of Department}
+
+%% -------- HEAD OF INSTITUTION --------
+%% For SSKM: use \directorname (Director)
+%% For SSUHS: use \principalname (Principal)
+\institutionheadname{[Dr./Prof Name]}
+\institutionheaddesignation{[Director/Principal and Chief Superintendent]}
+
+%% -------- DEPARTMENT AND INSTITUTION --------
+\departmentname{Department of [Your Specialty]}
+%% Institution defaults are set by the cls file; override only if needed:
+%\institutename{[Full Institution Name]}
+%\institutenameshort{[Short Name]}
+%\institutelocation{[City]}
+
+%% -------- UNIVERSITY (defaults set by cls; override only if needed) --------
+%\universityname{[University Name]}
+
+%% -------- DEGREE --------
+\degreename{[M.D./M.S./D.M./M.Ch./M.D.S.]}
+\degreebranch{[Your Specialty/Branch]}
+
+%% -------- SUBMISSION DATE --------
+\submissionmonth{[Month]}
+\submissionyear{[Year]}
+
+%% -------- LOGOS (paths relative to compilation directory) --------
+%% Uncomment and set the appropriate logo path:
+%\universitylogo{logo/wbuhs-logo.pdf}     % For WBUHS
+%\universitylogo{logo/ssuhs-logo.png}     % For SSUHS
+%\institutelogo{logo/sskm-logo.png}       % For SSKM (optional)
+
+%% -------- KEYWORDS (for abstract) --------
+\thesiskeywords{[Keyword 1]; [Keyword 2]; [Keyword 3]; [Keyword 4]; [Keyword 5]}
+
+%% ============================================================
+%% BIBLIOGRAPHY CONFIGURATION — Vancouver Style (MANDATORY)
+%% ============================================================
+\bibliographystyle{vancouver}
+
+%% ============================================================
+%% DOCUMENT BEGINS
+%% ============================================================
+
+\begin{document}
+
+%% ============================================================
+%% FRONT MATTER (NOT NUMBERED)
+%% ============================================================
+
+\frontmatter
+
+%% --- TITLE PAGE (auto-generated from metadata) ---
+\maketitlepage
+
+%% --- DECLARATION BY CANDIDATE ---
+\makedeclaration
+
+%% --- CERTIFICATE FROM GUIDE ---
+\makeguidecertificate
+
+%% --- CERTIFICATE FROM CO-GUIDE (uncomment if applicable) ---
+%\makecoguidecertificate
+
+%% --- CERTIFICATE FROM HOD ---
+\makehodcertificate
+
+%% --- ENDORSEMENT BY HEAD OF INSTITUTION ---
+%% Uses \makedirectorcertificate for SSKM, \makeprincipalcertificate for SSUHS
+%% Both are aliases for the same command — use whichever reads naturally:
+\makeinstitutionheadcertificate
+
+%% --- IEC/IHEC CERTIFICATE (uncomment when available) ---
+%% \newpage\thispagestyle{empty}
+%% \includepdf[pages=-]{annexures/iec_certificate.pdf}
+
+%% --- ACKNOWLEDGEMENTS ---
+\begin{acknowledgements}
+
+%% [[PLACEHOLDER — Phase 1]]
+%% Write your acknowledgements here. Typical order:
+%% 1. Guide/Supervisor
+%% 2. Co-Guide (if applicable)
+%% 3. HOD
+%% 4. Head of Institution
+%% 5. Other faculty
+%% 6. Allied departments
+%% 7. Colleagues
+%% 8. Patients
+%% 9. Family
+
+\end{acknowledgements}
+
+%% --- TABLE OF CONTENTS ---
+\newpage
+\thispagestyle{empty}
+\tableofcontents
+
+%% --- ABSTRACT ---
+\begin{thesis_abstract}
+
+\noindent\textbf{Background:}
+[[PLACEHOLDER — To be completed after Results. Summarise clinical problem and knowledge gap.]]
+
+\vspace{0.3cm}
+\noindent\textbf{Objectives:}
+[[PLACEHOLDER — State primary and key secondary objectives.]]
+
+\vspace{0.3cm}
+\noindent\textbf{Methods:}
+[[PLACEHOLDER — Study design, setting, sample size, key methods.]]
+
+\vspace{0.3cm}
+\noindent\textbf{Results:}
+[[PLACEHOLDER — Key numerical findings.]]
+
+\vspace{0.3cm}
+\noindent\textbf{Conclusion:}
+[[PLACEHOLDER — Main conclusions.]]
+
+\vspace{0.3cm}
+\noindent\textbf{Keywords:} \thesiskeywordstext
+
+\end{thesis_abstract}
+
+%% ============================================================
+%% MAIN MATTER (Arabic numerals starting from Page 1)
+%% ============================================================
+
+\mainmatter
+
+%% ============================================================
+%% CHAPTER 1: INTRODUCTION
+%% ============================================================
+
+\chapter{Introduction}
+\label{chap:introduction}
+
+%% [[PLACEHOLDER — Phase 2]]
+%% Target: 500–750 words, 10–15 references, present tense
+
+%% ============================================================
+%% CHAPTER 2: AIMS AND OBJECTIVES
+%% ============================================================
+
+\chapter{Aims and Objectives}
+\label{chap:aims}
+
+%% [[PLACEHOLDER — Phase 3]]
+%% Target: 150–200 words, present tense, usually no new citations
+
+%% ============================================================
+%% CHAPTER 3: REVIEW OF LITERATURE
+%% ============================================================
+
+\chapter{Review of Literature}
+\label{chap:literature}
+
+%% [[PLACEHOLDER — Phase 4]]
+%% Target: 2500–3500 words, 10–15 pages
+%% MUST end with chronological longtable of all cited works
+
+%% ============================================================
+%% CHAPTER 4: MATERIALS AND METHODS
+%% ============================================================
+
+\chapter{Materials and Methods}
+\label{chap:methodology}
+
+%% [[PLACEHOLDER — Phase 5]]
+%% Target: 1500–2500 words, past tense
+%% FOLLOW SYNOPSIS EXACTLY
+
+%% ============================================================
+%% CHAPTER 5: RESULTS
+%% ============================================================
+
+\chapter{Results}
+\label{chap:results}
+
+%% [[PLACEHOLDER — Phase 6b]]
+%% Tables and figures from R statistical analysis
+
+%% ============================================================
+%% CHAPTER 6: DISCUSSION
+%% ============================================================
+
+\chapter{Discussion}
+\label{chap:discussion}
+
+%% [[PLACEHOLDER — Phase 7]]
+%% Target: 2000–2500 words
+
+%% ============================================================
+%% CHAPTER 7: CONCLUSION
+%% ============================================================
+
+\chapter{Conclusion}
+\label{chap:conclusion}
+
+%% [[PLACEHOLDER — Phase 8]]
+%% Target: 500–750 words, NO new citations
+
+%% ============================================================
+%% LISTS (placement varies by university — these go here for both)
+%% ============================================================
+
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Figures}
+
+\listoftables
+\addcontentsline{toc}{chapter}{List of Tables}
+
+%% --- LIST OF ABBREVIATIONS ---
+\begin{abbreviations}
+%% [[PLACEHOLDER — Phase 11: Generate complete alphabetical list]]
+%% Format: ABBREVIATION & Full Form \\
+\end{abbreviations}
+\addcontentsline{toc}{chapter}{List of Abbreviations}
+
+%% ============================================================
+%% BIBLIOGRAPHY (Vancouver Style)
+%% ============================================================
+
+\backmatter
+\bibliography{references}
+
+%% ============================================================
+%% ANNEXURES
+%% ============================================================
+
+\annexurematter
+
+%% --- ANNEXURE I: IHEC/IEC APPROVAL ---
+\annexurechapter{Institutional Ethics Committee Approval}
+
+%% [[PLACEHOLDER — Include scanned certificate]]
+%% \includepdf[pages=-]{annexures/iec_approval.pdf}
+\begin{center}
+\fbox{\begin{minipage}{0.85\textwidth}
+\vspace{1cm}\centering
+\textbf{\large PLACEHOLDER FOR IEC/IHEC CERTIFICATE}\\[1cm]
+\textit{Insert scanned certificate using:}\\[0.5cm]
+\texttt{\textbackslash includepdf[pages=-]\{annexures/iec\_approval.pdf\}}\\[1cm]
+\end{minipage}}
+\end{center}
+
+%% --- ANNEXURE II: PLAGIARISM CERTIFICATE ---
+\annexurechapter{Plagiarism Certificate}
+
+%% [[PLACEHOLDER — Include Turnitin/iThenticate report]]
+\begin{center}
+\fbox{\begin{minipage}{0.85\textwidth}
+\vspace{1cm}\centering
+\textbf{\large PLACEHOLDER FOR PLAGIARISM CERTIFICATE}\\[1cm]
+\textit{Insert plagiarism report (target: $<$10\% similarity)}\\[1cm]
+\end{minipage}}
+\end{center}
+
+%% --- ANNEXURE III: INFORMED CONSENT FORM ---
+\annexurechapter{Patient Information Sheet and Informed Consent Form}
+
+%% [[PLACEHOLDER — Phase 10]]
+
+%% --- ANNEXURE IV: PROFORMA ---
+\annexurechapter{Data Collection Proforma}
+
+%% [[PLACEHOLDER — Phase 10]]
+
+%% --- ANNEXURE V: MASTER CHART ---
+\annexurechapter{Master Chart}
+
+%% [[PLACEHOLDER — Phase 10]]
+%% \includepdf[pages=-,landscape]{annexures/master_chart.pdf}
+
+%% ============================================================
+%% END OF DOCUMENT
+%% ============================================================
+
+\end{document}
