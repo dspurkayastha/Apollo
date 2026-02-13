@@ -11,11 +11,11 @@ import { describe, it, expect } from "vitest";
  * against the built app. Locally, start `pnpm dev` first.
  */
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+const BASE_URL = process.env.BASE_URL ?? "";
 
-// Skip if no running server
+// Skip if no BASE_URL — these tests require a running dev server
 const describeWithServer =
-  process.env.CI || process.env.TEST_AUTH ? describe : describe.skip;
+  BASE_URL ? describe : describe.skip;
 
 describeWithServer("Auth Tests", () => {
   describe("Unauthenticated requests return 401", () => {
