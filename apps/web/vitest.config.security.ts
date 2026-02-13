@@ -5,7 +5,10 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["tests/security/**/*.test.ts"],
+    include: [
+      "tests/security/rls.test.ts",
+      "tests/security/licence-gates.test.ts",
+    ],
   },
   resolve: {
     alias: {
