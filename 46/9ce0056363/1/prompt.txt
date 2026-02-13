@@ -1,0 +1,756 @@
+Implement the following plan:
+
+# Sprint 2 Implementation Plan
+
+## Context
+
+Sprint 1 delivered the scaffolding: auth (Clerk), DB (15 migrations, 13 tables, RLS), project CRUD, licence management, 5-step setup wizard, R2 upload, landing page, and CI pipeline. Sprint 1-2 combined acceptance criteria require 4 remaining items that Sprint 2 must deliver:
+
+1. **AI synopsis parsing** — Claude API integration (regex parser exists, no AI)
+2. **Compiled title page PDF** — LaTeX compilation pipeline (React preview exists, no LaTeX)
+3. **Compile test** — `pnpm test:compile` for both CLS files
+4. **Schema migration test** — formal validation
+
+---
+
+## Work Packages (ordered by dependency)
+
+### WP1: AI Client Foundation
+**New files:**
+- `lib/ai/client.ts` — Anthropic SDK singleton (`@anthropic-ai/sdk`)
+- `lib/ai/redact.ts` + `redact.test.ts` — PII redaction (phone, Aadhaar, email, PAN)
+- `lib/ai/rate-limit.ts` + `rate-limit.test.ts` — In-memory rate limiter (10/hr student)
+- `lib/ai/prompts.ts` — Synopsis parse + front matter system prompts
+
+**Dependency:** `pnpm add @anthropic-ai/sdk`
+
+### WP2: Sections API (CRUD + Phase Transitions)
+**New files:**
+- `lib/phases/constants.ts` — Phase map (0-11 names/labels)
+- `lib/phases/transitions.ts` + `transitions.test.ts` — `canAdvancePhase()` logic
+- `lib/validation/section-schemas.ts` — Zod schemas for section ops
+- `app/api/projects/[id]/sections/route.ts` — GET list
+- `app/api/projects/[id]/sections/[phase]/route.ts` — GET/PUT single section
+- `app/api/projects/[id]/sections/[phase]/approve/route.ts` — POST approve (409 invalid transition, 402 licence required)
+
+### WP3: AI Synopsis Parsing (Phase 0 Generate)
+**New files:**
+- `app/api/projects/[id]/sections/[phase]/generate/route.ts` — POST SSE streaming endpoint
+- `lib/ai/parse-synopsis-response.ts` — Extract structured JSON from Claude output
+
+**Flow:** Auth → rate limit → PII redact synopsis → Claude Sonnet 4.5 stream → parse response → update project metadata + section → set section status to `review`
+
+**Depends on:** WP1, WP2
+
+### WP4: Docker LaTeX Service
+**New files:**
+- `docker/Dockerfile.latex` — TeX Live 2025 container
+- `docker/compile.sh` — Entrypoint (pdflatex → bibtex → pdflatex × 2)
+- `docker/docker-compose.yml` — Local dev compose (web + latex)
+- `docker/watermark.sh` — Ghostscript watermark overlay for sandbox
+
+**Isolation:** `--network=none`, `--read-only`, `--tmpfs /tmp`, `--memory=1g`, 120s timeout
+
+### WP5: Compile API Endpoint
+**New files:**
+- `lib/latex/escape.ts` + `escape.test.ts` — LaTeX special char escaping
+- `lib/latex/generate-tex.ts` + `generate-tex.test.ts` — Populate main.tex template with project metadata
+- `lib/latex/compile.ts` — Docker execution wrapper (`LATEX_COMPILE_MODE`: docker/local/mock)
+- `lib/latex/parse-log.ts` + `parse-log.test.ts` — Extract warnings/errors from .log
+- `app/api/projects/[id]/compile/route.ts` — POST trigger compilation
+- `app/api/projects/[id]/preview.pdf/route.ts` — GET signed URL to latest PDF
+
+**Depends on:** WP4, WP2
+
+### WP6: Front Matter Generation (Phase 1)
+**New files:**
+- `lib/latex/front-matter.ts` + `front-matter.test.ts` — Generate front matter LaTeX from metadata
+
+**On Phase 0 approval:** Auto-create Phase 1 section with front matter LaTeX, trigger compilation for preview
+
+**Depends on:** WP2, WP5
+
+### WP7: Phase Navigation UI
+**New files:**
+- `components/project/phase-stepper.tsx` — 12-phase visual stepper
+- `components/project/section-viewer.tsx` — Section content + status badge
+- `components/project/compile-button.tsx` — Trigger compilation
+- `components/project/licence-banner.tsx` — "Attach licence to continue" prompt
+- `components/project/ai-generate-button.tsx` — Trigger AI generation with SSE
+- `hooks/use-sse.ts` — Custom SSE streaming hook
+
+**Modify:** `app/(dashboard)/projects/[id]/page.tsx` — Replace placeholder with phase stepper + section viewer
+
+**Depends on:** WP2, WP5
+
+### WP8: Tests, CI, Cleanup
+**New files:**
+- `tests/compile.test.ts` — Compile both CLS files (0 errors, ≤20 warnings)
+
+**Modify:**
+- `.github/workflows/ci.yml` — Uncomment compile-test job (lines 134-173)
+- `.env.example` — Add `LATEX_COMPILE_MODE`
+- `package.json` — Add `test:compile` script
+- `agent-guidance/lessons.md` — Document Clerk deviation, SSE pattern, Docker workflow
+
+---
+
+## Execution Order
+
+```
+WP1 (AI Client) ──────────┐
+                           ├──→ WP3 (AI Parsing) ──→ WP6 (Front Matter)
+WP2 (Sections API) ───────┤                              │
+                           ├──→ WP7 (Phase UI) ←──────────┘
+WP4 (Docker LaTeX) ───────┤
+                           ├──→ WP5 (Compile API) ──→ WP8 (Tests/CI)
+```
+
+**Parallel tracks:** WP1+WP4 (no dependencies), then WP2, then WP3+WP5 (parallel), then WP6+WP7, finally WP8.
+
+---
+
+## Key Patterns to Follow
+
+- **API routes:** Follow existing pattern in `app/api/projects/[id]/route.ts` (auth → validate → query → standard error schema)
+- **Error responses:** Use builders from `lib/api/errors.ts` (`unauthorised()`, `conflict()`, `licenceRequired()`)
+- **Auth:** `getAuthenticatedUser()` from `lib/api/auth.ts` (Clerk + Supabase)
+- **Types:** Extend `lib/types/database.ts` for new interfaces
+- **Validation:** Zod schemas in `lib/validation/`
+- **Template:** `templates/main.tex` uses `\renewcommand` fields — `generate-tex.ts` populates these
+
+## Verification
+
+1. `pnpm lint && pnpm type-check` — zero errors
+2. `pnpm test` — unit tests pass (AI redaction, rate limit, LaTeX escape, log parser, phase transitions, front matter)
+3. `pnpm test:security` — RLS + licence gate tests still green
+4. `pnpm test:compile` — both CLS files compile with 0 errors, ≤20 warnings
+5. Manual: create project → upload synopsis → AI parses → review metadata → approve Phase 0 → front matter generated → compile → view watermarked PDF
+6. Manual: attach licence → approve Phase 1 → Phase 2 transition succeeds
+7. CI pipeline green on all jobs (lint, type-check, unit, security, compile)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.claude/projects/-Users-devs-Downloads-Apollo/3780ce70-8757-463e-8da8-0b8ebc50a437.jsonl
+
+---
+
+<task-notification>
+<task-id>a645061</task-id>
+<status>completed</status>
+<summary>Agent "Explore existing codebase patterns" completed</summary>
+<result>Perfect! Now let me compile a comprehensive summary of all the key patterns and files for Sprint 2 implementation.
+
+## Apollo Codebase Exploration - Complete Pattern Reference
+
+Based on my thorough exploration of the Apollo codebase, here's the comprehensive understanding of existing patterns for Sprint 2 implementation:
+
+---
+
+### 1. API ROUTE PATTERNS
+
+**Standard pattern location**: `/Users/devs/Downloads/Apollo/apps/web/app/api/`
+
+**Example: GET endpoint** (`/api/projects/route.ts` and `/api/projects/[id]/route.ts`):
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/api/auth";
+import { unauthorised, notFound, internalError } from "@/lib/api/errors";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authResult = await getAuthenticatedUser();
+  if (!authResult) return unauthorised();
+  
+  const { id } = await params;
+  const supabase = await createServerSupabaseClient();
+  
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", id)
+    .single();
+  
+  if (error || !project) {
+    return notFound("Project not found");
+  }
+  
+  return NextResponse.json({ data: project });
+}
+```
+
+**Standard pattern for POST** (create/update):
+- Validate with Zod schema via `.safeParse()`
+- Return validation errors with `validationError()` including field-level details
+- Check auth first, then validate input, then execute database operation
+- Return 201 for successful creates, 200 for updates
+
+**Standard pattern for DELETE**:
+- Don't physically delete; update `status` to "archived"
+- Return the updated resource
+
+**Existing endpoints**:
+- `GET /api/projects` — list all user projects
+- `POST /api/projects` — create new project (title, university_type required)
+- `GET /api/projects/[id]` — fetch one project
+- `PATCH /api/projects/[id]` — update project metadata
+- `DELETE /api/projects/[id]` — archive project
+- `GET /api/licenses` — list user's licenses
+- `POST /api/licenses/[lid]/attach/[pid]` — attach license to project (transitions sandbox→licensed)
+- `POST /api/upload/signed-url` — get R2 signed upload URL
+
+---
+
+### 2. AUTH PATTERN
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/api/auth.ts`
+
+```typescript
+import { auth } from "@clerk/nextjs/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import type { User } from "@/lib/types/database";
+
+export async function getAuthenticatedUser(): Promise<{
+  user: User;
+  clerkUserId: string;
+} | null> {
+  const { userId } = await auth();
+  if (!userId) return null;
+
+  const supabase = createAdminSupabaseClient();
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("clerk_user_id", userId)
+    .single();
+
+  if (error || !user) return null;
+
+  return { user: user as User, clerkUserId: userId };
+}
+```
+
+**Usage**: Call in every API route as first check. Uses Clerk for sign-in/sign-up flow, with user profile synced to Supabase via Clerk webhook.
+
+---
+
+### 3. ERROR RESPONSE BUILDERS
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/api/errors.ts`
+
+All return standardized error envelopes:
+```typescript
+{
+  error: {
+    code: string,
+    message: string,
+    details?: Record<string, unknown>
+  }
+}
+```
+
+**Available helpers** (all return NextResponse):
+- `unauthorised(message?)` → 401
+- `forbidden(message?)` → 403
+- `notFound(message?)` → 404
+- `licenceRequired(message?)` → 402
+- `validationError(message, details?)` → 400
+- `conflict(message)` → 409
+- `rateLimited(retryAfterSeconds)` → 429
+- `badRequest(message)` → 400
+- `internalError(message?)` → 500
+
+**Error codes** (in `lib/types/api.ts`):
+- UNAUTHORISED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, LICENCE_REQUIRED, RATE_LIMITED, CONFLICT, PAYMENT_REQUIRED, INTERNAL_ERROR, BAD_REQUEST, SERVICE_UNAVAILABLE
+
+---
+
+### 4. DATABASE TYPES
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/types/database.ts`
+
+**Core types**:
+- `Organisation` — university type, CLS config, logo URLs
+- `User` — clerk_user_id, email, name, role ("student"|"supervisor"|"admin"), organisation_id
+- `ThesisLicence` — plan_type, status, identity hashes, activation dates
+- `Project` — user_id, status ("sandbox"|"licensed"|"completed"|"archived"), license_id, title, synopsis_text, study_type, university_type, metadata_json, current_phase, phases_completed[]
+- `Section` — project_id, phase_number, phase_name, latex_content, word_count, citation_keys[], status, ai_conversation_id
+- `Citation` — project_id, cite_key, bibtex_entry, provenance_tier ("A"|"B"|"C"|"D"), evidence_type, source_doi, source_pmid, serial_number
+- `Dataset` — project_id, file_url, row_count, columns_json
+- `Analysis` — project_id, dataset_id, analysis_type, parameters_json, results_json, figures_urls, r_script, status
+- `Figure` — project_id, section_id, figure_type, source_tool ("ggplot2"|"mermaid"|"tikz"|"upload"), caption, label, width_pct, dpi, format
+- `ComplianceCheck` — project_id, guideline_type ("CONSORT"|"STROBE"|"PRISMA"|"STARD"|"CARE"), checklist_json
+- `Compilation` — project_id, status, pdf_url, log_text, warnings, errors, compile_time_ms
+- `AiConversation` — project_id, phase_number, messages_json, model_used, total_tokens
+- `AuditLog` — user_id, project_id, action, entity_type, entity_id, old_value_json, new_value_json, ip_address
+
+**ProjectMetadata** (JSON field):
+```typescript
+{
+  candidate_name?: string;
+  guide_name?: string;
+  hod_name?: string;
+  department?: string;
+  degree?: string;
+  speciality?: string;
+  registration_no?: string;
+  session?: string;
+  year?: string;
+  supervisor_user_id?: string;
+}
+```
+
+---
+
+### 5. VALIDATION SCHEMAS
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/validation/schemas.ts`
+
+```typescript
+export const projectCreateSchema = z.object({
+  title: z.string().min(1, "Title is required").max(500),
+  university_type: z.enum(["wbuhs", "ssuhs", "generic"]),
+});
+
+export const projectMetadataSchema = z.object({
+  candidate_name: z.string().max(200).optional(),
+  guide_name: z.string().max(200).optional(),
+  hod_name: z.string().max(200).optional(),
+  department: z.string().max(200).optional(),
+  degree: z.string().max(100).optional(),
+  speciality: z.string().max(200).optional(),
+  registration_no: z.string().max(50).optional(),
+  session: z.string().max(50).optional(),
+  year: z.string().max(10).optional(),
+});
+
+export const projectUpdateSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  synopsis_text: z.string().optional(),
+  study_type: z.string().max(100).optional(),
+  university_type: z.enum(["wbuhs", "ssuhs", "generic"]).optional(),
+  metadata_json: projectMetadataSchema.optional(),
+});
+```
+
+**Pattern**: Use `safeParse()` in API routes, return validation errors with Zod's `flatten().fieldErrors`.
+
+---
+
+### 6. SUPABASE CLIENT SETUP
+
+**Client-side** (`lib/supabase/client.ts`):
+```typescript
+import { createClient } from "@supabase/supabase-js";
+import { useSession } from "@clerk/nextjs";
+
+let clientInstance: ReturnType<typeof createClient> | null = null;
+
+export function useSupabaseClient() {
+  const { session } = useSession();
+  if (!clientInstance) {
+    clientInstance = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { async accessToken() { return (await session?.getToken()) ?? null; } }
+    );
+  }
+  return clientInstance;
+}
+```
+
+**Server-side** (`lib/supabase/server.ts`):
+```typescript
+import { createClient } from "@supabase/supabase-js";
+import { auth } from "@clerk/nextjs/server";
+
+export async function createServerSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  
+  if (!supabaseUrl || !supabaseKey) {
+    // Return dummy client for non-configured environments
+    return { ... } as unknown as ReturnType<typeof createClient>;
+  }
+
+  return createClient(supabaseUrl, supabaseKey, {
+    async accessToken() {
+      return (await auth()).getToken() ?? null;
+    },
+  });
+}
+```
+
+**Admin** (`lib/supabase/admin.ts`):
+```typescript
+export function createAdminSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
+```
+
+**Pattern**: Use server client in API routes, admin in webhooks/crons. Never use admin in client code.
+
+---
+
+### 7. PROJECT PAGE EXAMPLE
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/app/(dashboard)/projects/[id]/page.tsx`
+
+```typescript
+export const dynamic = "force-dynamic";
+
+export default async function ProjectDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) {
+    notFound();
+  }
+
+  const project = data as Project;
+  const metadata = project.metadata_json ?? {};
+  
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{project.title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={projectStatusClasses(project.status)}>
+              {project.status}
+            </span>
+            <span>Phase {project.current_phase}</span>
+            <span>Updated {relativeTime(project.updated_at)}</span>
+          </div>
+        </div>
+        {project.current_phase === 0 && (
+          <Link href={`/projects/${project.id}/setup`} className="...">
+            Continue Setup
+          </Link>
+        )}
+      </div>
+      
+      {/* Show metadata if available */}
+      {/* Show editor placeholder */}
+    </div>
+  );
+}
+```
+
+**Patterns**:
+- Server component by default (no "use client")
+- Use `params: Promise<{ id: string }>` (Next.js 15 pattern)
+- Set `export const dynamic = "force-dynamic"` for dynamic pages
+- Call `notFound()` on missing resource
+- Type cast data as `Project` after type guard
+
+---
+
+### 8. LATEX TEMPLATES
+
+**File**: `/Users/devs/Downloads/Apollo/templates/main.tex`
+
+**Structure**:
+- Metadata section (thesis title, candidate name, guide, HOD, department, etc.)
+- Front matter: title page, declaration, certificates, acknowledgements, TOC, abstract
+- Main matter: Chapters 1-7 (Introduction, Aims, Review of Literature, Materials & Methods, Results, Discussion, Conclusion)
+- Appendices: IEC approval, plagiarism, consent form, proforma, master chart
+- Bibliography: Vancouver style
+
+**University-specific classes**:
+- `sskm-thesis.cls` (WBUHS, Kolkata) — uses `\directorname` for institution head, bottom-centre page numbers
+- `ssuhs-thesis.cls` (SSUHS, Assam) — uses `\principalname`, bottom-right page numbers with dept footer
+
+**Harmonised 50+ command API**:
+- Metadata: `\thesistitle{}`, `\candidatename{}`, `\supervisorname{}`, `\hodname{}`, `\directorname{}` (SSKM) or `\principalname{}` (SSUHS)
+- Front matter: `\maketitlepage`, `\makedeclaration`, `\makeguidecertificate`, `\makehodcertificate`, `\makeinstitutionheadcertificate`
+- Main: `\chapter{...}` with LaTeX content
+- Back: `\bibliography{references}`
+
+**Critical lesson**: Use `\renewcommand{\variablenametext}{#1}` NOT `\def\@variable` (causes certificate truncation).
+
+---
+
+### 9. PACKAGE.JSON SCRIPTS AND DEPENDENCIES
+
+**Key scripts** (in `/Users/devs/Downloads/Apollo/apps/web/package.json`):
+```json
+{
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:security": "vitest run --config vitest.config.security.ts",
+    "test:rls": "vitest run --config vitest.config.security.ts tests/security/rls.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  }
+}
+```
+
+**Key dependencies**:
+- Next.js 15, React 19, TypeScript
+- @clerk/nextjs (auth)
+- @supabase/supabase-js (database)
+- Tailwind CSS + shadcn/ui components
+- React Hook Form + Zod (forms)
+- @aws-sdk/client-s3 + presigner (R2)
+- sonner (toast notifications)
+
+**Package manager**: pnpm (NOT npm, NOT yarn)
+
+---
+
+### 10. TEST PATTERNS
+
+**Test configuration** (`vitest.config.ts`):
+```typescript
+export default defineConfig({
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./tests/setup.ts"],
+    include: ["**/*.test.ts", "**/*.test.tsx"],
+    exclude: ["**/node_modules/**", "**/tests/security/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      thresholds: { statements: 60, branches: 60, functions: 60, lines: 60 },
+    },
+  },
+  resolve: { alias: { "@": path.resolve(__dirname, ".") } },
+});
+```
+
+**Unit test example** (`tests/example.test.ts`):
+```typescript
+import { describe, it, expect } from "vitest";
+
+describe("Apollo Web", () => {
+  it("should pass a smoke test", () => {
+    expect(true).toBe(true);
+  });
+  
+  it("should have required environment variables defined", () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    expect(typeof url).toBe("string");
+  });
+});
+```
+
+**RLS test pattern** (`tests/security/rls.test.ts`):
+- Uses admin Supabase client (service role key) to set up test data
+- Tests access control between users
+- Skips if SUPABASE_URL or SERVICE_ROLE_KEY not set
+- Runs against real Supabase instance (not mocked)
+
+**Auth test pattern** (`tests/security/auth.test.ts`):
+- Requires running dev server (BASE_URL env var)
+- Tests that unauthenticated requests return 401
+- Tests that webhook endpoint (Clerk) does not require auth
+
+---
+
+### 11. ENVIRONMENT VARIABLES
+
+**File**: `/Users/devs/Downloads/Apollo/.env.example`
+
+```bash
+# Clerk Auth
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
+CLERK_SECRET_KEY=sk_test_xxx
+CLERK_WEBHOOK_SECRET=whsec_xxx
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+REDACTED
+REDACTED
+
+# Cloudflare R2
+R2_ACCOUNT_ID=your-account-id
+R2_ACCESS_KEY_ID=your-access-key
+R2_SECRET_ACCESS_KEY=your-secret-key
+R2_BUCKET_NAME=apollo-files
+
+# Claude API
+REDACTED
+
+# Payments (Sprint 9-10)
+# RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, STRIPE_SECRET_KEY, etc.
+
+# Email (Sprint 9-10)
+# RESEND_API_KEY
+
+# Monitoring
+# NEXT_PUBLIC_SENTRY_DSN, NEXT_PUBLIC_POSTHOG_KEY
+```
+
+**For development**: Copy `.env.example` → `.env.local` (git-ignored), fill in real values. Never commit `.env.local`.
+
+---
+
+### 12. CI WORKFLOW
+
+**File**: `/Users/devs/Downloads/Apollo/.github/workflows/ci.yml`
+
+**Pipeline**:
+1. Lint & Type Check (ESLint, TypeScript)
+2. Unit Tests (Vitest with Supabase credentials)
+3. Security Tests (RLS + auth tests, if BASE_URL set)
+4. (Commented out) LaTeX compile test, E2E tests (for future sprints)
+
+**Requirements**:
+- All tests must pass before merge to main
+- CI runs on every PR and push to main
+- Secrets (SUPABASE_URL, SUPABASE_ANON_KEY, etc.) via GitHub Actions secrets
+
+---
+
+### 13. COMPONENTS ARCHITECTURE
+
+**Directory**: `/Users/devs/Downloads/Apollo/apps/web/components/`
+
+**Existing components**:
+- `wizard/setup-wizard.tsx` — multi-step form for project setup
+- `wizard/steps/*` — university, synopsis, metadata, title page preview
+- `upload/file-uploader.tsx` — CSV/Excel/PDF upload
+- `preview/title-page-preview.tsx` — HTML preview of title page
+- `licences/attach-dialog.tsx` — dialog to attach license to project
+- `layout/app-sidebar.tsx`, `dashboard-header.tsx` — dashboard layout
+- `ui/*` — shadcn/ui components (button, input, accordion, etc.)
+
+**Pattern**: Colocate components near usage. Only move to `components/` when shared across 3+ files.
+
+---
+
+### 14. AGENT GUIDANCE FILES
+
+All files in `/Users/devs/Downloads/Apollo/agent-guidance/`:
+
+**rules.md** — Non-negotiable rules:
+1. Read before writing
+2. Plan file is source of truth
+3. No secrets in code
+4. British English everywhere
+5. No over-engineering
+6. Security by default
+7. Code review checklist before every commit
+
+**code-standards.md** — TypeScript, React, API, testing standards:
+- Strict mode: no `any` types
+- Server Components by default
+- Tailwind CSS only, no inline styles
+- API routes: follow standard pattern with error schema
+- RLS does tenant isolation (no `WHERE user_id = ...` needed)
+- Vitest for unit tests, colocate test files
+
+**workflow.md** — Sprint cycle, branching, deployment:
+- Branch naming: `sprint-N/short-description`
+- Commit messages: imperative, reference sprint
+- Test commands: `pnpm test`, `pnpm test:security`, etc.
+- Deployment: git push → Coolify webhook → Docker build
+
+**lessons.md** — Known issues and patterns:
+- LaTeX: DOI underscores crash vancouver.bst (strip or escape)
+- LaTeX: Use `\renewcommand{\variablenametext}{}` not `\def\@variable` (scoping bug)
+- Citation: Bidirectional integrity (every cite key has bib entry, every bib entry cited)
+- Synopsis: Single source of truth for entire downstream pipeline
+- Docker: Isolation essential (no network, read-only FS except /tmp, memory/timeout limits)
+
+---
+
+### 15. DATABASE SCHEMA PATTERNS (from PLAN.md)
+
+**Multi-tenancy**:
+- `organisations` — university type, CLS config, logos
+- `users` — clerk_user_id foreign key, role, organisation_id
+
+**Thesis lifecycle**:
+- `projects`: status "sandbox" (no license) → "licensed" (license attached) → "completed" → "archived"
+- `thesis_licenses`: status "available" → "active" → "expired" | "transferred"
+  - Phase 1→2 requires license; sets `identity_locked_at` (prevents metadata changes)
+  - Identity fields: `candidate_name_hash`, `registration_no_hash`, `guide_name_hash` (SHA-256)
+
+**Phased content**:
+- `sections`: one per phase, stores LaTeX content + word count + citation keys
+- `ai_conversations`: tracks Claude messages per phase (for context + cost tracking)
+
+**Citation tiers**:
+- Tier A: DOI/PMID auto-resolved, `verified_at` set, `attested_by_user_id` null
+- Tier B: ISBN/URL, student confirms (`attested_by_user_id` + `attested_at` set)
+- Tier C: manual, student provides
+- Tier D: unresolvable, blocks Final QC only
+
+**File storage**:
+- `datasets`: CSV/Excel uploads to R2, tracked in DB
+- `figures`: ggplot2/mermaid/tikz output stored as PNG/PDF in R2
+- `compilations`: PDF outputs + LaTeX logs in R2
+
+---
+
+### KEY ARCHITECTURAL INSIGHTS FOR SPRINT 2
+
+1. **Auth flow**: Clerk (frontend sign-in) → Supabase webhook syncs user to DB → Clerk JWT used for Supabase RLS
+2. **Error handling**: All API routes return standardized `{ error: { code, message, details } }` envelope
+3. **Tenant isolation**: RLS policies on every table (not handled by application code)
+4. **Validation**: Zod schemas in `lib/validation/`, API routes use `.safeParse()` with field-level error flattening
+5. **File storage**: R2 via AWS SDK, signed URLs generated server-side (5-min write, 15-min read)
+6. **UI**: Tailwind + shadcn/ui components, server components by default
+7. **Testing**: Vitest for unit tests (colocated), separate security test config for RLS/auth tests
+8. **LaTeX**: Two CLS files with harmonised 50+ command API — switch via `\documentclass` only
+9. **Deployment**: Single Hetzner VPS (CX23, ~$4/mo) with docker-compose, Coolify for git-push deploys
+
+This comprehensive reference should enable efficient implementation of Sprint 2 features while adhering to all established patterns and security best practices.</result>
+<usage>total_tokens: 78888
+tool_uses: 61
+duration_ms: 92454</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a645061.output
+
+---
+
+do all tests
+
+---
+
+do a gap analysis with the PLAN for any pending features?
+
+---
+
+lets check this locallly
+
+---
+
+<task-notification>
+<task-id>b8f80c8</task-id>
+<output-file>REDACTED.output</output-file>
+<status>completed</status>
+<summary>Background command "Start Next.js dev server in background" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+so I can commit this

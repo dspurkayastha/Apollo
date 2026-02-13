@@ -1,16 +1,16 @@
 {
   "cli_version": "0.4.4",
   "checkpoint_id": "469ce0056363",
+  "session_id": "34d7c1bc-d06e-41a2-83d5-b0e346fa6eb5",
   "strategy": "manual-commit",
+  "created_at": "2026-02-13T13:18:20.104771Z",
   "branch": "thesis-gen-saas",
-  "checkpoints_count": 5,
+  "checkpoints_count": 3,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
-    ".mcp.json",
     "agent-guidance/lessons.md",
     "apps/web/.env.example",
-    "apps/web/.gitignore",
     "apps/web/app/(dashboard)/projects/[id]/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
     "apps/web/app/api/projects/[id]/compile/route.ts",
@@ -47,37 +47,27 @@
     "apps/web/lib/validation/section-schemas.ts",
     "apps/web/package.json",
     "apps/web/tests/compile.test.ts",
-    "apps/web/tests/security/auth.test.ts",
-    "apps/web/tests/security/licence-gates.test.ts",
-    "apps/web/tests/security/rls.test.ts",
-    "apps/web/vitest.config.security.ts",
-    "apps/web/vitest.config.ts",
     "docker/Dockerfile.latex",
     "docker/compile.sh",
     "docker/docker-compose.yml",
     "docker/watermark.sh"
   ],
-  "sessions": [
-    {
-      "metadata": "/46/9ce0056363/0/metadata.json",
-      "transcript": "/46/9ce0056363/0/full.jsonl",
-      "context": "/46/9ce0056363/0/context.md",
-      "content_hash": "/46/9ce0056363/0/content_hash.txt",
-      "prompt": "/46/9ce0056363/0/prompt.txt"
-    },
-    {
-      "metadata": "/46/9ce0056363/1/metadata.json",
-      "transcript": "/46/9ce0056363/1/full.jsonl",
-      "context": "/46/9ce0056363/1/context.md",
-      "content_hash": "/46/9ce0056363/1/content_hash.txt",
-      "prompt": "/46/9ce0056363/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
   "token_usage": {
-    "input_tokens": 266,
-    "cache_creation_tokens": 545581,
-    "cache_read_tokens": 20461677,
-    "output_tokens": 35932,
-    "api_call_count": 218
-  }
+    "input_tokens": 134,
+    "cache_creation_tokens": 254995,
+    "cache_read_tokens": 12062746,
+    "output_tokens": 28340,
+    "api_call_count": 116
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-13T13:18:18.782997Z",
+    "agent_lines": 3308,
+    "human_added": 32,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 3340,
+    "agent_percentage": 99.04191616766467
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/34d7c1bc-d06e-41a2-83d5-b0e346fa6eb5.jsonl"
 }
