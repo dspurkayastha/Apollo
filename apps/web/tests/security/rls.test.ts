@@ -16,10 +16,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * They should be run in CI with test credentials.
  */
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
 
-// Skip if no Supabase credentials (local dev without DB)
+// Skip if no Supabase credentials (local dev without DB or CI without secrets)
 const describeWithDb =
   SUPABASE_URL && SERVICE_ROLE_KEY ? describe : describe.skip;
 
