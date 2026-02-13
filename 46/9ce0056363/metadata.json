@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "469ce0056363",
+  "strategy": "manual-commit",
+  "branch": "thesis-gen-saas",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".mcp.json",
+    "apps/web/.gitignore",
+    "apps/web/package.json",
+    "apps/web/tests/security/auth.test.ts",
+    "apps/web/tests/security/licence-gates.test.ts",
+    "apps/web/tests/security/rls.test.ts",
+    "apps/web/vitest.config.security.ts",
+    "apps/web/vitest.config.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/46/9ce0056363/0/metadata.json",
+      "transcript": "/46/9ce0056363/0/full.jsonl",
+      "context": "/46/9ce0056363/0/context.md",
+      "content_hash": "/46/9ce0056363/0/content_hash.txt",
+      "prompt": "/46/9ce0056363/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 132,
+    "cache_creation_tokens": 290586,
+    "cache_read_tokens": 8398931,
+    "output_tokens": 7592,
+    "api_call_count": 102
+  }
+}

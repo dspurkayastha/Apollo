@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "469ce0056363",
+  "session_id": "3780ce70-8757-463e-8da8-0b8ebc50a437",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-13T13:18:06.800199Z",
+  "branch": "thesis-gen-saas",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".mcp.json",
+    "apps/web/.gitignore",
+    "apps/web/package.json",
+    "apps/web/tests/security/auth.test.ts",
+    "apps/web/tests/security/licence-gates.test.ts",
+    "apps/web/tests/security/rls.test.ts",
+    "apps/web/vitest.config.security.ts",
+    "apps/web/vitest.config.ts"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 132,
+    "cache_creation_tokens": 290586,
+    "cache_read_tokens": 8398931,
+    "output_tokens": 7592,
+    "api_call_count": 102
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-13T13:18:04.637641Z",
+    "agent_lines": 31,
+    "human_added": 3285,
+    "human_modified": 24,
+    "human_removed": 0,
+    "total_committed": 3340,
+    "agent_percentage": 0.9281437125748504
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/3780ce70-8757-463e-8da8-0b8ebc50a437.jsonl"
+}

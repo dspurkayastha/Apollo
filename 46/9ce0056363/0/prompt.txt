@@ -1,0 +1,53 @@
+check the codebase and give me a status report
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+use subagents for parallal tasking unless i specifically ask you not to
+
+---
+
+proceed with both
+
+---
+
+How many branches now? did you laready oush thesis-gen-cli-saas onto main, did you create a new main?
+
+---
+
+whats the diff between main and thesis-gen-saas?
+
+---
+
+yes
+
+---
+
+check the previous commit CI on gh, is it green?
+
+---
+
+now check for a new service called entire.io, and enable it for this project
+
+---
+
+[Request interrupted by user]
+
+---
+
+I have connected Dev_ext now. now retry
+
+---
+
+ok, now add contexxt7 mcp to this project. Also look for tools like CrewAI for this project, or can claude emulate crewAi?
+
+---
+
+now let's start sprint 2
+
+---
+
+[Request interrupted by user for tool use]
