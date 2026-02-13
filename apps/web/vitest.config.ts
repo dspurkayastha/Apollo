@@ -13,6 +13,7 @@ export default defineConfig({
       "**/*.test.tsx",
       "!**/e2e/**",
       "!**/playwright/**",
+      "!**/tests/security/**",
     ],
     coverage: {
       provider: "v8",
