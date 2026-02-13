@@ -11,9 +11,12 @@ export default defineConfig({
     include: [
       "**/*.test.ts",
       "**/*.test.tsx",
-      "!**/e2e/**",
-      "!**/playwright/**",
-      "!**/tests/security/**",
+    ],
+    exclude: [
+      "**/node_modules/**",
+      "**/e2e/**",
+      "**/playwright/**",
+      "**/tests/security/**",
     ],
     coverage: {
       provider: "v8",
