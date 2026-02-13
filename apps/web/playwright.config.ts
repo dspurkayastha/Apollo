@@ -10,7 +10,7 @@ export default defineConfig({
   timeout: 30_000,
 
   use: {
-    baseURL: process.env.BASE_URL ?? "http://localhost:3000",
+    baseURL: process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? "3000"}`,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -45,7 +45,7 @@ export default defineConfig({
   // Start local dev server for E2E tests
   webServer: {
     command: "pnpm dev",
-    url: "http://localhost:3000",
+    url: `http://localhost:${process.env.PORT ?? "3000"}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

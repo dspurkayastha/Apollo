@@ -1,0 +1,24 @@
+# Clerk configuration (can include secrets)
+/.clerk/
+
+# Next.js build output
+/.next/
+/out/
+
+# Dependencies
+/node_modules/
+
+# Environment (defence-in-depth — also in root .gitignore)
+.env
+.env.local
+.env*.local
+
+# Test output
+/coverage/
+/playwright-report/
+/test-results/
+/blob-report/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

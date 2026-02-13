@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 24 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 10%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 5% 96%;
+    --secondary-foreground: 24 10% 10%;
+    --muted: 24 5% 96%;
+    --muted-foreground: 24 5% 45%;
+    --accent: 24 5% 96%;
+    --accent-foreground: 24 10% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 24 5% 90%;
+    --input: 24 5% 90%;
+    --ring: 24 95% 53%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 24 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 5% 96%;
+    --sidebar-accent-foreground: 24 10% 10%;
+    --sidebar-border: 24 5% 90%;
+    --sidebar-ring: 24 95% 53%;
+  }
+
+  .dark {
+    --background: 240 6% 6%;
+    --foreground: 0 0% 95%;
+    --card: 240 5% 13%;
+    --card-foreground: 0 0% 95%;
+    --popover: 240 5% 13%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4% 18%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 240 4% 18%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 4% 18%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 95%;
+    --border: 240 4% 22%;
+    --input: 240 4% 22%;
+    --ring: 24 95% 53%;
+    --sidebar-background: 240 5% 8%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 24 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 20%;
+    --sidebar-ring: 24 95% 53%;
+  }
+}
+
+/* Animated border glow — popular pricing card only */
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes rotate-border {
+  to {
+    --angle: 360deg;
+  }
+}
+
+.glow-border {
+  position: relative;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+    conic-gradient(
+        from var(--angle),
+        hsl(24 95% 53% / 0.3),
+        hsl(24 95% 53%),
+        hsl(24 95% 53% / 0.3)
+      )
+      border-box;
+  animation: rotate-border 4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-border {
+    animation: none;
+    border-color: hsl(24 95% 53% / 0.5);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
