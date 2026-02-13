@@ -1,0 +1,63 @@
+FROM texlive/texlive:latest-minimal
+
+# Install required TeX Live packages
+RUN tlmgr install \
+    latexmk \
+    bibtex \
+    fancyhdr \
+    geometry \
+    graphicx \
+    hyperref \
+    xcolor \
+    setspace \
+    titlesec \
+    tocloft \
+    caption \
+    subcaption \
+    longtable \
+    booktabs \
+    multirow \
+    array \
+    tabularx \
+    pdfpages \
+    amsmath \
+    amssymb \
+    natbib \
+    etoolbox \
+    ifthen \
+    fontenc \
+    inputenc \
+    babel \
+    times \
+    helvet \
+    courier \
+    bookmark \
+    xstring \
+    pdflscape \
+    float \
+    enumitem \
+    parskip \
+    url \
+    doi \
+    draftwatermark \
+    tools \
+    latex \
+    && rm -rf /tmp/*
+
+# Install Ghostscript for watermarking
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ghostscript \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy compilation script
+COPY docker/compile.sh /usr/local/bin/compile.sh
+RUN chmod +x /usr/local/bin/compile.sh
+
+# Copy watermark script
+COPY docker/watermark.sh /usr/local/bin/watermark.sh
+RUN chmod +x /usr/local/bin/watermark.sh
+
+# Working directory for compilation
+WORKDIR /thesis
+
+ENTRYPOINT ["/usr/local/bin/compile.sh"]

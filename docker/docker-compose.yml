@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  # Web: run Next.js dev server on the host, not in Docker.
+  # Use `pnpm dev` in apps/web/ and set LATEX_COMPILE_MODE=docker.
+
+  latex:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.latex
+    container_name: apollo-latex
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=512m
+    mem_limit: 1g
+    # Container stays idle; web app exec's into it per compile
+    entrypoint: ["sleep", "infinity"]
+    volumes:
+      - ../templates:/templates:ro

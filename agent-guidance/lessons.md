@@ -102,3 +102,36 @@
 - Sentry free: 5K errors/month, 10K transactions/month (sample at 20%)
 - PostHog free: 1M events/month (capture only key events)
 - Resend free: 3K emails/month
+
+## Sprint 2 Learnings
+
+### Auth uses Clerk, not Supabase Auth
+- Sprint 1 adopted Clerk for authentication instead of Supabase Auth
+- `getAuthenticatedUser()` in `lib/api/auth.ts` bridges Clerk → Supabase user lookup
+- Middleware in `middleware.ts` uses `clerkMiddleware` with route matchers
+- All API routes use `getAuthenticatedUser()` — never raw Clerk calls
+
+### SSE streaming pattern for AI generation
+- Use `ReadableStream` with `TextEncoder` for Server-Sent Events
+- Format: `data: ${JSON.stringify(payload)}\n\n` per chunk
+- Terminal event: `data: [DONE]\n\n`
+- Client hook: `hooks/use-sse.ts` — handles start/stop/stream/error
+- Always reset section status on error (e.g., from `generating` back to `draft`)
+
+### LaTeX compilation modes
+- `LATEX_COMPILE_MODE` env var controls: `docker` | `local` | `mock`
+- Mock mode validates basic TeX structure without actual compilation
+- Docker mode: isolated container with `--network=none --read-only --memory=1g`
+- Local mode: direct `pdflatex` calls (requires TeX Live installed)
+- Default is `mock` to prevent CI failures without Docker
+
+### PII redaction before AI calls
+- Always run `redactPII()` on user content before sending to Claude
+- Patterns: Aadhaar (12 digits), PAN (5 letters + 4 digits + 1 letter), email, Indian phone
+- Order matters: Aadhaar regex before phone regex (both match digit sequences)
+
+### Phase transition rules
+- Phase 0 → 1: allowed in sandbox (no licence needed)
+- Phase 1 → 2+: requires `licensed` or `completed` project status
+- Section must be in `review` status before approval
+- On Phase 0 approval, auto-create Phase 1 section
