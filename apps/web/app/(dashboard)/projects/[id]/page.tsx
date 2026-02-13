@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { projectStatusClasses, relativeTime } from "@/lib/format";
-import type { Project } from "@/lib/types/database";
+import type { Project, Section } from "@/lib/types/database";
+import { PHASES } from "@/lib/phases/constants";
+import { ProjectWorkspace } from "./project-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +27,25 @@ export default async function ProjectDetailPage({
   }
 
   const project = data as Project;
+
+  // Fetch sections for this project
+  const { data: sectionsData } = await supabase
+    .from("sections")
+    .select("*")
+    .eq("project_id", id)
+    .order("phase_number", { ascending: true });
+
+  const sections = (sectionsData ?? []) as Section[];
+
   const metadata = project.metadata_json ?? {};
   const metadataEntries = Object.entries(metadata).filter(
     ([, value]) => value !== undefined && value !== null && value !== ""
   );
 
+  const currentPhaseDef = PHASES.find((p) => p.number === project.current_phase);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
@@ -56,13 +70,13 @@ export default async function ProjectDetailPage({
                 <span className="font-medium">{project.study_type}</span>
               </span>
             )}
-            <span>Phase {project.current_phase}</span>
+            <span>Phase {project.current_phase}: {currentPhaseDef?.label ?? "Unknown"}</span>
             <span>&middot;</span>
             <span>Updated {relativeTime(project.updated_at)}</span>
           </div>
         </div>
 
-        {project.current_phase === 0 && (
+        {project.current_phase === 0 && !sections.some((s) => s.phase_number === 0) && (
           <Link
             href={`/projects/${project.id}/setup`}
             className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
@@ -74,27 +88,30 @@ export default async function ProjectDetailPage({
 
       {/* Metadata */}
       {metadataEntries.length > 0 && (
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Project Metadata</h2>
-          <dl className="grid gap-3 sm:grid-cols-2">
-            {metadataEntries.map(([key, value]) => (
-              <div key={key}>
-                <dt className="text-sm font-medium text-muted-foreground capitalize">
-                  {key.replace(/_/g, " ")}
-                </dt>
-                <dd className="mt-0.5 text-sm">{String(value)}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <details className="rounded-lg border bg-card">
+          <summary className="cursor-pointer p-4 text-sm font-semibold">
+            Project Metadata ({metadataEntries.length} fields)
+          </summary>
+          <div className="border-t px-4 pb-4 pt-3">
+            <dl className="grid gap-3 sm:grid-cols-2">
+              {metadataEntries.map(([key, value]) => (
+                <div key={key}>
+                  <dt className="text-sm font-medium text-muted-foreground capitalize">
+                    {key.replace(/_/g, " ")}
+                  </dt>
+                  <dd className="mt-0.5 text-sm">{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </details>
       )}
 
-      {/* Editor placeholder */}
-      <div className="rounded-lg border bg-card p-12 text-center">
-        <p className="text-muted-foreground">
-          Section editor coming in Sprint 3-4
-        </p>
-      </div>
+      {/* Phase Navigation + Section Viewer */}
+      <ProjectWorkspace
+        project={project}
+        sections={sections}
+      />
     </div>
   );
 }

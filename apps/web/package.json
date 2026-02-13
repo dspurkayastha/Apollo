@@ -13,10 +13,12 @@
     "test:coverage": "vitest run --coverage",
     "test:security": "vitest run --config vitest.config.security.ts",
     "test:rls": "vitest run --config vitest.config.security.ts tests/security/rls.test.ts",
+    "test:compile": "vitest run tests/compile.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
     "@aws-sdk/client-s3": "^3.750.0",
     "@aws-sdk/s3-request-presigner": "^3.750.0",
     "@clerk/nextjs": "^6.12.0",

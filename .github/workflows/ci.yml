@@ -131,46 +131,35 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
 
-  # Uncomment when Sprint 3-4 adds LaTeX compilation
-  # compile-test:
-  #   name: Compile Test
-  #   runs-on: ubuntu-latest
-  #   needs: unit-tests
-  #
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Build LaTeX Docker image
-  #       run: docker build -t apollo-latex -f docker/Dockerfile.latex .
-  #
-  #     - name: Test SSKM compilation
-  #       run: |
-  #         docker run --rm \
-  #           --network=none \
-  #           --read-only \
-  #           --tmpfs /tmp:rw,size=512m \
-  #           --memory=1g \
-  #           -v ${{ github.workspace }}/templates:/thesis:ro \
-  #           apollo-latex \
-  #           sh -c "cd /tmp && cp /thesis/*.cls /thesis/*.bst /thesis/*.tex /thesis/logo/* . && latexmk -pdf -interaction=nonstopmode main.tex"
-  #
-  #     - name: Verify zero blocking errors
-  #       run: |
-  #         if grep -qE "undefined|Fatal error|Emergency stop" /tmp/main.log; then
-  #           echo "::error::Blocking compilation errors found"
-  #           grep -E "undefined|Fatal error|Emergency stop" /tmp/main.log
-  #           exit 1
-  #         fi
-  #
-  #     - name: Count warnings (budget: ≤20)
-  #       run: |
-  #         WARNING_COUNT=$(grep -c "Overfull\|Underfull\|Font" /tmp/main.log || true)
-  #         echo "Tolerated warnings: $WARNING_COUNT / 20"
-  #         if [ "$WARNING_COUNT" -gt 20 ]; then
-  #           echo "::error::Warning budget exceeded ($WARNING_COUNT > 20)"
-  #           exit 1
-  #         fi
+  compile-test:
+    name: Compile Test
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run compile tests
+        run: pnpm test:compile
 
   # Uncomment when Sprint 7+ adds Playwright
   # e2e-tests:
