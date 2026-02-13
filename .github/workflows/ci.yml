@@ -7,9 +7,9 @@ name: CI
 
 on:
   push:
-    branches: [thesis-gen-saas]
+    branches: [main]
   pull_request:
-    branches: [thesis-gen-saas]
+    branches: [main]
 
 env:
   NODE_VERSION: '20'
