@@ -3,8 +3,10 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 10,
+  "checkpoints_count": 18,
   "files_touched": [
+    "apps/web/app/(dashboard)/layout.tsx",
+    "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
     "apps/web/app/api/citations/search/route.ts",
     "apps/web/app/api/inngest/route.ts",
     "apps/web/app/api/projects/[id]/abbreviations/[abbrevId]/route.ts",
@@ -16,6 +18,7 @@
     "apps/web/app/api/projects/[id]/citations/audit/route.ts",
     "apps/web/app/api/projects/[id]/citations/route.ts",
     "apps/web/app/api/projects/[id]/compilations/route.ts",
+    "apps/web/app/api/projects/[id]/compile/route.ts",
     "apps/web/app/api/projects/[id]/compliance/route.ts",
     "apps/web/app/api/projects/[id]/datasets/[datasetId]/route.ts",
     "apps/web/app/api/projects/[id]/datasets/generate/route.ts",
@@ -23,6 +26,8 @@
     "apps/web/app/api/projects/[id]/figures/[figureId]/route.ts",
     "apps/web/app/api/projects/[id]/figures/mermaid/route.ts",
     "apps/web/app/api/projects/[id]/figures/route.ts",
+    "apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts",
+    "apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts",
     "apps/web/app/api/projects/[id]/sections/[phase]/review/route.ts",
     "apps/web/app/api/synopsis/parse/route.ts",
     "apps/web/app/globals.css",
@@ -64,6 +69,7 @@
     "apps/web/e2e/analysis-run.spec.ts",
     "apps/web/e2e/compliance-check.spec.ts",
     "apps/web/e2e/dataset-upload.spec.ts",
+    "apps/web/lib/ai/prompts.ts",
     "apps/web/lib/ai/review-section.ts",
     "apps/web/lib/ai/token-budget.ts",
     "apps/web/lib/citations/audit.test.ts",
@@ -97,6 +103,9 @@
     "apps/web/lib/latex/abbreviations.ts",
     "apps/web/lib/latex/assemble.test.ts",
     "apps/web/lib/latex/assemble.ts",
+    "apps/web/lib/latex/compile.ts",
+    "apps/web/lib/latex/escape.test.ts",
+    "apps/web/lib/latex/escape.ts",
     "apps/web/lib/latex/latex-to-tiptap.test.ts",
     "apps/web/lib/latex/latex-to-tiptap.ts",
     "apps/web/lib/latex/tiptap-to-latex.test.ts",
@@ -132,7 +141,8 @@
     "docker/Dockerfile.r-plumber",
     "docker/plumber.R",
     "supabase/migrations/016_create_abbreviations.sql",
-    "supabase/migrations/017_add_rich_content_to_sections.sql"
+    "supabase/migrations/017_add_rich_content_to_sections.sql",
+    "templates/main.tex"
   ],
   "sessions": [
     {
@@ -141,13 +151,20 @@
       "context": "/bd/84f5776d75/0/context.md",
       "content_hash": "/bd/84f5776d75/0/content_hash.txt",
       "prompt": "/bd/84f5776d75/0/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/1/metadata.json",
+      "transcript": "/bd/84f5776d75/1/full.jsonl",
+      "context": "/bd/84f5776d75/1/context.md",
+      "content_hash": "/bd/84f5776d75/1/content_hash.txt",
+      "prompt": "/bd/84f5776d75/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 587,
-    "cache_creation_tokens": 95104,
-    "cache_read_tokens": 6559070,
-    "output_tokens": 8302,
-    "api_call_count": 86
+    "input_tokens": 9877,
+    "cache_creation_tokens": 831838,
+    "cache_read_tokens": 31913491,
+    "output_tokens": 45261,
+    "api_call_count": 330
   }
 }

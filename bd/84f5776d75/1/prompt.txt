@@ -1,0 +1,901 @@
+Implement the following plan:
+
+# Fix Compile Pipeline v2: `\input{}` chapters + Tiptap round-trip sanitisation
+
+## Context
+
+After implementing v1 of the assembly pipeline (placeholder regex replacement), compilation still fails with:
+```
+! You can't use `macro parameter character #' in vertical mode.
+```
+
+**Root cause**: The assembly reads raw `section.latex_content` which may contain AI-generated markdown artifacts (e.g., `# Introduction`). The `#` is a LaTeX special character causing compilation failure. Additionally, the `replacePlaceholder()` regex only captures ONE comment line (`.` doesn't match newlines), so multi-line placeholder blocks aren't fully replaced.
+
+**Correct architecture** (user-confirmed):
+1. AI generates raw LaTeX → stored in `latex_content` + `ai_generated_latex`
+2. `latexToTiptap()` converts to Tiptap JSON → `rich_content_json` (strips `#`, `\needspace`, comments)
+3. User edits in rich text editor → saves via `tiptapToLatex()` back to clean `latex_content`
+4. **Compilation** should use `tiptapToLatex(rich_content_json)` as the chapter body source (sanitised, escaped)
+5. BibTeX extracted from `ai_generated_latex` (preserves `---BIBTEX---` trailer even after user edits)
+6. Chapters written as **separate `.tex` files** using `\input{chapters/xxx}` — standard LaTeX practice
+
+## Step 1: Modify `templates/main.tex` — use `\input{chapters/xxx}`
+
+Replace each `%% [[PLACEHOLDER — Phase N]]` comment block with `\input{chapters/xxx}`.
+
+**Phase-to-file mapping:**
+| Phase | Chapter file |
+|-------|-------------|
+| 2 | `chapters/introduction.tex` |
+| 3 | `chapters/aims.tex` |
+| 4 | `chapters/literature.tex` |
+| 5 | `chapters/methodology.tex` |
+| 6 | `chapters/results.tex` |
+| 7 | `chapters/discussion.tex` |
+| 8 | `chapters/conclusion.tex` |
+
+Example change:
+```latex
+% Before:
+\chapter{Introduction}
+\label{chap:introduction}
+
+%% [[PLACEHOLDER — Phase 2]]
+%% Target: 500–750 words, 10–15 references, present tense
+
+% After:
+\chapter{Introduction}
+\label{chap:introduction}
+\input{chapters/introduction}
+```
+
+**Files:** `templates/main.tex`
+
+---
+
+## Step 2: Rewrite `assembleThesisContent()` in `assemble.ts`
+
+**New return type:**
+```typescript
+export interface AssembleResult {
+  tex: string;                           // main.tex with metadata populated
+  bib: string;                           // references.bib content
+  chapterFiles: Record<string, string>;  // e.g., { "chapters/introduction.tex": "..." }
+  warnings: string[];
+}
+```
+
+**New logic for each phase 2–8:**
+1. Find section (prefer `approved`, then `review`)
+2. **Chapter body**: if `rich_content_json` exists → `tiptapToLatex(rich_content_json as TiptapNode).latex` (clean, escaped). Fallback: `splitBibtex(latex_content).body`
+3. **BibTeX**: extract from `ai_generated_latex` via `splitBibtex()` (preserves trailer even after user edits)
+4. Write body to `chapterFiles["chapters/xxx.tex"]`
+5. Missing chapters get an empty file (LaTeX `\input{}` of empty file is fine)
+
+**Remove:** `replacePlaceholder()` — entirely eliminated by `\input{}` approach.
+**Keep:** `splitBibtex()`, `deduplicateBibEntries()` — still needed for BibTeX collection.
+**Add import:** `tiptapToLatex` from `./tiptap-to-latex` and `TiptapNode` type.
+
+**Files:** `apps/web/lib/latex/assemble.ts`
+
+---
+
+## Step 3: Update `compileTex()` — accept `chapterFiles`
+
+Add `chapterFiles?: Record<string, string>` to options type.
+
+In both `dockerCompile()` and `localCompile()`:
+- After writing `main.tex`, create `chapters/` subdirectory
+- Write each file from `chapterFiles` map to the work directory
+
+```typescript
+// Write chapter files
+if (options.chapterFiles) {
+  await mkdir(path.join(workDir, "chapters"), { recursive: true });
+  for (const [filename, content] of Object.entries(options.chapterFiles)) {
+    await writeFile(path.join(workDir, filename), content);
+  }
+}
+```
+
+**Files:** `apps/web/lib/latex/compile.ts`
+
+---
+
+## Step 4: Update compile route
+
+Pass `chapterFiles` from assembly result to `compileTex()`.
+
+```typescript
+const { tex, bib, chapterFiles, warnings: texWarnings } = assembleThesisContent(...);
+const result = await compileTex(tex, { ..., bibContent: bib, chapterFiles });
+```
+
+No other changes to compile route — already updated in v1.
+
+**Files:** `apps/web/app/api/projects/[id]/compile/route.ts`
+
+---
+
+## Step 5: Add compile-time LaTeX validation
+
+**New file:** `apps/web/lib/latex/validate.ts`
+
+### Local pre-flight checks (fast, always runs)
+
+`preflightChapter(chapterName, latex)` checks each chapter for:
+- Unescaped special characters: bare `#` not preceded by `\` (the exact bug we hit)
+- Unbalanced braces `{}`
+- Unbalanced `\begin{}`/`\end{}` environments
+- Markdown artifacts: lines starting with `# ` (markdown heading), `---` separators
+- Bare URLs (should be `\url{}`)
+
+Returns `ValidationIssue[]` with `severity: "error" | "warning"`.
+
+### AI validation via Haiku (deeper checks)
+
+`aiValidateChapters(chapters)` sends a single Haiku call with chapter LaTeX snippets:
+- System prompt: "You are a LaTeX syntax validator for medical theses. Check for formatting errors, structural issues, and LaTeX-invalid constructs."
+- Returns structured JSON list of issues
+- Timeout: 15s. On failure: logs warning, does NOT block compile
+- Uses `getAnthropicClient()` from existing `lib/ai/client.ts`
+
+### Blocking logic in compile route
+
+```
+1. Assemble chapters
+2. Run preflightChapter() on each non-empty chapter
+3. If any "error" severity → return 422 with:
+   { status: "validation_failed", issues: [...], action: "Fix the issues in the section editor and retry" }
+4. Run aiValidateChapters() on all chapters
+5. If AI finds issues → include as warnings in response (non-blocking)
+6. Proceed to pdflatex compilation
+```
+
+Critical errors (from pre-flight) **block** the compile. AI issues are **warnings** — they inform the user but don't prevent compilation (avoids false-positive blocking).
+
+**Files:** `apps/web/lib/latex/validate.ts` (NEW), `apps/web/app/api/projects/[id]/compile/route.ts` (MOD)
+
+---
+
+## Step 6: Update tests
+
+### `assemble.test.ts`
+- **Remove:** `replacePlaceholder` tests (function deleted)
+- **Update:** `assembleThesisContent` tests to check `chapterFiles` output instead of inline tex content
+- **Add:** test that `tiptapToLatex` round-trip escapes `#` → `\#` in chapter output
+- **Add:** test that `ai_generated_latex` is used for BibTeX even when `rich_content_json` exists
+- **Add:** test that missing chapters produce empty files (not errors)
+
+### `validate.test.ts` (NEW)
+- Unescaped `#` detected as error
+- Balanced braces pass
+- Unbalanced braces detected
+- Markdown `# Heading` detected as error
+- Clean LaTeX passes pre-flight
+- AI validation timeout handled gracefully
+
+**Files:** `apps/web/lib/latex/assemble.test.ts`, `apps/web/lib/latex/validate.test.ts` (NEW)
+
+---
+
+## Files Summary
+
+| Action | File |
+|--------|------|
+| MOD | `templates/main.tex` — `%% [[PLACEHOLDER]]` → `\input{chapters/xxx}` |
+| MOD | `apps/web/lib/latex/assemble.ts` — rewrite assembly with tiptap round-trip + chapter files |
+| MOD | `apps/web/lib/latex/assemble.test.ts` — update tests for new assembly |
+| MOD | `apps/web/lib/latex/compile.ts` — add `chapterFiles` option |
+| MOD | `apps/web/app/api/projects/[id]/compile/route.ts` — pass `chapterFiles` + validation |
+| NEW | `apps/web/lib/latex/validate.ts` — pre-flight + AI validation |
+| NEW | `apps/web/lib/latex/validate.test.ts` — validation tests |
+
+---
+
+## Key Design Decisions
+
+1. **`tiptapToLatex(rich_content_json)` as source of truth** — ensures `#`, `\needspace`, markdown artifacts are all stripped/escaped via the Tiptap round-trip. Falls back to `latex_content` only when `rich_content_json` is null (Phase 0, legacy data).
+
+2. **BibTeX from `ai_generated_latex`** — The user's RTF edits overwrite `latex_content` (via section PUT route), losing the `---BIBTEX---` trailer. But `ai_generated_latex` preserves the original AI output, so we extract BibTeX from there.
+
+3. **`\input{}` eliminates regex entirely** — No more fragile `replacePlaceholder()` with its multi-line matching bugs. The template explicitly declares where chapter files go. Missing chapters = empty file = no error.
+
+4. **Two-tier validation** — Local pre-flight (deterministic, blocking on errors) + AI validation (Haiku, non-blocking warnings). Pre-flight catches the `#` class of bugs immediately. AI catches subtler issues but never blocks due to false positives.
+
+5. **AI validation is best-effort** — Timeout after 15s, failure = logged warning, never blocks. This prevents AI outages from breaking the compile pipeline.
+
+---
+
+## Execution Order
+
+```
+Step 1 (main.tex) → Step 2 (assemble.ts) → Step 3 (compile.ts) → Step 4 (compile route)
+                                                                 → Step 5 (validate.ts)  → Step 6 (tests)
+```
+
+---
+
+## Verification
+
+1. `pnpm test` — all tests pass (assemble + validate tests)
+2. `pnpm type-check` — zero TypeScript errors
+3. Manual: compile PDF → chapter content visible (not blank), no `#` error
+4. Manual: section with `# Introduction` → pre-flight catches it → blocks compile with actionable error
+5. Manual: clean content → pre-flight passes → AI validation runs → compile succeeds
+6. Manual: user edits in RTF editor → saves → compile uses clean round-tripped LaTeX
+7. Manual: AI validation timeout → compile proceeds with warning (non-blocking)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+the rtf source toggle has gone missing, the ai generation is not working anymore on aims page etc.(the content is being generated, and then it shows this image as attached)attaching console error log as well
+
+---
+
+[Image: source: REDACTED 2026-02-14 at 9.24.25 AM.png]
+
+[Image: source: REDACTED 2026-02-14 at 9.25.08 AM.png]
+
+---
+
+errors are gone, but i am stuck on the inro phase, with generated being shown as in image, there is no way to approve and move on, there is no way to toggle rtf amd source, compile button only compiles the phase0 pdf consistently
+
+---
+
+[Image: source: REDACTED 2026-02-14 at 9.35.49 AM.png]
+
+---
+
+AI generation works and a latex is created, it then dissappears and the dash is again stuck!. compile doesnt do anything, and the rtf and source mode toggle is still missing. Align properly to PLAN
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Request**: User asked to implement a detailed plan for "Fix Compile Pipeline v2: `\input{}` chapters + Tiptap round-trip sanitisation". The plan had 6 steps.
+
+2. **Step 1 - main.tex**: Modified `templates/main.tex` to replace `%% [[PLACEHOLDER — Phase N]]` comment blocks with `\input{chapters/xxx}` for phases 2-8.
+
+3. **Step 2 - assemble.ts**: Rewrote `apps/web/lib/latex/assemble.ts`:
+   - New return type with `chapterFiles: Record<string, string>`
+   - Uses `tiptapToLatex(rich_content_json)` as chapter body source
+   - Falls back to `splitBibtex(latex_content).body` for legacy data
+   - BibTeX from `ai_generated_latex` (preserves trailer after user edits)
+   - Removed `replacePlaceholder()` entirely
+   - Each chapter written to `chapterFiles["chapters/xxx.tex"]`
+
+4. **Step 3 - compile.ts**: Updated `apps/web/lib/latex/compile.ts`:
+   - Added `chapterFiles?: Record<string, string>` to options
+   - Write chapter files to work directory in both `dockerCompile()` and `localCompile()`
+
+5. **Step 4 - compile route**: Updated `apps/web/app/api/projects/[id]/compile/route.ts`:
+   - Passes `chapterFiles` from assembly to `compileTex()`
+   - Added pre-flight validation (blocking errors) + AI validation (non-blocking warnings)
+
+6. **Step 5 - validate.ts**: Created `apps/web/lib/latex/validate.ts`:
+   - `preflightChapter()` - local deterministic checks
+   - `aiValidateChapters()` - Haiku-powered, 15s timeout, non-blocking
+
+7. **Step 6 - Tests**: Updated `assemble.test.ts` and created `validate.test.ts`. All 140 tests passed. Zero TypeScript errors.
+
+8. **User's second message**: Reported three issues:
+   - RTF source toggle missing
+   - AI generation not working on aims page
+   - 409 Conflict errors on approve endpoint
+   - Console showed Tiptap SSR warnings and 409 on sections/1/approve
+
+9. **Investigation**: Read section-viewer.tsx, approve route, generate route, project-workspace.tsx, use-sse.ts hook, page.tsx. Identified:
+   - Toggle only shows when `isEditable` (draft/review status)
+   - Section stuck in "generating" because ReadableStream had no `cancel()` handler
+   - 409 from double-clicking approve
+
+10. **Fix 1 - Generate route**: Added `cancel()` handler + stale generation detection (5 min timeout) to both `handleSectionGenerate` and `handlePhase0Generate`
+
+11. **Fix 2 - Project workspace**: 
+    - Added `hasViewableContent` flag for toggle visibility
+    - Show toggle when section has content (not just when editable)
+    - Added `isApproving` loading state to prevent double-clicks
+    - Updated `renderEditor()` for read-only view of approved/generating sections
+
+12. **User's third message**: "errors are gone, but i am stuck on the intro phase, with generated being shown... there is no way to approve and move on, there is no way to toggle rtf and source, compile button only compiles the phase0 pdf consistently"
+
+13. **Fix 3**: 
+    - Removed `disabled={currentSection?.status === "generating"}` from AIGenerateButton in workspace
+    - Reduced stale timeout from 5 to 2 minutes
+
+14. **User's fourth message**: "AI generation works and a latex is created, it then disappears and the dash is again stuck!. compile doesn't do anything, and the rtf and source mode toggle is still missing. Align properly to PLAN"
+
+15. **Root cause investigation**: 
+    - Checked migrations 018 and 019
+    - Queried Supabase directly: `rich_content_json` EXISTS, but `ai_generated_latex` does NOT exist
+    - This means the section update after generation fails silently because it includes `ai_generated_latex` column that doesn't exist
+    - Added error checking + fallback to generate route (retry with core columns only)
+    - Found 2 stuck "generating" sections in the DB
+    - Was about to reset them and apply migration 019 when summary was requested
+
+Key files modified:
+- `templates/main.tex`
+- `apps/web/lib/latex/assemble.ts`
+- `apps/web/lib/latex/compile.ts`
+- `apps/web/app/api/projects/[id]/compile/route.ts`
+- `apps/web/lib/latex/validate.ts` (NEW)
+- `apps/web/lib/latex/validate.test.ts` (NEW)
+- `apps/web/lib/latex/assemble.test.ts`
+- `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+- `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+The most critical pending item: the `ai_generated_latex` column doesn't exist in the DB, and there are 2 stuck "generating" sections that need to be reset.
+
+Summary:
+1. Primary Request and Intent:
+   The user requested implementation of a detailed 6-step plan titled "Fix Compile Pipeline v2: `\input{}` chapters + Tiptap round-trip sanitisation". The plan addresses LaTeX compilation failures caused by unescaped `#` characters from AI-generated markdown artifacts. The architecture involves: (1) replacing placeholder regex replacement with `\input{chapters/xxx}` in main.tex, (2) rewriting the assembly pipeline to use `tiptapToLatex(rich_content_json)` as the sanitised chapter body source, (3) writing chapters as separate .tex files, (4) adding two-tier LaTeX validation. After the compile pipeline was implemented, the user reported UI bugs (missing RTF/source toggle, stuck "generating" sections, 409 errors) and asked to fix them, eventually saying "Align properly to PLAN" indicating frustration with piecemeal fixes.
+
+2. Key Technical Concepts:
+   - LaTeX `\input{chapters/xxx}` pattern replacing fragile regex placeholder replacement
+   - Tiptap JSON ↔ LaTeX round-trip conversion for sanitisation (escapes `#`, strips markdown)
+   - `rich_content_json` (Tiptap JSON) and `ai_generated_latex` dual storage columns on sections table
+   - BibTeX extraction from `ai_generated_latex` (preserves `---BIBTEX---` trailer after user edits)
+   - Two-tier validation: local pre-flight (deterministic, blocking) + AI Haiku (non-blocking warnings)
+   - SSE streaming for AI generation with ReadableStream cancel() handler
+   - Supabase PostgREST silent failures when updating nonexistent columns
+   - Stale generation detection (sections stuck in "generating" status)
+   - Next.js App Router `router.refresh()` for server component data re-fetching
+
+3. Files and Code Sections:
+
+   - **`templates/main.tex`** (MODIFIED)
+     - Core template file - replaced all `%% [[PLACEHOLDER — Phase N]]` comment blocks with `\input{chapters/xxx}` for phases 2-8
+     - Example change: `\chapter{Introduction}\n\label{chap:introduction}\n\input{chapters/introduction}`
+
+   - **`apps/web/lib/latex/assemble.ts`** (REWRITTEN)
+     - Central assembly function that builds thesis from template + sections + citations
+     - Removed `replacePlaceholder()` entirely, removed `PHASE_LABEL_MAP`
+     - New `PHASE_CHAPTER_MAP` mapping phase numbers to chapter file paths
+     - New return type includes `chapterFiles: Record<string, string>`
+     - Chapter body source: `tiptapToLatex(rich_content_json)` → fallback `splitBibtex(latex_content).body`
+     - BibTeX source: `ai_generated_latex` → fallback `latex_content`
+     - Missing chapters produce empty files (not errors)
+     ```typescript
+     export interface AssembleResult {
+       tex: string;
+       bib: string;
+       chapterFiles: Record<string, string>;
+       warnings: string[];
+     }
+     ```
+
+   - **`apps/web/lib/latex/compile.ts`** (MODIFIED)
+     - Added `chapterFiles?: Record<string, string>` to options type for `compileTex()`, `dockerCompile()`, and `localCompile()`
+     - Writes chapter files to `chapters/` subdirectory after main.tex and references.bib
+     ```typescript
+     if (options.chapterFiles) {
+       await mkdir(path.join(workDir, "chapters"), { recursive: true });
+       for (const [filename, content] of Object.entries(options.chapterFiles)) {
+         await writeFile(path.join(workDir, filename), content);
+       }
+     }
+     ```
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** (REWRITTEN)
+     - Passes `chapterFiles` from assembly to `compileTex()`
+     - Added pre-flight validation via `preflightChapter()` on each chapter
+     - Pre-flight errors → 422 with `validation_failed` status
+     - AI validation via `aiValidateChapters()` runs in parallel (non-blocking)
+     - Imports `preflightChapter, aiValidateChapters` from `@/lib/latex/validate`
+
+   - **`apps/web/lib/latex/validate.ts`** (NEW)
+     - `preflightChapter(chapterName, latex)`: checks unescaped `#`, markdown headings, unbalanced braces, unmatched environments, bare URLs, markdown separators
+     - `aiValidateChapters(chapters)`: sends to Haiku with 15s timeout, returns warnings only, never blocks
+     - Returns `ValidationIssue[]` with `severity: "error" | "warning"`
+
+   - **`apps/web/lib/latex/validate.test.ts`** (NEW) - 18 tests for pre-flight validation
+
+   - **`apps/web/lib/latex/assemble.test.ts`** (REWRITTEN)
+     - Removed `replacePlaceholder` tests
+     - Template constant updated to use `\input{chapters/xxx}` instead of placeholders
+     - Tests verify `chapterFiles` output, tiptap round-trip escaping, BibTeX from `ai_generated_latex`, empty files for missing chapters, `\input` directives in main.tex
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (MODIFIED - multiple iterations)
+     - Added `cancel()` handler to ReadableStream in both `handleSectionGenerate` and `handlePhase0Generate` to reset section to "draft" on client disconnect
+     - Added `checkAndResetStaleGeneration()` function (2-minute timeout, down from initial 5)
+     - Added `streamCompleted` flag to prevent double-reset
+     - **Critical fix**: Added error checking + fallback for the post-generation section update:
+     ```typescript
+     const { error: updateError } = await supabase
+       .from("sections")
+       .update({
+         latex_content: fullResponse,
+         rich_content_json: tiptapResult.json,
+         ai_generated_latex: fullResponse,
+         word_count: wordCount,
+         citation_keys: citationKeys,
+         status: "review",
+         updated_at: new Date().toISOString(),
+       })
+       .eq("project_id", project.id)
+       .eq("phase_number", phaseNumber);
+     
+     if (updateError) {
+       console.warn(`Section update failed (phase ${phaseNumber}), retrying with core columns:`, updateError.message);
+       const { error: fallbackError } = await supabase
+         .from("sections")
+         .update({
+           latex_content: fullResponse,
+           word_count: wordCount,
+           citation_keys: citationKeys,
+           status: "review",
+           updated_at: new Date().toISOString(),
+         })
+         .eq("project_id", project.id)
+         .eq("phase_number", phaseNumber);
+       if (fallbackError) {
+         console.error(`Section fallback update also failed (phase ${phaseNumber}):`, fallbackError.message);
+       }
+     }
+     ```
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (MODIFIED)
+     - Added `hasViewableContent` flag: `Boolean(currentSection?.latex_content || currentSection?.rich_content_json)`
+     - Changed editor toggle from `{isEditable && ...}` to `{hasViewableContent && ...}`
+     - Added `isApproving` state with guard in `doApprove()` to prevent double-clicks
+     - Removed `disabled={currentSection?.status === "generating"}` from AIGenerateButton
+     - Updated `renderEditor()` to show read-only source/richtext views for non-editable sections with content
+
+   - **Key reference files read** (not modified):
+     - `apps/web/lib/latex/tiptap-to-latex.ts` - Tiptap JSON → LaTeX serialiser with `escapeLatex()` (escapes `#` → `\#`)
+     - `apps/web/lib/latex/escape.ts` - LaTeX special character escaping
+     - `apps/web/lib/types/database.ts` - Section type with `rich_content_json` and `ai_generated_latex` fields
+     - `apps/web/hooks/use-sse.ts` - SSE streaming hook
+     - `apps/web/components/project/ai-generate-button.tsx` - Generate button with `disabled` prop
+     - `apps/web/supabase/migrations/018_add_rich_content_to_sections.sql` - Adds `rich_content_json JSONB`
+     - `apps/web/supabase/migrations/019_add_ai_generated_latex.sql` - Adds `ai_generated_latex TEXT`
+
+4. Errors and fixes:
+   - **Compile pipeline `#` error** (original plan motivation): AI generates `# Introduction` markdown → `#` is LaTeX special char → compilation fails. Fix: tiptap round-trip sanitises via `escapeLatex()`, and pre-flight validation catches any remaining unescaped `#`.
+   - **Multi-line placeholder regex bug** (original plan motivation): `replacePlaceholder()` regex couldn't match multi-line placeholder blocks. Fix: eliminated regex entirely by using `\input{chapters/xxx}`.
+   - **RTF/Source toggle missing**: Toggle gated on `isEditable` (only draft/review). Fix: changed to `hasViewableContent` so toggle shows for any section with content.
+   - **Section stuck in "generating" forever**: ReadableStream had no `cancel()` handler. If client disconnects, section stays stuck permanently. Fix: added `cancel()` handler + stale detection (2 min timeout).
+   - **409 Conflict on approve**: Double-click race condition. Fix: added `isApproving` loading state with guard.
+   - **Generate button disabled for stuck sections**: `disabled={currentSection?.status === "generating"}` prevented retry. Fix: removed the disabled prop; button only self-disables during active streaming via `isStreaming`.
+   - **ROOT CAUSE - Section update failing silently**: The `ai_generated_latex` column does NOT exist in the production Supabase DB (migration 019 was never applied). The post-generation update includes this column, causing the entire Supabase update to fail silently (error not checked). Section stays in "generating" with empty content. Fix: added error checking + fallback that retries with only core columns (`latex_content`, `word_count`, `citation_keys`, `status`).
+   - User feedback: "Align properly to PLAN" — user was frustrated with piecemeal fixes that didn't address root cause.
+
+5. Problem Solving:
+   - Compile pipeline v2 fully implemented (6 steps, all tests passing, zero TS errors)
+   - Identified and fixed cascading UI bugs caused by sections stuck in "generating" status
+   - Root cause identified via direct Supabase API query: `ai_generated_latex` column doesn't exist (migration 019 not applied). `rich_content_json` column DOES exist (migration 018 applied).
+   - Added robust fallback in generate route so it works regardless of column existence
+   - Found 2 stuck "generating" sections in the database that need to be reset:
+     - `e2bb16fe-...` project `f5d60728-...` phase 3, stuck since `2026-02-14T03:22:54`
+     - `de7d933b-...` project `20dfa991-...` phase 2, stuck since `2026-02-14T04:09:39`
+
+6. All user messages:
+   - **Message 1**: "Implement the following plan: Fix Compile Pipeline v2: `\input{}` chapters + Tiptap round-trip sanitisation" (with full 6-step plan)
+   - **Message 2**: "the rtf source toggle has gone missing, the ai generation is not working anymore on aims page etc.(the content is being generated, and then it shows this image as attached) attaching console error log as well" (with 2 screenshots showing Introduction stuck on "Generating" and console 409 errors)
+   - **Message 3**: "errors are gone, but i am stuck on the intro phase, with generated being shown as in image, there is no way to approve and move on, there is no way to toggle rtf and source, compile button only compiles the phase0 pdf consistently" (with screenshot)
+   - **Message 4**: "AI generation works and a latex is created, it then disappears and the dash is again stuck!. compile doesnt do anything, and the rtf and source mode toggle is still missing. Align properly to PLAN" (with screenshot)
+
+7. Pending Tasks:
+   - **Apply migration 019** to add `ai_generated_latex` column to the Supabase database (or confirm fallback works without it)
+   - **Reset the 2 stuck "generating" sections** in the database (phase 3 on project f5d60728, phase 2 on project 20dfa991)
+   - **Verify the full flow works end-to-end**: Generate → content saved → toggle appears → approve → advance → compile with chapter content
+   - **Verify compile produces PDF with chapter content** (not just title page)
+
+8. Current Work:
+   Was actively investigating and fixing the root cause of sections getting stuck in "generating" status. Discovered via direct Supabase REST API query that `ai_generated_latex` column doesn't exist:
+   ```
+   curl response: {"code":"42703","details":null,"hint":null,"message":"column sections.ai_generated_latex does not exist"}
+   ```
+   Added error checking + fallback to the generate route's post-generation section update. Found 2 stuck sections in the DB. Was about to:
+   1. Reset the stuck sections via Supabase REST API
+   2. Apply migration 019 (or confirm fallback works)
+   3. Verify the complete flow works
+
+9. Optional Next Step:
+   Reset the 2 stuck "generating" sections via Supabase REST API PATCH call, then apply migration 019 (`ALTER TABLE public.sections ADD COLUMN IF NOT EXISTS ai_generated_latex TEXT DEFAULT NULL`). The user's most recent message was: "AI generation works and a latex is created, it then disappears and the dash is again stuck!. compile doesnt do anything, and the rtf and source mode toggle is still missing. Align properly to PLAN". The fallback code has been added to the generate route but the stuck sections still need to be reset and the migration needs to be applied for full functionality.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+Run an e2e test for the whole pipeline, and fix all issues
+
+---
+
+The AI generation UI and the pdf pane and rtf source pane break is not ok, The left sidebar needs to autocollapse and be togglable. there are still unicode characters in the source and the the chapter beginning # is still present,
+
+---
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-14 at 6.41.10 PM.png]
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-14 at 6.39.53 PM.png]
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-14 at 6.39.41 PM.png]
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-14 at 3.17.38 PM.png]
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-14 at 3.17.33 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me carefully analyze the entire conversation chronologically:
+
+**Context from Previous Session (Summary provided)**
+The previous session implemented a 6-step plan "Fix Compile Pipeline v2" which included:
+1. Modified `templates/main.tex` to use `\input{chapters/xxx}` instead of placeholder regex
+2. Rewrote `apps/web/lib/latex/assemble.ts` with new assembly pipeline
+3. Updated `apps/web/lib/latex/compile.ts` with `chapterFiles` support
+4. Updated compile route with pre-flight validation
+5. Created `apps/web/lib/latex/validate.ts` for pre-flight + AI validation
+6. Updated tests
+
+Key issues from previous session:
+- `ai_generated_latex` column doesn't exist in DB (migration 019 not applied)
+- `rich_content_json` column DOES exist (migration 018 applied)
+- 2 stuck "generating" sections in DB
+- Added 3-tier fallback to generate route for missing columns
+- UI fixes: `hasViewableContent` flag, `isApproving` state, removed disabled on AIGenerateButton
+
+**Current Session Messages:**
+
+1. **System continuation message**: Detailed summary of previous work was provided. Instructed to continue from where left off without asking questions.
+
+2. **My actions**: 
+   - Read migration 019, .env.local, migration 018
+   - Reset 2 stuck "generating" sections via Supabase REST API (succeeded)
+   - Tried to apply migration 019 via various methods (SQL RPC, Supabase CLI, psql) - all failed because no direct DB access
+   - Fixed the generate route fallback to be 3-tier (include `rich_content_json` in middle tier)
+   - Verified assemble.ts handles null `ai_generated_latex` gracefully
+   - Ran tests: 199 pass, 0 TypeScript errors
+   - Told user about the pending migration 019 and current state
+
+3. **User's second message**: "Run an e2e test for the whole pipeline, and fix all issues"
+
+4. **My E2E test actions**:
+   - Read dev server background output - showed critical issues:
+     - 409 on approve (repeated)
+     - 422 on compile (pre-flight validation failing)
+     - Inngest 401 errors
+   - Fetched section data from Supabase:
+     - Project f5d60728 Phase 2: `status=approved`, starts with `# Introduction` (markdown heading!), `rich_json=NO`
+     - Project 20dfa991 Phase 2: `status=draft`, empty content
+   - Read approve route, transitions.ts, compile test, tiptap-to-latex.ts, latex-to-tiptap.ts, escape.ts
+   
+   **Critical Bug Found #1: LaTeX inline parser**
+   - In `latex-to-tiptap.ts`, `parseInline()` had a bug where when at a `\` that matched an escaped char (like `\%`) but not a command, it consumed the ENTIRE remainder as plain text
+   - This swallowed all subsequent `\cite{}` commands after any `\%`
+   - Root cause: `nextBackslash === pos` set `end = input.length`, then `end !== pos` fell to else branch
+   - Fix: Split the else branch into two: (1) if at `\` → try escaped char first; (2) if not at `\` → consume plain text to next `\`
+
+   **Critical Bug Found #2: Assembly fallback not sanitising**
+   - When `rich_content_json` is null, `assemble.ts` used raw `latex_content` directly
+   - Raw content had `# Introduction` (markdown heading) and `\needspace{}` - pre-flight caught these as errors → 422
+   - Fix: Added tiptap round-trip in fallback path (`latexToTiptap() → tiptapToLatex()`)
+
+   **Fix #3: 409 race condition on approve**
+   - `doApprove()` now handles 409 by calling `router.refresh()` (section already approved)
+
+   **Fix #4: Inngest 401 noise**
+   - Added check for `process.env.INNGEST_EVENT_KEY` before attempting to send event
+
+   **Created E2E test**: `tests/pipeline-e2e.test.ts` with 13 tests covering full pipeline
+   
+   **Updated assemble tests**: Changed test data from underscored placeholders to realistic LaTeX, used `toContain` instead of `toBe`
+
+   **Final results**: 212 tests pass across 17 files, 0 TypeScript errors
+
+5. **User's third (current) message**: Multiple issues reported with screenshots:
+   - "The AI generation UI and the pdf pane and rtf source pane break is not ok"
+   - "The left sidebar needs to autocollapse and be togglable"
+   - "there are still unicode characters in the source"
+   - "the chapter beginning # is still present"
+   - Screenshot 1: Shows "AI generation for Phase 6 is not yet supported" error
+   - Screenshot 2: Shows source view with `\needspace{4\baselineskip}`, `\cite{...}` without backslashes rendered properly, `\begin{enumerate}` visible in source
+   - Screenshot 3: Shows source view with LaTeX commands visible, `\needspace{4\baselineskip}` still in content, `# Aims and Objectives` visible in PDF output
+   - Screenshot 4: Shows source view with LaTeX, and PDF showing "# Aims and Objectives" rendered as text in PDF
+   - Screenshot 5: Shows materials & methods content with backslash issues
+
+   Key issues from screenshots:
+   1. **`# Aims and Objectives` visible in PDF** (screenshot 3/4) - the `#` heading is being rendered as literal text in the compiled PDF, meaning the assembly isn't stripping it from the chapter files
+   2. **`\needspace{4\baselineskip}` still in source view** - the AI-generated content hasn't been cleaned
+   3. **Phase 6 "not yet supported"** - the `getPhaseSystemPrompt()` might not have prompts for all phases
+   4. **Left sidebar doesn't auto-collapse** - UI layout issue
+   5. **Unicode characters in source** - possibly em-dashes, special quotes, etc.
+   6. **The layout/pane arrangement is broken** - the split between editor, PDF preview needs fixing
+
+   The user is asking to create a summary. This is the summarization request itself.
+
+Let me compile all the files modified and their current state:
+
+**Files Modified in This Session:**
+
+1. `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - 3-tier fallback for missing DB columns
+2. `apps/web/lib/latex/latex-to-tiptap.ts` - Fixed inline parser backslash handling bug
+3. `apps/web/lib/latex/assemble.ts` - Added tiptap round-trip in fallback path, imported latexToTiptap
+4. `apps/web/lib/latex/assemble.test.ts` - Updated test expectations for round-trip behavior
+5. `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - Handle 409 on approve gracefully
+6. `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts` - Skip Inngest when not configured
+7. `tests/pipeline-e2e.test.ts` - NEW: 13 E2E pipeline tests
+
+**Files NOT yet modified but need attention based on latest user message:**
+- Layout/sidebar components (auto-collapse sidebar)
+- AI prompts for Phase 6+ (`lib/ai/prompts.ts`)
+- Content sanitization for already-stored sections (the `#` is in the DB data, the round-trip fix only applies during compile assembly, but the content in the editor source view still shows raw LaTeX)
+- The PDF still shows `# Aims and Objectives` because the data in the DB hasn't been re-processed
+
+Summary:
+1. Primary Request and Intent:
+   The user has been iterating on the "Fix Compile Pipeline v2" plan for the Apollo thesis generation platform. The conversation spans multiple sessions:
+   
+   - **Session 1 (prior)**: Implemented 6-step plan for `\input{chapters/xxx}` compile pipeline, tiptap round-trip sanitisation, pre-flight validation. Hit issues with missing DB columns, stuck sections, UI bugs.
+   
+   - **This session start**: Continued fixing: reset stuck DB sections, improved generate route fallback (3-tier), verified pipeline.
+   
+   - **User request 2**: "Run an e2e test for the whole pipeline, and fix all issues" — I created comprehensive E2E tests, found and fixed critical bugs in the inline parser and assembly fallback.
+   
+   - **User request 3 (latest/current)**: Multiple UI/UX and content issues remain:
+     1. "The AI generation UI and the pdf pane and rtf source pane break is not ok" — layout is broken
+     2. "The left sidebar needs to autocollapse and be togglable" — sidebar stays open, blocking content
+     3. "there are still unicode characters in the source" — special characters in LaTeX source view
+     4. "the chapter beginning # is still present" — `# Aims and Objectives` visible as literal text in compiled PDF (screenshot shows it in PDF output on page 14)
+     5. "AI generation for Phase 6 is not yet supported" — phase 6 (Results) has no AI prompt
+     6. Screenshots show `\needspace{4\baselineskip}` still in source view, LaTeX commands rendered raw
+
+2. Key Technical Concepts:
+   - LaTeX `\input{chapters/xxx}` pattern for chapter inclusion in thesis compilation
+   - Tiptap JSON ↔ LaTeX round-trip conversion for content sanitisation (escapes `#`, strips `\needspace`, markdown artifacts)
+   - `rich_content_json` (Tiptap JSON) and `ai_generated_latex` columns on sections table (migration 018 applied, 019 NOT applied)
+   - Pre-flight validation (`preflightChapter`) catches LaTeX errors before pdflatex runs
+   - AI validation via Haiku (non-blocking warnings)
+   - SSE streaming for AI generation with ReadableStream cancel() handler
+   - Supabase PostgREST silent failures when updating nonexistent columns
+   - Three-tier DB update fallback (all columns → without ai_generated_latex → core only)
+   - Next.js App Router with server components (`force-dynamic`), `router.refresh()` for data re-fetching
+   - `LATEX_COMPILE_MODE=local` uses system pdflatex directly
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/latex/latex-to-tiptap.ts`** (CRITICAL FIX)
+     - Fixed inline parser bug where `\%` before `\cite{}` consumed entire remainder as plain text
+     - The old code conflated "at a backslash" and "not at a backslash" cases incorrectly
+     ```typescript
+     // FIXED: Split into three branches
+     } else if (input[pos] === "\\") {
+       // Backslash at current position but no command matched — try escaped char
+       const escMatch = matchEscapedChar(input, pos);
+       if (escMatch) {
+         nodes.push(textNode(escMatch.char, marks));
+         pos = escMatch.end;
+       } else {
+         nodes.push(textNode(input[pos], marks));
+         pos++;
+       }
+     } else {
+       // No backslash here — consume plain text up to the next backslash
+       const nextBackslash = input.indexOf("\\", pos);
+       const end = nextBackslash === -1 ? input.length : nextBackslash;
+       const plain = unescapeLatex(input.slice(pos, end));
+       if (plain) {
+         nodes.push(textNode(plain, marks));
+       }
+       pos = end;
+     }
+     ```
+     - `preprocess()` function strips `\needspace{...}`, `\label{...}`, `---BIBTEX---` trailer, comment lines
+     - Does NOT handle markdown headings (`# Title`) — these pass through as paragraph text
+
+   - **`apps/web/lib/latex/assemble.ts`** (MODIFIED)
+     - Added `import { latexToTiptap } from "./latex-to-tiptap";`
+     - Fallback path now sanitises via tiptap round-trip:
+     ```typescript
+     } else if (section.latex_content) {
+       // Fallback: sanitise raw latex_content via tiptap round-trip.
+       const { body } = splitBibtex(section.latex_content);
+       const tiptapJson = latexToTiptap(body);
+       const roundTripped = tiptapToLatex(tiptapJson.json);
+       chapterBody = roundTripped.latex;
+       if (roundTripped.warnings.length > 0) {
+         warnings.push(`Phase ${phaseNum} fallback round-trip warnings: ${roundTripped.warnings.join(", ")}`);
+       }
+     }
+     ```
+     - BibTeX source: `section.ai_generated_latex ?? section.latex_content` (line 162)
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (MODIFIED)
+     - 3-tier fallback for section update after AI generation:
+     ```typescript
+     // Tier 1: all columns (latex_content, rich_content_json, ai_generated_latex, ...)
+     const { error: updateError } = await supabase.from("sections").update({
+       latex_content: fullResponse,
+       rich_content_json: tiptapResult.json,
+       ai_generated_latex: fullResponse,
+       word_count: wordCount,
+       citation_keys: citationKeys,
+       status: "review",
+       updated_at: new Date().toISOString(),
+     }).eq("project_id", project.id).eq("phase_number", phaseNumber);
+     
+     if (updateError) {
+       // Tier 2: without ai_generated_latex but keep rich_content_json
+       const { error: fallback1Error } = await supabase.from("sections").update({
+         latex_content: fullResponse,
+         rich_content_json: tiptapResult.json,
+         word_count: wordCount, citation_keys: citationKeys,
+         status: "review", updated_at: new Date().toISOString(),
+       }).eq("project_id", project.id).eq("phase_number", phaseNumber);
+       
+       if (fallback1Error) {
+         // Tier 3: core-only
+         await supabase.from("sections").update({
+           latex_content: fullResponse,
+           word_count: wordCount, citation_keys: citationKeys,
+           status: "review", updated_at: new Date().toISOString(),
+         }).eq("project_id", project.id).eq("phase_number", phaseNumber);
+       }
+     }
+     ```
+     - Has `checkAndResetStaleGeneration()` with 2-minute timeout
+     - Has `cancel()` handler on ReadableStream + `streamCompleted` flag
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (MODIFIED)
+     - `hasViewableContent` flag for toggle visibility (line 97-99)
+     - `isApproving` state with guard in `doApprove()` 
+     - 409 handling: `router.refresh()` on 409 response
+     - `AI_GENERATABLE_PHASES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8])`
+     - Editor mode toggle shows when `hasViewableContent` is true
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (MODIFIED)
+     - Inngest send conditional on `process.env.INNGEST_EVENT_KEY`:
+     ```typescript
+     if (process.env.INNGEST_EVENT_KEY) {
+       try {
+         await inngest.send({ name: "thesis/phase.approved", data: { ... } });
+       } catch (inngestError) {
+         console.warn("Failed to emit Inngest event:", inngestError);
+       }
+     }
+     ```
+
+   - **`apps/web/tests/pipeline-e2e.test.ts`** (NEW)
+     - 13 tests covering: markdown artifact detection, tiptap round-trip sanitisation, pre-flight validation, full assembly with chapters, pdflatex compilation, edge cases (empty sections, BibTeX-only)
+     - Uses realistic AI-generated content with known bugs (`# Introduction`, `\needspace`, `\cite` with `\%`)
+
+   - **`apps/web/lib/latex/assemble.test.ts`** (MODIFIED)
+     - Updated test data from underscored placeholders (`INTRO_CONTENT`) to realistic LaTeX (`Introduction content here.`)
+     - Changed `.toBe()` to `.toContain()` for content assertions (round-trip adds trailing newlines)
+
+   - **`apps/web/lib/latex/validate.ts`** (from prior session, not modified this session)
+     - `preflightChapter()`: checks unescaped `#`, markdown headings, unbalanced braces, unmatched environments, bare URLs
+     - `aiValidateChapters()`: Haiku-powered, 15s timeout, non-blocking
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** (from prior session)
+     - Passes `chapterFiles` from assembly to `compileTex()`
+     - Pre-flight validation blocks compile on errors (422)
+     - AI validation runs in parallel (non-blocking warnings)
+
+   - **`apps/web/lib/ai/prompts.ts`** (needs investigation)
+     - `getPhaseSystemPrompt(phaseNumber)` returns null for unsupported phases → triggers "not yet supported" error
+
+   - **`apps/web/app/(dashboard)/projects/[id]/page.tsx`**
+     - Server component with `export const dynamic = "force-dynamic"`
+     - Fetches project + sections + latest compilation for PDF preview
+
+   - **Database state** (Supabase):
+     - Project `f5d60728`: Phase 2 approved with `# Introduction` + `\needspace` in `latex_content`, `rich_content_json=null`
+     - Project `20dfa991`: Phase 2 approved (after this session's work), sections also have raw LaTeX with `\needspace`, `# Aims and Objectives`
+     - Migration 019 (`ai_generated_latex` column) NOT applied — needs to be run via Supabase Dashboard SQL Editor
+
+4. Errors and Fixes:
+   - **Inline parser swallowing citations** (`latex-to-tiptap.ts`):
+     - When `\%` appeared before `\cite{key}`, `nextBackslash === pos` set `end = input.length`, then the else branch consumed everything as plain text
+     - Fixed by splitting into three branches: (1) command match, (2) backslash without command → try escaped char, (3) non-backslash → consume to next backslash
+   
+   - **Assembly fallback passing raw markdown to compiler** (`assemble.ts`):
+     - Raw `latex_content` with `# Introduction` passed directly to chapter files → pre-flight error → 422
+     - Fixed by adding tiptap round-trip (`latexToTiptap → tiptapToLatex`) in fallback path
+   
+   - **409 race condition on approve** (`project-workspace.tsx`):
+     - User feedback: repeated 409 errors in console
+     - Fixed by handling 409 as "already approved" → `router.refresh()`
+   
+   - **Inngest 401 noise** (`approve/route.ts`):
+     - Every approval logged error because `INNGEST_EVENT_KEY` not set in dev
+     - Fixed by checking `process.env.INNGEST_EVENT_KEY` before sending
+   
+   - **Test assertion failures after round-trip change** (`assemble.test.ts`):
+     - Tests used `INTRO_CONTENT` with underscores, round-trip escaped `_` → `\_`
+     - Fixed by using realistic LaTeX content and `toContain` instead of `toBe`
+   
+   - **Cannot apply migration 019**: Tried Supabase RPC, CLI, psql — all failed. Instructed user to apply manually via Dashboard.
+
+   - **User feedback on latest screenshots** (NOT YET FIXED):
+     - `# Aims and Objectives` still appears in compiled PDF — the data in the DB still has `#` heading. The round-trip fix in `assemble.ts` should handle this during compile, but the PDF in the screenshot may be from before the fix was applied, OR the `latexToTiptap` preprocess doesn't strip markdown headings (it doesn't — `# Title` passes through as paragraph text containing `#`)
+     - `\needspace{4\baselineskip}` still visible in source editor view — this is the raw `latex_content` displayed in the editor. The round-trip only happens during compile assembly, not in the source view
+     - Phase 6 "not yet supported" — `getPhaseSystemPrompt(6)` returns null
+     - Sidebar doesn't auto-collapse
+     - Unicode characters in source
+
+5. Problem Solving:
+   - Successfully created comprehensive E2E test suite (13 tests) covering the full pipeline
+   - Found and fixed critical inline parser bug that caused citation extraction to fail after `\%`
+   - Implemented assembly fallback sanitisation via tiptap round-trip
+   - All 212 tests pass, 0 TypeScript errors
+   - Remaining issues from user's latest message need attention:
+     - The `#` heading still appears in compiled PDF — `latexToTiptap.preprocess()` doesn't convert markdown headings to LaTeX headings, so `# Aims and Objectives` becomes paragraph text `# Aims and Objectives`, then tiptapToLatex escapes it to `\# Aims and Objectives` — this gets compiled as `\# Aims and Objectives` text in the PDF
+     - Source view shows raw LaTeX (by design — it's the "Source" mode), but contains `\needspace` and markdown artifacts because the DB data hasn't been cleaned
+     - Phase 6+ AI generation not supported yet
+     - Sidebar layout needs CSS/component changes
+
+6. All User Messages:
+   - **Message 1** (continuation context): System-provided summary of previous session, instructed to "continue the conversation from where we left off without asking the user any further questions"
+   
+   - **Message 2**: "Run an e2e test for the whole pipeline, and fix all issues"
+   
+   - **Message 3** (current): "The AI generation UI and the pdf pane and rtf source pane break is not ok, The left sidebar needs to autocollapse and be togglable. there are still unicode characters in the source and the the chapter beginning # is still present" — with 5 screenshots showing:
+     - "AI generation for Phase 6 is not yet supported" error
+     - Source view with raw LaTeX (`\needspace`, `\begin{enumerate}`, `\cite{}` without proper rendering)
+     - PDF showing `# Aims and Objectives` as literal text on page 14
+     - Materials & Methods content with backslash rendering issues
+     - Layout with sidebar taking space, content area cramped
+
+7. Pending Tasks:
+   - **Fix `# Heading` in compiled PDF**: The `preprocess()` in `latex-to-tiptap.ts` needs to convert markdown headings (`# Title` → `\section{Title}`, `## Title` → `\subsection{Title}`) instead of passing them through as paragraph text. Currently `# Aims and Objectives` becomes `\# Aims and Objectives` after round-trip, which renders as literal text in PDF.
+   - **Fix sidebar auto-collapse/toggle**: The left sidebar needs to collapse on the project workspace page and be togglable
+   - **Fix layout/pane arrangement**: The editor pane, PDF preview pane arrangement is broken
+   - **Fix unicode characters in source view**: Source view shows unicode chars that need to be ASCII/LaTeX equivalents
+   - **Add Phase 6+ AI generation support**: `getPhaseSystemPrompt(6)` returns null — need prompts for Results, Discussion, Conclusion phases
+   - **Apply migration 019**: User needs to run `ALTER TABLE public.sections ADD COLUMN IF NOT EXISTS ai_generated_latex TEXT DEFAULT NULL;` in Supabase Dashboard
+   - **Clean existing DB data**: Existing sections have `# Introduction`, `\needspace` in `latex_content` — the compile assembly now round-trips these, but the source editor still shows raw content
+
+8. Current Work:
+   The user just provided a new message with 5 screenshots showing multiple remaining issues after the E2E test fixes were applied. This message is requesting a summary, so no code work was being done. The previous work completed was the E2E pipeline test creation and bug fixes (inline parser, assembly fallback, 409 handling, Inngest noise), all of which resulted in 212 tests passing.
+
+9. Optional Next Step:
+   Based on the user's most recent message, the next steps should address:
+   1. **Fix `# Heading` rendering in PDF** — modify `preprocess()` in `latex-to-tiptap.ts` to convert markdown headings to LaTeX headings (`# Title` → `\section{Title}`) so the round-trip produces proper LaTeX instead of `\# Title`
+   2. **Fix sidebar auto-collapse** — make the left sidebar (`Overview/Dashboard/Projects/Licences`) collapse on the project workspace page
+   3. **Fix the layout/pane arrangement** — ensure the editor/source view and PDF preview pane display correctly side by side
+   4. **Strip unicode characters from source** — handle em-dashes, smart quotes, etc.
+   5. **Add Phase 6 AI prompt support** — check `getPhaseSystemPrompt()` and add missing phase prompts
+   
+   User's exact words: "The AI generation UI and the pdf pane and rtf source pane break is not ok, The left sidebar needs to autocollapse and be togglable. there are still unicode characters in the source and the the chapter beginning # is still present"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+phase 6 generation will have issues!. it is supposed to be results, and we havent created the UI or the option to upload dataset for results, neither scaffolded synthetic dataste creation
+
+---
+
+This is also not as per the original cli pipeline or the PLAN. Stop making sudden plan changs without the proper alignments and following proper rules!
+
+---
+
+complete these 1. Markdown # Heading → \section{Title} conversion in preprocess() — fixes the # appearing as
+  literal text in compiled PDFs
+  2. Sidebar auto-collapse on project workspace — maximises workspace area
+  3. Unicode normalisation in escapeLatex() — converts smart quotes, em-dashes etc. to LaTeX
+  equivalents
+  4. Layout widening — max-w-screen-2xl and min-w-0 on panes
+  5. \needspace removed from AI instructions — template handles page breaks, AI was polluting source
+  with it then do an anlysis at which sprint we are as per plan.
+
+---
+
+complete sprint 5-6 fully, with all unit tests, and e2e tests. Where does phase 6 pipeline become a reality?
+
+---
+
+[Request interrupted by user for tool use]
