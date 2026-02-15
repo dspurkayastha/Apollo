@@ -1,0 +1,249 @@
+Implement the following plan:
+
+# Hero Section — React Three Fiber 3D Scene
+
+## Context
+
+The CSS-only approach (now implemented) fixed the transform bug but the pages still look flat and lack real depth. The user wants:
+1. **Better pages** — real 3D presence, not CSS pseudo-3D
+2. **Bottom shadows** — currently missing entirely
+3. **Scatter plot** — glass spheres arranged as data points on an XYZ coordinate graph showing a linear distribution with scatter
+4. **Visible axes** — thin grey lines with tick marks for an academic/clinical feel
+
+**Decision: React Three Fiber** — user explicitly chose R3F. The 3D scene is lazy-loaded via `next/dynamic` with `ssr: false`, so the ~220KB gzipped bundle only loads on desktop (`hidden lg:block` wrapper prevents mount on mobile).
+
+---
+
+## Files (4 files)
+
+| # | File | Action |
+|---|------|--------|
+| 1 | `apps/web/package.json` | Add `three`, `@react-three/fiber`, `@react-three/drei`, `@types/three` |
+| 2 | `apps/web/components/landing/hero-3d-scene.tsx` | **Create** — R3F Canvas with pages, scatter plot, axes, shadows |
+| 3 | `apps/web/components/landing/hero-section.tsx` | Modify — dynamic import 3D scene, remove old CSS components |
+| 4 | `apps/web/app/globals.css` | Remove unused paper-curl/paper-page/paper-surface classes |
+
+---
+
+## Step 1: Install Dependencies
+
+```bash
+cd apps/web && pnpm add three @react-three/fiber @react-three/drei && pnpm add -D @types/three
+```
+
+---
+
+## Step 2: Create `hero-3d-scene.tsx`
+
+Single `"use client"` file exporting `Hero3DScene` component.
+
+### Canvas Configuration
+
+```tsx
+<Canvas
+  camera={{ position: [0, 1, 8], fov: 35, near: 0.1, far: 50 }}
+  dpr={[1, 1.5]}           // cap DPR for mobile GPU
+  gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
+  style={{ background: "transparent" }}
+>
+```
+
+### Scene Tree
+
+```
+Canvas
+├── ambientLight (intensity 0.5)
+├── directionalLight (position [5, 8, 5], intensity 1.0)
+├── pointLight (position [-3, 3, 2], intensity 0.3, warm #FFF5E6)
+├── ContactShadows (y=-2.8, opacity 0.3, blur 2, resolution 256)
+├── ThesisPagesGroup (position [-1.5, 0.3, 0])
+│   ├── Float > Page A mesh (rotate ~-15deg Y)
+│   ├── Float > Page B mesh (rotate ~-6deg Y, slight X tilt)
+│   └── Float > Page C mesh (rotate ~+5deg Y)
+└── ScatterPlotGroup (position [1.8, -0.5, 0])
+    ├── ScatterAxes (3 Line components + tick marks)
+    └── 18× Float > Sphere mesh (clearcoat material)
+```
+
+### Thesis Pages — Canvas2D Textures (1 mesh per page)
+
+Each page is a `planeGeometry` (2.1 × 2.97, A4 ratio) with a `meshStandardMaterial`. The texture is generated via `useMemo` + Canvas2D:
+
+- 512×720 canvas
+- Paper background `#FDFCFA`
+- Title line `#B0B0B0` (rounded rect)
+- Paragraph lines `#C8C8C8` at varying widths
+- Applied as `map` on the material
+
+Three pages at different positions/rotations within a `<Float>` wrapper for gentle bobbing.
+
+### Scatter Plot — 18 Spheres on Linear Trend
+
+**Data**: 18 deterministic points (no `Math.random`) where `y = 0.7x + 0.3z` with noise baked into the z values.
+
+**Sphere material** — `meshPhysicalMaterial` with clearcoat (NOT transmission — too expensive):
+```tsx
+<meshPhysicalMaterial
+  color={color}        // from sage/amber palette
+  metalness={0.1}
+  roughness={0.2}
+  clearcoat={1.0}
+  clearcoatRoughness={0.1}
+/>
+```
+
+**Geometry**: `sphereGeometry` with 16×16 segments (low-poly for performance).
+
+**Colours**: `["#8B9D77", "#D4A373", "#E8DCC8", "#6B7A5E"]` — sage, amber, cream, dark sage.
+
+### Axes — Lines with Tick Marks
+
+Three `<Line>` components from drei (X, Y, Z) in `#CCCCCC`, lineWidth 1. Tick marks every 0.5 units as short perpendicular line segments (0.05 units long).
+
+### ContactShadows
+
+```tsx
+<ContactShadows position={[0, -2.8, 0]} opacity={0.3} scale={12} blur={2} far={5} resolution={256} />
+```
+
+This creates ground shadows beneath both pages and spheres — fixes the "missing bottom shadows" issue.
+
+### Reduced Motion
+
+Detect `prefers-reduced-motion` via `useEffect` + `matchMedia`. When true, replace all `<Float>` wrappers with static `<group>` — scene renders once, completely still.
+
+---
+
+## Step 3: Modify `hero-section.tsx`
+
+1. **Dynamic import** the 3D scene:
+```tsx
+const Hero3DScene = dynamic(
+  () => import("@/components/landing/hero-3d-scene").then((m) => m.Hero3DScene),
+  { ssr: false, loading: () => <Hero3DFallback /> }
+);
+```
+
+2. **Replace right zone** — swap the old perspective div + 3 motion.div pages + sphere cluster with:
+```tsx
+<div className="relative hidden h-[560px] w-full lg:col-span-7 lg:block">
+  <Hero3DScene />
+</div>
+```
+
+3. **Add WebGL error boundary** — simple class component wrapping the Canvas to show fallback if WebGL unavailable.
+
+4. **Delete dead code**: `ParagraphBlock`, `ThesisPage`, `GlassSphere`, all page/sphere data constants.
+
+5. **Keep**: `TypewriterText`, left-zone JSX, `useReducedMotion` hook (still used by left zone Motion animations).
+
+---
+
+## Step 4: Clean Up `globals.css`
+
+Remove these classes (only used by deleted components):
+- `.paper-shadow`
+- `.paper-page`
+- `.paper-curl-corner` + `::after`
+- `.paper-curl-bottom` + `::after`
+- `.paper-curl-side` + `::after`
+- `.paper-surface`
+
+---
+
+## Performance Budget
+
+| Element | Triangles | Draw Calls | Notes |
+|---------|-----------|------------|-------|
+| 3 page planes | 6 | 3 | meshStandardMaterial (cheap) |
+| 18 spheres (16×16) | ~4,608 | 18 | clearcoat, no env map |
+| Axis lines + ticks | ~300 | ~30 | LineMaterial (cheap) |
+| ContactShadows | 2 | 1 pass | 256×256 resolution |
+| **Total** | **~4,916** | **~52** | Well within budget Android GPU limits |
+
+- `dpr={[1, 1.5]}` caps pixel ratio
+- No environment map (no HDR download)
+- No transmission (no extra render pass)
+- Desktop-only (`hidden lg:block`) — mobile never loads the bundle
+
+---
+
+## Verification
+
+1. `pnpm tsc --noEmit` — zero TypeScript errors
+2. `pnpm build` — no SSR errors (dynamic import prevents `window is not defined`)
+3. **Visual — Pages**: 3 floating thesis pages with paper texture, gentle bob, visible depth via 3D rotation
+4. **Visual — Shadows**: contact shadows visible beneath pages and spheres
+5. **Visual — Scatter plot**: 18 glossy spheres along a clear linear trend, XYZ axes with tick marks
+6. **Visual — Mobile**: Canvas hidden on `< lg`, no bundle loaded
+7. **Visual — Reduced motion**: all animation stops, scene is static
+8. Chrome DevTools 4× CPU throttle: smooth 30+ fps
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.claude/projects/-Users-devs-Downloads-Apollo/3a41ac12-3e20-4512-8c40-a31a7aaa1fad.jsonl
+
+---
+
+kill and rerunn the dev server
+
+---
+
+<task-notification>
+<task-id>b89e78a</task-id>
+<output-file>/private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b89e78a.output</output-file>
+<status>completed</status>
+<summary>Background command "Restart dev server with updated next.config" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b89e78a.output
+
+---
+
+This still doesnt look or feel the same as the mock up, the pages look same straight screen faces, now in shadow, and the graph has plastic marbles, instead of glass speheres of diff sizes, with varing scatter!
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 10.47.09 AM.png]
+
+---
+
+Lets take this edit by edit. Now the glass spehers look better, Lets split the 2 elements ie the pages and the graph as separate, give the graph , a hover motion instead of rotate, a fixed slant, deeper ground shadows, and a slight breathe effect
+
+---
+
+the graph is now clipped out of render frame, and has an end on view, hence z axis not visible. The glass spheres need better sparkle and brighter colors, they are the only source of color on the page. Bring the graph closer to the pages, rotate 25 deg on z axis, and - 20 deg on the y axis
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 10.54.48 AM.png]
+
+---
+
+make the z axis tilt 15 deg, and the y axis -30. change the colors of the spheres, and the breathe motion for the speres should be different for diff groups (diff colors in each group, grouped by motion not location) and also diff from the axes, which should have least but perceptibe motion. also deepen the shadow beneath the graph, and bring it closer to the graph, so that the graph feels closer to the 'floor'
+
+---
+
+check the arrangement of the pages , graphs, branding, and the type of the hero on the mockup. Our one feels very sparse and doesnt capture my edits
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 11.05.13 AM.png]
+
+---
+
+Do a gap analysis of the screenshot with the mockup
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 11.08.37 AM.png]
+
+---
+
+Make as close an approximation as you can, use whatver resources necessary. Blender etc whatever packages etc  will give the best and closest to the mockup. also additionally Make the Branding text and type of the hero better. Decrease the white space beneath the hero as well a bit
+
+---
+
+Plan for alternative 3D options and code templates, packages etc, which will give a better approximation to the mockup
+
+---
+
+[Request interrupted by user for tool use]
