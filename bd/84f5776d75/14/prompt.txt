@@ -1,0 +1,146 @@
+Implement the following plan:
+
+# Plan: Premium Feature Cards — Fix Grid + Hover
+
+## Context
+
+The feature cards in `features-section.tsx` have three problems:
+
+1. **Broken bento grid**: Framer Motion `y` offsets (`y: -32` for middle column) displace cards from their CSS grid cells, breaking alignment. The original CSS `lg:-translate-y-8` worked because CSS transforms don't affect grid layout, but Framer Motion's inline `transform` overwrites it.
+
+2. **Invisible sage tint**: The `bg-[#8B9D77]/20 blur-3xl` blob is too small (32x32), too diffuse (48px blur radius), and too faint against the near-white card background. It's invisible.
+
+3. **Hover lift is "AI slop"**: `translateY(-6px)` on hover is overused across AI-generated sites. The user wants genuinely premium interaction that doesn't rely on elevation.
+
+---
+
+## File: `apps/web/components/landing/features-section.tsx`
+
+### Fix 1: Restore CSS grid stagger, entrance-only Framer Motion
+
+- Framer Motion handles **entrance only**: `initial={{ opacity: 0, y: 20 }}` → `whileInView={{ opacity: 1, y: 0 }}`
+- **Remove** `whileHover` from Framer Motion entirely
+- Restore CSS `lg:-translate-y-8` for middle column bento stagger (index % 3 === 1)
+- This way CSS grid layout works correctly, the stagger is purely visual via CSS transforms
+
+### Fix 2: Premium hover — border glow + full-card gradient wash
+
+Instead of hover lift, use **material-state changes** (what Stripe, Linear, Raycast do):
+
+**On hover:**
+- **Border**: transitions from `border-black/[0.06]` → `border-[#8B9D77]/30` (sage tint appears on the border itself)
+- **Full-card gradient overlay**: A `div` with `absolute inset-0` and `bg-gradient-to-br from-[#8B9D77]/[0.08] via-[#8B9D77]/[0.03] to-transparent` fades from `opacity-0` → `opacity-100`. This covers the ENTIRE card surface with a visible sage wash — not a tiny blur blob.
+- **Shadow**: deepens via existing `hover:zen-shadow-card-hover` (CSS transition, no conflict)
+- **No translateY, no scale** — the card stays perfectly still. The colour shift IS the interaction.
+
+**Why this works when the blob didn't:**
+- Full `inset-0` coverage — guaranteed visible across the entire card
+- `from-[#8B9D77]/[0.08]` is 8% sage opacity directly on the surface, not blurred into nothing
+- Gradient direction (`to-br`) creates depth — stronger in top-left, fading toward bottom-right
+- The border colour change provides an additional visual cue at the card edge
+
+### Fix 3: Content needs `relative` z-stacking
+
+All content elements (icon, h3, p) get `relative` class so they sit above the gradient overlay div.
+
+---
+
+## What stays unchanged
+
+- Card structure: `rounded-2xl`, padding `p-10 lg:p-16`
+- Background gradient: `bg-gradient-to-b from-white to-[#FAFAF8]`
+- Entrance animation timing and stagger delays
+- Icon size, typography, colours
+- Section heading and description
+- `globals.css` shadow classes
+
+---
+
+## Verification
+
+1. Dev server at localhost:3000 — scroll to Features section
+2. **Grid**: 3-column grid with middle column offset upward, all cells aligned
+3. **Hover**: border turns sage, visible green-tinted gradient washes across card, shadow deepens
+4. **No lift**: cards do NOT move vertically on hover
+5. **Tint visible**: the sage wash should be clearly perceptible against the white card background
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+place the pages and the grpah and the shadows slightly higher up inside the 3d container. about 10%.
+
+---
+
+The sage glow on the cards is too diffuse, and too sublime and I feel it should be a bit off center eg hugging the edge from where the cursor is placed with resoect to the center of the card. Think ultra hard and plan properly
+
+---
+
+increase the center opacity for sage color to 15%, then 12% at 20% radius, then 6% at 40% radius, and by 80% radius becomes transparent
+
+---
+
+Now do this same thing for the price cards, but instead of sage use an amber color
+
+---
+
+I dont want to remove the whileover scale animation!, only add the amber glow with cursor!
+
+---
+
+The Most Popular pill is split and only the lower half is visible,
+
+---
+
+The 3 pages in the 3d container dont have enough seoparation. The edges are not discernable, and there is no shadow between them. Also the brightness of the pages is not good or up to the mark, should increase a bit more. Think ultra hard for a fix
+
+---
+
+For these cards , do the same glow as the service cards, price cards. The color for these should be lilac
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 1.59.16 PM.png]
+
+---
+
+Use color #AF6FAB
+
+---
+
+Now create favicon with this image and out it in the repo
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 2.03.55 PM.png]
+
+---
+
+now for this card, apply the same glow with color #3077c9
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 2.08.06 PM.png]
+
+---
+
+increase width of the cta card by 15%
+
+---
+
+Now consider the landing page code finalised and put a soft lock, with specific approval necessary for changes
+
+---
+
+Now based on the finalised landing deign, come up with a design plan for the dash. I have 2 edits already. 1. Apollo font needs to chnage to match brand. 2. the sidebar on collapse should become a hovering sidebar as the dash design mockup photo. Plan for the other necessary changes. Think ultra hard
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 2.12.43 PM.png]
+
+[Image: source: /Users/devs/Downloads/Gemini_Generated_Image_wg7246wg7246wg72.png]
+
+---
+
+[Request interrupted by user for tool use]
