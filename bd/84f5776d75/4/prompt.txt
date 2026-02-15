@@ -1,0 +1,206 @@
+Implement the following plan:
+
+# Hero Section Fix — Root Cause + Enhanced Visuals
+
+## Context
+
+The previous implementation looks flat despite having the right conceptual approach. Three root-cause bugs make everything render wrong:
+
+### Bug #1: CSS Animation Destroys Inline Transforms (THE KILLER)
+`animate-float-thesis` sets `transform: translateY(-14px)` which **completely replaces** the inline `transform: rotate(-15deg)`. CSS animation `transform` overrides — it does NOT compose. So once the float animation starts, ALL page rotations are lost and pages become upright flat rectangles.
+
+### Bug #2: Triple Transform Conflict
+Each page has THREE things fighting over the `transform` property:
+1. Inline `style={{ transform: "rotate(-15deg)" }}`
+2. Framer Motion `initial/animate` which writes its own `transform` (y, scale, opacity)
+3. CSS class `animate-float-thesis` which writes `transform: translateY(...)`
+
+Only ONE can win. Framer Motion wins over inline styles. Then CSS animation wins over both.
+
+### Bug #3: Sphere Gradients Are Too Simple
+A single `radial-gradient` produces a flat disc, not a glass orb. Real 3D glass needs:
+- Multiple overlapping radial gradients (specular + body + edge darkening + bottom reflection)
+- A pseudo-element for the bright specular highlight oval
+- Better shadow layers
+
+## Research Summary — Approach Decision
+
+| Approach | Visual Quality | Bundle Cost | Mobile | Fits Project? |
+|----------|---------------|-------------|--------|--------------|
+| **Fix CSS properly** | 7-8/10 | 0 KB | Excellent | Yes — fix bugs first |
+| **React Three Fiber** | 9.5/10 | ~220 KB gzipped | Poor on budget Android | Over-engineering for decorative hero |
+| **Pre-rendered Blender PNGs** | 9.5/10 | ~100-250 KB images | Excellent | Good Phase 2, but needs Blender |
+| **Spline** | 7-8/10 | ~6.8 MB runtime | Poor | Way too heavy |
+| **Atropos.js** | Adds parallax depth | ~4 KB | Good | Nice optional enhancement |
+
+**Decision: Fix the CSS approach properly.** The current code has the right visual spec (tall pages, radial sphere gradients, paper curls) but three bugs make it render as flat cards. Fixing the transform conflict alone will be a dramatic improvement. Then layer on enhanced sphere CSS and paper texture.
+
+## Files to Modify (3 files)
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `apps/web/components/landing/hero-section.tsx` | Fix transform architecture, enhance sphere CSS |
+| 2 | `apps/web/app/globals.css` | Remove float-thesis keyframe, add paper texture, fix paper-page |
+| 3 | `apps/web/tailwind.config.ts` | Remove float-thesis animation (no longer used) |
+
+---
+
+## Implementation
+
+### Step 1: Fix Transform Architecture in `hero-section.tsx`
+
+**Solution: Use Framer Motion for ALL transforms — drop CSS animation entirely.**
+
+Framer Motion properly composes transforms. Give it `rotate`, `y`, `scale`, `rotateX`, `rotateY` as separate animated properties. It handles the math internally.
+
+For the float effect, use Framer Motion's repeating animation instead of CSS `@keyframes`:
+
+```tsx
+// Each page uses Framer Motion for both entrance AND float
+<motion.div
+  className="absolute paper-page"
+  style={{
+    left: "4%",
+    top: "10%",
+    width: 230,
+    zIndex: 1,
+  }}
+  // Rotation set as a constant (never changes after entrance)
+  initial={{ opacity: 0, y: 40, scale: 0.88, rotate: -15 }}
+  animate={{ opacity: 1, y: 0, scale: 1, rotate: -15 }}
+  transition={{ duration: dur, delay: 0.5, ease: zenEase }}
+>
+  {/* Inner wrapper handles the float — pure translateY, no transform conflict */}
+  <motion.div
+    animate={{ y: [0, -14, 0] }}
+    transition={{
+      y: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+    }}
+  >
+    <ThesisPage ... />
+  </motion.div>
+</motion.div>
+```
+
+**Why nested divs?** Framer Motion's `animate` for a repeating float (`y: [0, -14, 0]`) and a one-shot entrance (`opacity: 0→1, y: 40→0`) can't coexist on the same element — the `y` values would conflict. Outer div: entrance animation + static rotation. Inner div: perpetual float loop.
+
+Remove `animate-float-thesis` class from all pages entirely. The CSS keyframe and tailwind animation entry become dead code — remove them.
+
+### Step 2: Enhance `ThesisPage` — Paper Texture + Light Overlay
+
+Add warm off-white background with SVG noise texture for paper grain:
+
+```tsx
+function ThesisPage({ curlVariant, paragraphs, titleWidth }: Props) {
+  return (
+    <div className={`rounded-[3px] paper-surface px-6 py-5 ${curlClass} overflow-hidden`}>
+      {/* Light overlay — directional gradient simulating upper-left light */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-[3px]"
+        style={{
+          background: "linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.015) 100%)",
+        }}
+      />
+      {/* Content */}
+      <div className="relative z-[1]">
+        <div className="mb-3 h-[2.5px] rounded-full bg-[#B0B0B0]" style={{ width: titleWidth }} />
+        <div className="flex flex-col gap-[12px]">
+          {paragraphs.map((widths, i) => <ParagraphBlock key={i} widths={widths} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### Step 3: Enhance `GlassSphere` — Multi-Layer 3D Glass
+
+Replace single radial-gradient with layered approach:
+
+```tsx
+function GlassSphere({ size, baseColor, darkColor, top, left, delay }: Props) {
+  return (
+    <motion.div
+      className="absolute rounded-full"
+      animate={{ y: [0, -12, 0] }}
+      transition={{ y: { duration: 8, repeat: Infinity, ease: "easeInOut" } }}
+      style={{
+        width: size,
+        height: size,
+        top,
+        left,
+        animationDelay: delay,
+        background: `
+          radial-gradient(circle at 30% 22%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 36%),
+          radial-gradient(circle at 50% 80%, rgba(255,255,255,0.12) 0%, transparent 50%),
+          radial-gradient(circle at 50% 50%, rgba(${baseColor},0.7) 0%, rgba(${baseColor},0.85) 55%, rgba(${darkColor},0.95) 100%)
+        `,
+        boxShadow: `
+          inset 0 -6px 16px -2px rgba(0,0,0,0.12),
+          inset 0 2px 6px rgba(255,255,255,0.15),
+          0 6px 20px -4px rgba(0,0,0,0.18),
+          0 2px 6px -2px rgba(0,0,0,0.08)
+        `,
+        border: "1px solid rgba(255,255,255,0.3)",
+      }}
+    />
+  );
+}
+```
+
+Three gradient layers:
+1. **Specular highlight** — bright white spot at 30% 22%, fades to transparent by 36%
+2. **Bottom reflection** — subtle white glow at bottom
+3. **Body colour** — base color in center, darker at edges (Fresnel-like)
+
+Plus enhanced box-shadow:
+1. **Inner bottom shadow** — darkens the bottom edge (away from light)
+2. **Inner top highlight** — subtle white glow where light enters
+3. **Outer shadow** — drop shadow beneath sphere
+4. **Outer contact shadow** — tighter shadow near sphere
+
+### Step 4: Update `globals.css`
+
+- Remove `@keyframes float-thesis` (replaced by Framer Motion)
+- Update `.paper-page` — keep drop-shadow filter
+- Add `.paper-surface` — paper grain texture via SVG data-URI + warm off-white
+
+```css
+.paper-surface {
+  background-color: #FDFCFA;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  border: 1px solid rgba(0,0,0,0.04);
+  border-top-color: rgba(255,255,255,0.5);
+  border-left-color: rgba(255,255,255,0.3);
+}
+```
+
+### Step 5: Update `tailwind.config.ts`
+
+Remove `float-thesis` keyframe and animation entries (dead code after Step 1).
+
+### Step 6: Adjust Perspective
+
+Lower the parent `perspective` from `1200px` to `900px` — this makes the `rotateX` / `rotateY` on pages more pronounced (more 3D foreshortening).
+
+---
+
+## Verification
+
+1. `pnpm tsc --noEmit` — zero errors
+2. **Visual check — Rotations preserved**: pages must stay at -15deg, -6deg, +5deg while floating. The float should be a gentle up/down bob WITHOUT resetting rotation.
+3. **Visual check — Paper texture**: pages should have subtle grain, warm off-white tone, light-edge highlight
+4. **Visual check — Glass spheres**: bright white specular dot in upper-left, colour body, dark edges, visible shadow beneath
+5. **Visual check — Shadows**: deep directional drop-shadows that follow the rotated page shape
+6. **Visual check — No chart**: only papers and spheres
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+The glass spheres are actually better but the paper is still bad. Also shadows at the bottom are missing completely. Also the glass speheres are supposed to be points on a xyz coordinate graph sshowing a linear disctribution with scatter. For the pages, maybe use something better , like Atropos.js and React three fiber?
+
+---
+
+[Request interrupted by user for tool use]
