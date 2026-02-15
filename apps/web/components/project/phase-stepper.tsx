@@ -1,4 +1,5 @@
 "use client";
+/** @deprecated Use PipelineTimeline instead */
 
 import { cn } from "@/lib/utils";
 import { PHASES } from "@/lib/phases/constants";
@@ -8,6 +9,7 @@ interface PhaseStepperProps {
   currentPhase: number;
   phasesCompleted: number[];
   projectStatus: string;
+  devLicenceBypass?: boolean;
   onPhaseClick?: (phase: number) => void;
 }
 
@@ -15,10 +17,11 @@ export function PhaseStepper({
   currentPhase,
   phasesCompleted,
   projectStatus,
+  devLicenceBypass,
   onPhaseClick,
 }: PhaseStepperProps) {
   const completedSet = new Set(phasesCompleted);
-  const isLicensed = projectStatus === "licensed" || projectStatus === "completed";
+  const isLicensed = devLicenceBypass || projectStatus === "licensed" || projectStatus === "completed";
 
   return (
     <div className="w-full overflow-x-auto">
@@ -41,7 +44,7 @@ export function PhaseStepper({
                   "bg-primary/10 text-primary ring-1 ring-primary/20",
                 isCompleted &&
                   !isCurrent &&
-                  "bg-green-50 text-green-700",
+                  "bg-green-500/10 text-green-400",
                 !isAccessible && "cursor-not-allowed opacity-50"
               )}
               title={

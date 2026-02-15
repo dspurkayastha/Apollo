@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 24 10% 10%;
+    --background: 40 7% 98%;
+    --foreground: 0 0% 18%;
     --card: 0 0% 100%;
-    --card-foreground: 24 10% 10%;
+    --card-foreground: 0 0% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 24 10% 10%;
-    --primary: 24 95% 53%;
+    --popover-foreground: 0 0% 18%;
+    --primary: 90 16% 54%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 24 5% 96%;
-    --secondary-foreground: 24 10% 10%;
-    --muted: 24 5% 96%;
-    --muted-foreground: 24 5% 45%;
-    --accent: 24 5% 96%;
-    --accent-foreground: 24 10% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 27 42% 64%;
+    --secondary-foreground: 0 0% 18%;
+    --muted: 40 7% 96%;
+    --muted-foreground: 0 0% 42%;
+    --accent: 40 7% 96%;
+    --accent-foreground: 0 0% 18%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 24 5% 90%;
-    --input: 24 5% 90%;
-    --ring: 24 95% 53%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 24 95% 53%;
+    --border: 0 0% 0% / 0.06;
+    --input: 0 0% 0% / 0.06;
+    --ring: 0 0% 18% / 0.1;
+    --radius: 1rem;
+    --sidebar-background: 0 0% 100% / 0.7;
+    --sidebar-foreground: 0 0% 18%;
+    --sidebar-primary: 90 16% 54%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 24 5% 96%;
-    --sidebar-accent-foreground: 24 10% 10%;
-    --sidebar-border: 24 5% 90%;
-    --sidebar-ring: 24 95% 53%;
+    --sidebar-accent: 40 7% 96%;
+    --sidebar-accent-foreground: 0 0% 18%;
+    --sidebar-border: 0 0% 0% / 0.06;
+    --sidebar-ring: 0 0% 18% / 0.1;
   }
 
   .dark {
@@ -41,7 +41,7 @@
     --card-foreground: 0 0% 95%;
     --popover: 240 5% 13%;
     --popover-foreground: 0 0% 95%;
-    --primary: 24 95% 53%;
+    --primary: 90 16% 54%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 4% 18%;
     --secondary-foreground: 0 0% 95%;
@@ -53,50 +53,15 @@
     --destructive-foreground: 0 0% 95%;
     --border: 240 4% 22%;
     --input: 240 4% 22%;
-    --ring: 24 95% 53%;
+    --ring: 90 16% 54%;
     --sidebar-background: 240 5% 8%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 24 95% 53%;
+    --sidebar-primary: 90 16% 54%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 20%;
-    --sidebar-ring: 24 95% 53%;
-  }
-}
-
-/* Animated border glow — popular pricing card only */
-@property --angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes rotate-border {
-  to {
-    --angle: 360deg;
-  }
-}
-
-.glow-border {
-  position: relative;
-  border: 2px solid transparent;
-  background:
-    linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
-    conic-gradient(
-        from var(--angle),
-        hsl(24 95% 53% / 0.3),
-        hsl(24 95% 53%),
-        hsl(24 95% 53% / 0.3)
-      )
-      border-box;
-  animation: rotate-border 4s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .glow-border {
-    animation: none;
-    border-color: hsl(24 95% 53% / 0.5);
+    --sidebar-ring: 90 16% 54%;
   }
 }
 
@@ -107,4 +72,140 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Zen utility classes */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-nav {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+.glass-nav-scrolled {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.06);
+}
+
+.zen-shadow {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.zen-shadow-hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.zen-shadow-card {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 10px 25px -3px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.02);
+}
+
+.zen-shadow-card-hover {
+  box-shadow: 0 12px 20px -4px rgba(0, 0, 0, 0.08),
+    0 24px 48px -8px rgba(0, 0, 0, 0.10),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* ── Landing page dot grid ── */
+.landing-dot-grid {
+  background-image:
+    radial-gradient(circle, rgba(47, 47, 47, 0.13) 1px, transparent 1px),
+    linear-gradient(to bottom, #F0EDE8, #F5F3F0 50%, #FAFAFA);
+  background-size: 16px 16px, 100% 100%;
+}
+
+/* Dashboard dot grid — flat colour variant */
+.dashboard-dot-grid {
+  background-image:
+    radial-gradient(circle, rgba(47, 47, 47, 0.13) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-color: #F3F2EE;
+}
+
+/* Landing card: multi-stop dot-fade halo via box-shadow */
+.landing-card {
+  box-shadow:
+    0 0 15px 8px rgba(245, 243, 240, 0.65),
+    0 0 40px 22px rgba(245, 243, 240, 0.4),
+    0 0 70px 40px rgba(245, 243, 240, 0.2),
+    0 0 120px 70px rgba(245, 243, 240, 0.07);
+  transition: box-shadow 400ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.landing-card:hover {
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.06),
+    0 0 15px 8px rgba(245, 243, 240, 0.65),
+    0 0 40px 22px rgba(245, 243, 240, 0.4),
+    0 0 70px 40px rgba(245, 243, 240, 0.2),
+    0 0 120px 70px rgba(245, 243, 240, 0.07);
+}
+
+/* Elevated variant (popular cards, CTA) — always has depth + halo */
+.landing-card-elevated {
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.06),
+    0 0 15px 8px rgba(245, 243, 240, 0.65),
+    0 0 40px 22px rgba(245, 243, 240, 0.4),
+    0 0 70px 40px rgba(245, 243, 240, 0.2),
+    0 0 120px 70px rgba(245, 243, 240, 0.07);
+  transition: box-shadow 400ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.landing-card-elevated:hover {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.08),
+    0 0 15px 8px rgba(245, 243, 240, 0.65),
+    0 0 40px 22px rgba(245, 243, 240, 0.4),
+    0 0 70px 40px rgba(245, 243, 240, 0.2),
+    0 0 120px 70px rgba(245, 243, 240, 0.07);
+}
+
+/* Scoped override — zen-shadow-card gains halo on the landing page */
+.landing-dot-grid .zen-shadow-card,
+.dashboard-dot-grid .zen-shadow-card {
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 10px 25px -3px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.02),
+    0 0 15px 8px rgba(245, 243, 240, 0.65),
+    0 0 40px 22px rgba(245, 243, 240, 0.4),
+    0 0 70px 40px rgba(245, 243, 240, 0.2),
+    0 0 120px 70px rgba(245, 243, 240, 0.07);
+}
+.landing-dot-grid .zen-shadow-card:hover,
+.landing-dot-grid .zen-shadow-card-hover,
+.dashboard-dot-grid .zen-shadow-card:hover,
+.dashboard-dot-grid .zen-shadow-card-hover {
+  box-shadow:
+    0 12px 20px -4px rgba(0, 0, 0, 0.08),
+    0 24px 48px -8px rgba(0, 0, 0, 0.10),
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 0 15px 8px rgba(245, 243, 240, 0.65),
+    0 0 40px 22px rgba(245, 243, 240, 0.4),
+    0 0 70px 40px rgba(245, 243, 240, 0.2),
+    0 0 120px 70px rgba(245, 243, 240, 0.07);
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+/* Zen focus rings */
+*:focus-visible {
+  outline: 2px solid rgba(47, 47, 47, 0.1);
+  outline-offset: 2px;
 }

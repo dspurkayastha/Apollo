@@ -1,44 +1,77 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Component } from "react";
+import type { ReactNode, ErrorInfo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowRight } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
-import { Button } from "@/components/ui/button";
-import { AnimatedGridPattern } from "@/components/ui/animated-grid";
-import { ApolloHeroPlayer } from "@/components/remotion/apollo-hero-player";
+// ── Lazy-load 3D scene (SSR-safe) ──────────────────────────────────────────
+const Hero3DScene = dynamic(
+  () => import("@/components/landing/hero-3d-scene").then((m) => m.Hero3DScene),
+  {
+    ssr: false,
+    loading: () => <Hero3DFallback />,
+  },
+);
 
-const springTransition = {
-  type: "spring" as const,
-  stiffness: 300,
-  damping: 25,
-};
+// ── Fallback while 3D loads ─────────────────────────────────────────────────
+function Hero3DFallback() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="h-10 w-10 animate-pulse rounded-full bg-[#E8DCC8]/60" />
+    </div>
+  );
+}
 
-const noMotion = {
-  duration: 0,
-};
+// ── WebGL error boundary ────────────────────────────────────────────────────
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
 
+class WebGLErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.warn("WebGL error boundary caught:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <Hero3DFallback />;
+    }
+    return this.props.children;
+  }
+}
+
+// ── TypewriterText ──────────────────────────────────────────────────────────
 function TypewriterText({
   text,
-  delay = 0,
-  speed = 50,
+  charDelay = 50,
+  startDelay = 1200,
+  reducedMotion = false,
 }: {
   text: string;
-  delay?: number;
-  speed?: number;
+  charDelay?: number;
+  startDelay?: number;
+  reducedMotion?: boolean;
 }) {
-  const [displayed, setDisplayed] = useState("");
-  const [showCursor, setShowCursor] = useState(true);
-  const prefersReducedMotion = useReducedMotion();
+  const [displayed, setDisplayed] = useState(reducedMotion ? text : "");
+  const [showCursor, setShowCursor] = useState(!reducedMotion);
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      setDisplayed(text);
-      setShowCursor(false);
-      return;
-    }
-
+    if (reducedMotion) return;
     const startTimeout = setTimeout(() => {
       let i = 0;
       const interval = setInterval(() => {
@@ -46,163 +79,86 @@ function TypewriterText({
         setDisplayed(text.slice(0, i));
         if (i >= text.length) {
           clearInterval(interval);
-          // Keep cursor blinking for 2s after completion, then hide
           setTimeout(() => setShowCursor(false), 2000);
         }
-      }, speed);
-
+      }, charDelay);
       return () => clearInterval(interval);
-    }, delay);
-
+    }, startDelay);
     return () => clearTimeout(startTimeout);
-  }, [text, delay, speed, prefersReducedMotion]);
+  }, [text, charDelay, startDelay, reducedMotion]);
 
   return (
-    <>
+    <span>
       {displayed}
       {showCursor && (
-        <span className="inline-block w-[3px] h-[0.85em] bg-primary ml-1 animate-pulse align-middle" />
+        <span className="animate-typewriter-cursor">|</span>
       )}
-    </>
+    </span>
   );
 }
 
+// ── HeroSection ─────────────────────────────────────────────────────────────
 export function HeroSection() {
   const prefersReducedMotion = useReducedMotion();
 
-  const transition = prefersReducedMotion ? noMotion : springTransition;
-
-  const containerVariants = {
-    hidden: {},
-    visible: {
-      transition: {
-        staggerChildren: prefersReducedMotion ? 0 : 0.15,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition,
-    },
-  };
-
-  const videoVariants = {
-    hidden: { opacity: 0, scale: 0.9, y: 40 },
-    visible: {
-      opacity: 1,
-      scale: 1,
-      y: 0,
-      transition: {
-        ...(prefersReducedMotion ? noMotion : springTransition),
-        delay: prefersReducedMotion ? 0 : 0.2,
-      },
-    },
-  };
+  const dur = prefersReducedMotion ? 0 : 1.0;
+  const zenEase = [0.16, 1, 0.3, 1] as const;
 
   return (
-    <section className="relative overflow-hidden py-20 sm:py-28 lg:py-36">
-      {/* Full-width container with flex split */}
-      <div className="container relative z-10">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:gap-16">
-          {/* LEFT SIDE — 60% on desktop: Remotion video with grid behind */}
-          <div className="relative lg:w-[60%]">
-            {/* Animated grid background */}
-            <div className="absolute -inset-x-8 -inset-y-8 overflow-hidden rounded-2xl [mask-image:radial-gradient(ellipse_at_60%_50%,black_20%,transparent_70%)]">
-              <AnimatedGridPattern
-                cellSize={48}
-                numSquares={20}
-                maxOpacity={0.25}
-                duration={4}
-              />
-            </div>
+    <section className="relative pb-2 pt-28 lg:pb-4 lg:pt-32">
+      <div className="container relative">
+        {/* ── 3D scene — absolutely positioned, wider, behind text ── */}
+        <div className="pointer-events-none absolute -right-12 top-0 hidden h-[828px] w-[75%] lg:block">
+          <WebGLErrorBoundary>
+            <Hero3DScene />
+          </WebGLErrorBoundary>
+        </div>
 
-            {/* Orange glow behind video */}
-            <div className="absolute left-1/3 top-1/2 -translate-x-1/2 -translate-y-1/2 h-80 w-80 rounded-full bg-primary/20 blur-[120px]" />
-
-            {/* Perspective-tilted Remotion video */}
-            <motion.div
-              className="relative"
-              variants={videoVariants}
-              initial="hidden"
-              animate="visible"
-              style={{ perspective: "1200px" }}
+        {/* ── Left zone — branding + CTA, overlaps in front ────────── */}
+        <div className="relative z-10 flex min-h-[580px] flex-col justify-center lg:max-w-[45%]">
+          <div style={{ perspective: 900 }}>
+            <motion.h1
+              className="font-brand text-[96px] font-normal leading-[0.90] tracking-[-0.03em] text-[#1A1A1A] md:text-[168px] lg:text-[192px]"
+              style={{ transformOrigin: "left center" }}
+              initial={{ opacity: 0, y: 60, scale: 0.95, rotateY: 0 }}
+              animate={{ opacity: 1, y: 0, scale: 1, rotateY: 9 }}
+              transition={{ duration: dur, delay: 0.2, ease: zenEase }}
             >
-              <div
-                className="transform-gpu rounded-xl shadow-2xl shadow-primary/10 overflow-hidden border border-white/10"
-                style={{
-                  transform: "rotateX(8deg) rotateY(-5deg)",
-                }}
-              >
-                <ApolloHeroPlayer />
-              </div>
-
-              {/* Right-edge gradient fade */}
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-background/80 to-transparent" />
-            </motion.div>
+              Apollo
+            </motion.h1>
           </div>
 
-          {/* RIGHT SIDE — 40% on desktop: copy with typewriter */}
-          <motion.div
-            className="mt-12 lg:mt-0 lg:w-[40%]"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
+          <motion.p
+            className="mt-4 max-w-md font-typewriter text-[17px] leading-[1.7] tracking-wide text-[#5A5A5A] md:mt-5 md:text-[20px]"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.8, delay: 0.4, ease: zenEase }}
           >
-            {/* Badge */}
-            <motion.div variants={itemVariants}>
-              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
-                Now in Beta
-              </span>
-            </motion.div>
+            <TypewriterText
+              text="From synopsis to submission — structured, cited, compliant. Upload your synopsis, and Apollo handles the rest."
+              reducedMotion={prefersReducedMotion ?? false}
+            />
+          </motion.p>
 
-            {/* Heading — larger + typewriter */}
-            <motion.h1
-              className="mt-8 font-heading text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl"
-              variants={itemVariants}
+          <motion.div
+            className="mt-7 flex items-center gap-4 md:mt-8"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.8, delay: 0.6, ease: zenEase }}
+          >
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-7 py-3.5 text-[15px] font-medium text-white transition-all hover:bg-[#333] hover:shadow-lg"
             >
-              <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
-                <TypewriterText text="Apollo" delay={400} speed={80} />
-              </span>
-              <br />
-              <span className="text-foreground">
-                <TypewriterText
-                  text="Your Thesis, Perfected."
-                  delay={1000}
-                  speed={45}
-                />
-              </span>
-            </motion.h1>
-
-            {/* Subtitle — larger */}
-            <motion.p
-              className="mt-8 text-xl text-muted-foreground leading-relaxed"
-              variants={itemVariants}
+              Get Started Free
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="#features"
+              className="inline-flex items-center rounded-full border border-[rgba(0,0,0,0.08)] bg-white/50 px-7 py-3.5 text-[15px] font-medium text-[#1A1A1A] backdrop-blur-sm transition-all hover:bg-white/80 hover:shadow-sm"
             >
-              From synopsis to submission — AI-powered workflows for 85,000+
-              medical postgraduates across India.
-            </motion.p>
-
-            {/* CTAs */}
-            <motion.div
-              className="mt-10 flex items-center gap-4"
-              variants={itemVariants}
-            >
-              <Link href="/sign-up">
-                <Button size="lg" className="text-base px-8 py-6">
-                  Get Started Free
-                  <ArrowRight />
-                </Button>
-              </Link>
-              <a href="#features">
-                <Button variant="outline" size="lg" className="text-base px-8 py-6">
-                  Learn More
-                </Button>
-              </a>
-            </motion.div>
+              Learn More
+            </a>
           </motion.div>
         </div>
       </div>

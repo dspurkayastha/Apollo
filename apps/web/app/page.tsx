@@ -11,7 +11,7 @@ import { FooterSection } from "@/components/landing/footer-section";
 
 export default function HomePage() {
   return (
-    <>
+    <div className="landing-dot-grid text-[#2F2F2F] min-h-screen">
       <Navbar />
       <main>
         <HeroSection />
@@ -24,6 +24,6 @@ export default function HomePage() {
         <CTASection />
       </main>
       <FooterSection />
-    </>
+    </div>
   );
 }

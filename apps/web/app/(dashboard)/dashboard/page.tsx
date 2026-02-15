@@ -32,16 +32,16 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Welcome to Apollo
+          <h1 className="font-serif text-2xl tracking-tight text-[#2F2F2F]">
+            Welcome to <span className="font-brand text-[1.725rem]">Apollo</span>
           </h1>
-          <p className="text-muted-foreground">
-            Your AI-powered thesis generation dashboard.
+          <p className="text-[#6B6B6B]">
+            AI assisted academic writing platform.
           </p>
         </div>
         <Link
           href="/projects/new"
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+          className="rounded-full bg-[#2F2F2F] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#2F2F2F]/90"
         >
           New Project
         </Link>
@@ -49,27 +49,27 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-lg border bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">Projects</p>
-          <p className="mt-2 text-3xl font-bold">{projectCount}</p>
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-6 landing-card">
+          <p className="font-serif text-sm font-medium text-[#6B6B6B]">Projects</p>
+          <p className="mt-2 text-3xl font-bold text-[#2F2F2F]">{projectCount}</p>
         </div>
-        <div className="rounded-lg border bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground">Licences</p>
-          <p className="mt-2 text-3xl font-bold">{licenceCount}</p>
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-6 landing-card">
+          <p className="font-serif text-sm font-medium text-[#6B6B6B]">Licences</p>
+          <p className="mt-2 text-3xl font-bold text-[#2F2F2F]">{licenceCount}</p>
         </div>
       </div>
 
       {/* Recent projects */}
       <div>
-        <h2 className="mb-4 text-lg font-semibold">Recent Projects</h2>
+        <h2 className="mb-4 font-serif text-lg text-[#2F2F2F]">Recent Projects</h2>
         {recentProjects.length === 0 ? (
-          <div className="rounded-lg border bg-card p-8 text-center">
-            <p className="text-muted-foreground">
+          <div className="rounded-2xl border border-black/[0.06] bg-white p-8 text-center landing-card">
+            <p className="text-[#6B6B6B]">
               No projects yet. Create your first thesis project.
             </p>
             <Link
               href="/projects/new"
-              className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+              className="mt-4 inline-block rounded-full bg-[#2F2F2F] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#2F2F2F]/90"
             >
               New Project
             </Link>
@@ -80,11 +80,11 @@ export default async function DashboardPage() {
               <Link
                 key={project.id}
                 href={`/projects/${project.id}`}
-                className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colours hover:bg-accent"
+                className="flex items-center justify-between rounded-2xl border border-black/[0.06] bg-white p-4 landing-card hover:border-black/[0.10]"
               >
                 <div>
-                  <p className="font-medium">{project.title}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-medium text-[#2F2F2F]">{project.title}</p>
+                  <p className="text-sm text-[#6B6B6B]">
                     Phase {project.current_phase} &middot;{" "}
                     {relativeTime(project.updated_at)}
                   </p>

@@ -67,6 +67,14 @@ export function FileUploader({
     );
   }, []);
 
+  const isDocxFile = useCallback((file: File): boolean => {
+    return (
+      file.type ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.name.toLowerCase().endsWith(".docx")
+    );
+  }, []);
+
   const readTextFile = useCallback(
     (file: File) => {
       const reader = new FileReader();
@@ -83,6 +91,27 @@ export function FileUploader({
         setErrorMessage("Failed to read the file. Please try again.");
       };
       reader.readAsText(file);
+    },
+    [onFileRead]
+  );
+
+  const readDocxFile = useCallback(
+    async (file: File) => {
+      try {
+        const mammoth = await import("mammoth");
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        if (result.value && onFileRead) {
+          onFileRead(result.value);
+        }
+        setState("complete");
+        setProgress(100);
+      } catch {
+        setState("error");
+        setErrorMessage(
+          "Failed to extract text from DOCX. Please try pasting the text directly."
+        );
+      }
     },
     [onFileRead]
   );
@@ -153,11 +182,15 @@ export function FileUploader({
         setState("uploading");
         setProgress(50);
         readTextFile(file);
+      } else if (isDocxFile(file)) {
+        setState("uploading");
+        setProgress(30);
+        void readDocxFile(file);
       } else {
         uploadToR2(file);
       }
     },
-    [validateFile, isTextFile, readTextFile, uploadToR2]
+    [validateFile, isTextFile, isDocxFile, readTextFile, readDocxFile, uploadToR2]
   );
 
   const handleDrop = useCallback(
@@ -214,11 +247,11 @@ export function FileUploader({
         }}
         className={cn(
           "relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors",
-          isDragOver && "border-blue-500 bg-blue-50",
-          state === "idle" && !isDragOver && "border-gray-300 hover:border-gray-400 hover:bg-gray-50",
-          state === "uploading" && "border-blue-400 bg-blue-50",
-          state === "complete" && "border-green-400 bg-green-50",
-          state === "error" && "border-red-400 bg-red-50"
+          isDragOver && "border-primary bg-primary/5",
+          state === "idle" && !isDragOver && "border-border hover:border-muted-foreground hover:bg-muted/50",
+          state === "uploading" && "border-primary/60 bg-primary/5",
+          state === "complete" && "border-green-500/60 bg-green-500/5",
+          state === "error" && "border-destructive/60 bg-destructive/5"
         )}
       >
         <input
@@ -233,7 +266,7 @@ export function FileUploader({
         {state === "idle" && (
           <>
             <svg
-              className="mb-2 h-8 w-8 text-gray-400"
+              className="mb-2 h-8 w-8 text-muted-foreground"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -245,35 +278,35 @@ export function FileUploader({
                 d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
               />
             </svg>
-            <p className="text-sm text-gray-600">
-              <span className="font-medium text-blue-600">Click to browse</span>{" "}
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-primary">Click to browse</span>{" "}
               or drag and drop
             </p>
-            <p className="mt-1 text-xs text-gray-400">
-              PDF or TXT up to {Math.round(maxSize / (1024 * 1024))}MB
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              DOCX, TXT, or PDF up to {Math.round(maxSize / (1024 * 1024))}MB
             </p>
           </>
         )}
 
         {state === "uploading" && (
           <div className="w-full max-w-xs text-center">
-            <p className="mb-2 text-sm text-blue-700">
-              {fileName ? `Uploading ${fileName}...` : "Processing..."}
+            <p className="mb-2 text-sm text-primary">
+              {fileName ? `Processing ${fileName}...` : "Processing..."}
             </p>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-blue-200">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                className="h-full rounded-full bg-primary transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="mt-1 text-xs text-blue-500">{progress}%</p>
+            <p className="mt-1 text-xs text-muted-foreground">{progress}%</p>
           </div>
         )}
 
         {state === "complete" && (
           <div className="text-center">
             <svg
-              className="mx-auto mb-1 h-8 w-8 text-green-600"
+              className="mx-auto mb-1 h-8 w-8 text-green-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -285,7 +318,7 @@ export function FileUploader({
                 d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
               />
             </svg>
-            <p className="text-sm font-medium text-green-700">
+            <p className="text-sm font-medium text-green-500">
               {fileName ?? "File"} uploaded successfully
             </p>
             <button
@@ -294,7 +327,7 @@ export function FileUploader({
                 e.stopPropagation();
                 resetState();
               }}
-              className="mt-2 text-xs text-green-600 underline hover:text-green-800"
+              className="mt-2 text-xs text-green-500/80 underline hover:text-green-500"
             >
               Upload another file
             </button>
@@ -304,7 +337,7 @@ export function FileUploader({
         {state === "error" && (
           <div className="text-center">
             <svg
-              className="mx-auto mb-1 h-8 w-8 text-red-500"
+              className="mx-auto mb-1 h-8 w-8 text-destructive"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -316,7 +349,7 @@ export function FileUploader({
                 d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
               />
             </svg>
-            <p className="text-sm text-red-700">
+            <p className="text-sm text-destructive">
               {errorMessage ?? "An error occurred"}
             </p>
             <button
@@ -325,7 +358,7 @@ export function FileUploader({
                 e.stopPropagation();
                 resetState();
               }}
-              className="mt-2 text-xs text-red-600 underline hover:text-red-800"
+              className="mt-2 text-xs text-destructive/80 underline hover:text-destructive"
             >
               Try again
             </button>

@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "motion/react";
-
 import {
   Accordion,
   AccordionContent,
@@ -54,36 +53,40 @@ const faqs = [
 
 export function FAQSection() {
   return (
-    <section id="faq" className="py-20 sm:py-28">
+    <section id="faq" className="py-14 md:py-[102px]">
       <div className="container">
         <motion.div
           className="mx-auto max-w-2xl text-center"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         >
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="font-serif text-3xl tracking-tight text-[#2F2F2F] sm:text-4xl">
             Frequently Asked Questions
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-3 text-lg text-[#6B6B6B]">
             Have a question? Find answers to common queries below.
           </p>
         </motion.div>
         <motion.div
-          className="mx-auto mt-16 max-w-2xl"
+          className="mx-auto mt-12 max-w-2xl"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.1 }}
+          transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
         >
           <Accordion type="single" collapsible className="w-full">
             {faqs.map((faq, index) => (
-              <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-left text-base">
+              <AccordionItem
+                key={index}
+                value={`item-${index}`}
+                className="border-black/[0.06]"
+              >
+                <AccordionTrigger className="text-left text-base text-[#2F2F2F] hover:no-underline">
                   {faq.question}
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
+                <AccordionContent className="text-[#6B6B6B]">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>

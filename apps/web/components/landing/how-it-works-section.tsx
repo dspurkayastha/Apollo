@@ -30,74 +30,55 @@ const steps = [
   },
 ];
 
-const containerVariants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.15,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: "spring" as const,
-      stiffness: 300,
-      damping: 25,
-    },
-  },
-};
-
 export function HowItWorksSection() {
   return (
-    <section className="py-20 sm:py-28">
+    <section className="py-14 md:py-[102px]">
       <div className="container">
-        <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-center">
+        <h2 className="text-center font-serif text-3xl tracking-tight text-[#2F2F2F] sm:text-4xl">
           How It Works
         </h2>
-        <p className="mt-4 text-lg text-muted-foreground text-center mx-auto max-w-2xl">
+        <p className="mx-auto mt-3 max-w-2xl text-center text-lg text-[#6B6B6B]">
           From synopsis to submission in four simple steps.
         </p>
 
         <motion.div
-          className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4"
-          variants={containerVariants}
+          className="mt-12 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
+          variants={{
+            hidden: {},
+            visible: { transition: { staggerChildren: 0.15 } },
+          }}
         >
           {steps.map((step, index) => (
             <motion.div
               key={step.title}
               className="relative flex flex-col items-center text-center"
-              variants={itemVariants}
-              whileHover={{ y: -3 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+                },
+              }}
             >
-              {/* Connecting dashed line between steps (desktop only, not on last item) */}
+              {/* Sage connecting line */}
               {index < steps.length - 1 && (
-                <div className="hidden lg:block absolute top-7 left-[calc(50%+28px)] w-[calc(100%-56px)] border-t-2 border-dashed border-primary/50" />
+                <div className="absolute left-[calc(50%+28px)] top-7 hidden h-0.5 w-[calc(100%-56px)] bg-[#8B9D77] lg:block" />
               )}
 
-              {/* Step number circle */}
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-primary bg-primary/20 text-primary font-bold text-lg">
+              {/* Charcoal outlined circle */}
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#2F2F2F] text-lg font-bold text-[#2F2F2F]">
                 {index + 1}
               </div>
 
-              {/* Icon */}
-              <step.icon className="mt-4 h-6 w-6 text-muted-foreground" />
-
-              {/* Title */}
-              <h3 className="mt-3 text-base font-semibold">{step.title}</h3>
-
-              {/* Description */}
-              <p className="mt-2 text-sm text-muted-foreground">
-                {step.description}
-              </p>
+              <step.icon className="mt-4 h-6 w-6 text-[#6B6B6B]" strokeWidth={1.5} />
+              <h3 className="mt-3 font-serif text-base font-semibold text-[#2F2F2F]">
+                {step.title}
+              </h3>
+              <p className="mt-2 text-sm text-[#6B6B6B]">{step.description}</p>
             </motion.div>
           ))}
         </motion.div>

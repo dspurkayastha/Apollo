@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "motion/react";
-
 import {
   Carousel,
   CarouselContent,
@@ -53,7 +52,7 @@ function getInitials(name: string) {
 
 export function TestimonialsSection() {
   return (
-    <section className="py-20 sm:py-28">
+    <section className="py-14 md:py-[102px]">
       <div className="container">
         <motion.div
           className="mx-auto max-w-2xl text-center"
@@ -62,17 +61,17 @@ export function TestimonialsSection() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="font-serif text-3xl tracking-tight text-[#2F2F2F] sm:text-4xl">
             What Researchers Say
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-3 text-lg text-[#6B6B6B]">
             Trusted by medical postgraduates across India to deliver
             publication-ready theses.
           </p>
         </motion.div>
 
         <motion.div
-          className="mx-auto mt-16 max-w-4xl"
+          className="mx-auto mt-12 max-w-4xl"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
@@ -82,19 +81,36 @@ export function TestimonialsSection() {
             <CarouselContent className="-ml-4">
               {testimonials.map((testimonial, index) => (
                 <CarouselItem key={index} className="pl-4 md:basis-1/2">
-                  <div className="rounded-xl border bg-card p-6 h-full">
-                    <p className="text-sm text-muted-foreground italic">
+                  <div
+                    className="group relative h-full overflow-hidden rounded-2xl border border-black/[0.06] bg-white p-6 landing-card hover:border-[#AF6FAB]/30"
+                    onMouseMove={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = ((e.clientX - rect.left) / rect.width) * 100;
+                      const y = ((e.clientY - rect.top) / rect.height) * 100;
+                      e.currentTarget.style.setProperty("--mouse-x", `${x}%`);
+                      e.currentTarget.style.setProperty("--mouse-y", `${y}%`);
+                    }}
+                  >
+                    {/* Cursor-tracking lilac glow on hover */}
+                    <div
+                      className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                      style={{
+                        background:
+                          "radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(175,111,171,0.15) 0%, rgba(175,111,171,0.12) 20%, rgba(175,111,171,0.06) 40%, transparent 80%)",
+                      }}
+                    />
+                    <p className="relative font-serif text-sm italic leading-relaxed text-[#2F2F2F]">
                       &ldquo;{testimonial.quote}&rdquo;
                     </p>
-                    <div className="mt-4 flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm">
+                    <div className="relative mt-4 flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#8B9D77]/20 font-semibold text-[#8B9D77] text-sm">
                         {getInitials(testimonial.name)}
                       </div>
                       <div>
-                        <p className="text-sm font-medium">
+                        <p className="text-sm font-medium text-[#2F2F2F]">
                           {testimonial.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#6B6B6B]">
                           {testimonial.role}
                         </p>
                       </div>

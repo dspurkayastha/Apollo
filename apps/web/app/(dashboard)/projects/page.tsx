@@ -2,6 +2,9 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { relativeTime, projectStatusClasses } from "@/lib/format";
 import type { Project } from "@/lib/types/database";
+import { DeleteProjectButton } from "@/components/project/delete-project-button";
+import { TemplateGallery } from "@/components/project/template-gallery";
+import { ProjectCard } from "./project-card";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +14,7 @@ export default async function ProjectsPage() {
   const { data, error } = await supabase
     .from("projects")
     .select("*")
+    .neq("status", "archived")
     .order("updated_at", { ascending: false });
 
   const projects = (data ?? []) as Project[];
@@ -22,53 +26,51 @@ export default async function ProjectsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
+        <h1 className="font-serif text-2xl tracking-tight text-[#2F2F2F]">Projects</h1>
         <Link
           href="/projects/new"
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+          className="rounded-full bg-[#2F2F2F] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#2F2F2F]/90"
         >
           New Project
         </Link>
       </div>
 
       {projects.length === 0 ? (
-        <div className="rounded-lg border bg-card p-12 text-center">
-          <p className="text-lg font-medium">No projects yet</p>
-          <p className="mt-1 text-muted-foreground">
-            Create your first thesis project.
-          </p>
-          <Link
-            href="/projects/new"
-            className="mt-6 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
-          >
-            New Project
-          </Link>
+        <div className="space-y-8">
+          <div className="rounded-2xl border border-black/[0.06] bg-white p-12 text-center landing-card">
+            <p className="font-serif text-lg font-medium text-[#2F2F2F]">No projects yet</p>
+            <p className="mt-1 text-[#6B6B6B]">
+              Create your first thesis project.
+            </p>
+            <Link
+              href="/projects/new"
+              className="mt-6 inline-block rounded-full bg-[#2F2F2F] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#2F2F2F]/90"
+            >
+              New Project
+            </Link>
+          </div>
+          <TemplateGallery />
         </div>
       ) : (
+        <div className="space-y-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <Link
+            <ProjectCard
               key={project.id}
-              href={`/projects/${project.id}`}
-              className="group rounded-lg border bg-card p-5 transition-colours hover:bg-accent"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold leading-tight group-hover:text-accent-foreground">
-                  {project.title}
-                </h2>
-                <span
-                  className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${projectStatusClasses(project.status)}`}
-                >
-                  {project.status}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center gap-3 text-sm text-muted-foreground">
-                <span>Phase {project.current_phase}</span>
-                <span>&middot;</span>
-                <span>{relativeTime(project.updated_at)}</span>
-              </div>
-            </Link>
+              project={{
+                id: project.id,
+                title: project.title,
+                status: project.status,
+                current_phase: project.current_phase,
+                updated_at: project.updated_at,
+              }}
+              statusClasses={projectStatusClasses(project.status)}
+              relativeTime={relativeTime(project.updated_at)}
+            />
           ))}
+        </div>
+
+        <TemplateGallery />
         </div>
       )}
     </div>

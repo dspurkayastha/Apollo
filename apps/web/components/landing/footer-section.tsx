@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { GraduationCap } from "lucide-react";
-import { motion } from "motion/react";
 
 const productLinks = [
   { label: "Features", href: "#features" },
@@ -12,98 +10,79 @@ const productLinks = [
 
 const companyLinks = [
   { label: "About", href: "#" },
-  { label: "Blog", href: "#" },
-  { label: "Careers", href: "#" },
+  { label: "Contact", href: "mailto:contact@apollo.dev" },
 ];
 
 const legalLinks = [
   { label: "Privacy Policy", href: "#" },
   { label: "Terms of Service", href: "#" },
-  { label: "Contact", href: "mailto:contact@apollo.dev" },
 ];
+
+function FooterLinkGroup({
+  title,
+  links,
+}: {
+  title: string;
+  links: { label: string; href: string }[];
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-[#2F2F2F]">
+        {title}
+      </p>
+      <ul className="mt-3 flex flex-col gap-2">
+        {links.map((link) => (
+          <li key={link.label}>
+            <a
+              href={link.href}
+              className="text-sm text-[#9CA3AF] transition-colors hover:text-[#2F2F2F]"
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function FooterSection() {
   return (
-    <footer className="py-12">
-      <motion.div
-        className="container"
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-100px" }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="rounded-2xl border bg-card p-8 sm:p-12">
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
-            {/* Brand */}
-            <div className="col-span-2 sm:col-span-1">
-              <Link href="/" className="flex items-center gap-2">
-                <GraduationCap className="h-5 w-5" />
-                <span className="font-bold">Apollo</span>
-              </Link>
-              <p className="mt-3 text-sm text-muted-foreground">
-                AI-powered thesis generation for medical postgraduates.
-              </p>
-            </div>
-
-            {/* Product */}
-            <div>
-              <h4 className="text-sm font-semibold">Product</h4>
-              <ul className="mt-3 space-y-2">
-                {productLinks.map((link) => (
-                  <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h4 className="text-sm font-semibold">Company</h4>
-              <ul className="mt-3 space-y-2">
-                {companyLinks.map((link) => (
-                  <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="text-sm font-semibold">Legal</h4>
-              <ul className="mt-3 space-y-2">
-                {legalLinks.map((link) => (
-                  <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-8 border-t pt-8">
-            <p className="text-sm text-muted-foreground text-center">
-              &copy; 2026 Apollo. All rights reserved.
+    <footer className="border-t border-black/[0.06] pt-12 pb-8">
+      <div className="container">
+        <div className="flex flex-col gap-10 md:flex-row md:justify-between">
+          {/* Brand column */}
+          <div className="max-w-xs">
+            <Link
+              href="/"
+              className="font-brand text-2xl font-medium text-[#2F2F2F]"
+            >
+              Apollo
+            </Link>
+            <p className="mt-3 text-sm leading-relaxed text-[#9CA3AF]">
+              AI-powered thesis generation for Indian medical postgraduates.
+              From synopsis to submission.
             </p>
           </div>
+
+          {/* Link columns */}
+          <div className="flex gap-16">
+            <FooterLinkGroup title="Product" links={productLinks} />
+            <FooterLinkGroup title="Company" links={companyLinks} />
+            <FooterLinkGroup title="Legal" links={legalLinks} />
+          </div>
         </div>
-      </motion.div>
+
+        {/* Bottom bar */}
+        <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-black/[0.04] pt-6 md:flex-row">
+          <p className="text-xs text-[#9CA3AF]">
+            &copy; {new Date().getFullYear()} Apollo. All rights reserved.
+          </p>
+          <p className="text-xs text-[#9CA3AF]">
+            Made for medical postgraduates across India
+          </p>
+        </div>
+      </div>
     </footer>
   );
 }

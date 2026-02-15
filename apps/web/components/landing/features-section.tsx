@@ -49,64 +49,65 @@ const features = [
   },
 ];
 
-const containerVariants = {
-  hidden: {},
-  show: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
-
 export function FeaturesSection() {
   return (
-    <section id="features" className="py-20 sm:py-28">
+    <section id="features" className="py-14 md:py-[102px]">
       <div className="container">
         <motion.div
           className="mx-auto max-w-2xl text-center"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         >
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="font-serif text-3xl tracking-tight text-[#2F2F2F] sm:text-4xl">
             Everything You Need for Your Thesis
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-3 text-lg text-[#6B6B6B]">
             From synopsis to submission, Apollo handles every step of your
             medical thesis workflow.
           </p>
         </motion.div>
-        <motion.div
-          className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: "-100px" }}
-        >
-          {features.map((feature) => (
+
+        <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10">
+          {features.map((feature, index) => (
             <motion.div
               key={feature.title}
-              className="rounded-xl border bg-card p-6 transition-colors hover:border-primary/40"
-              variants={itemVariants}
-              whileHover={{ y: -5 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              className={`group relative overflow-hidden rounded-2xl border border-black/[0.06] bg-gradient-to-b from-white to-[#FAFAF8] p-10 zen-shadow-card transition-[border-color,box-shadow] duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-[#8B9D77]/30 lg:p-16 ${index % 3 === 1 ? "lg:-translate-y-8" : ""}`}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{
+                duration: 0.5,
+                delay: index * 0.1,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                e.currentTarget.style.setProperty("--mouse-x", `${x}%`);
+                e.currentTarget.style.setProperty("--mouse-y", `${y}%`);
+              }}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 ring-8 ring-primary/10">
-                <feature.icon className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold">{feature.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
+              {/* Cursor-tracking sage glow on hover */}
+              <div
+                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                style={{
+                  background:
+                    "radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(139,157,119,0.15) 0%, rgba(139,157,119,0.12) 20%, rgba(139,157,119,0.06) 40%, transparent 80%)",
+                }}
+              />
+              <feature.icon className="relative h-12 w-12 text-[#2F2F2F]" strokeWidth={1.5} />
+              <h3 className="relative mt-5 font-serif text-2xl text-[#2F2F2F]">
+                {feature.title}
+              </h3>
+              <p className="relative mt-3 text-base leading-relaxed text-[#6B6B6B]">
                 {feature.description}
               </p>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   );

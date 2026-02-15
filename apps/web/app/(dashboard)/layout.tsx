@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/layout/app-sidebar";
+import { GlassSidebarProvider, SidebarSpacer } from "@/components/layout/glass-sidebar-provider";
+import { GlassSidebar } from "@/components/layout/glass-sidebar";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 
 export default async function DashboardLayout({
@@ -9,19 +9,24 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
+  const defaultExpanded = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen}>
-      <AppSidebar />
-      <SidebarInset>
-        <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="mx-auto w-full max-w-7xl">
-            {children}
+    <GlassSidebarProvider defaultExpanded={defaultExpanded}>
+      <div className="relative h-screen overflow-hidden">
+        <GlassSidebar />
+        <div className="grid h-screen grid-cols-[auto_1fr] overflow-hidden">
+          <SidebarSpacer />
+          <div className="flex flex-col overflow-hidden">
+            <DashboardHeader />
+            <main className="flex-1 overflow-y-auto dashboard-dot-grid p-4 md:p-6">
+              <div className="mx-auto w-full max-w-screen-2xl">
+                {children}
+              </div>
+            </main>
           </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+        </div>
+      </div>
+    </GlassSidebarProvider>
   );
 }
