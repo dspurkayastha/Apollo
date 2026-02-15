@@ -3,15 +3,18 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 21,
+  "checkpoints_count": 33,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
     "agent-guidance/lessons.md",
     "apps/web/.env.example",
+    "apps/web/app/(dashboard)/dashboard/page.tsx",
     "apps/web/app/(dashboard)/layout.tsx",
     "apps/web/app/(dashboard)/projects/[id]/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
+    "apps/web/app/(dashboard)/projects/page.tsx",
+    "apps/web/app/(dashboard)/projects/project-card.tsx",
     "apps/web/app/api/citations/search/route.ts",
     "apps/web/app/api/inngest/route.ts",
     "apps/web/app/api/projects/[id]/abbreviations/[abbrevId]/route.ts",
@@ -38,8 +41,11 @@
     "apps/web/app/api/projects/[id]/sections/[phase]/route.ts",
     "apps/web/app/api/projects/[id]/sections/route.ts",
     "apps/web/app/api/synopsis/parse/route.ts",
+    "apps/web/app/apple-icon.svg",
     "apps/web/app/globals.css",
+    "apps/web/app/icon.svg",
     "apps/web/app/layout.tsx",
+    "apps/web/app/page.tsx",
     "apps/web/components/editor/latex-source-view.tsx",
     "apps/web/components/editor/section-editor.tsx",
     "apps/web/components/editor/word-count-bar.tsx",
@@ -215,13 +221,20 @@
       "context": "/bd/84f5776d75/4/context.md",
       "content_hash": "/bd/84f5776d75/4/content_hash.txt",
       "prompt": "/bd/84f5776d75/4/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/5/metadata.json",
+      "transcript": "/bd/84f5776d75/5/full.jsonl",
+      "context": "/bd/84f5776d75/5/context.md",
+      "content_hash": "/bd/84f5776d75/5/content_hash.txt",
+      "prompt": "/bd/84f5776d75/5/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 24624,
-    "cache_creation_tokens": 1213972,
-    "cache_read_tokens": 45560898,
-    "output_tokens": 93614,
-    "api_call_count": 486
+    "input_tokens": 24757,
+    "cache_creation_tokens": 1477979,
+    "cache_read_tokens": 55789727,
+    "output_tokens": 120213,
+    "api_call_count": 587
   }
 }

@@ -1,0 +1,492 @@
+Implement the following plan:
+
+# Plan: Dashboard Design Refresh — Align with Landing Page
+
+## Context
+
+The landing page is finalised with a premium design language: cursor-tracking glows, zen easing, warm neutral palette, serif headings, and no hover-lift. The dashboard currently uses cold grey backgrounds (`#ECECEC`), generic shadcn tokens (`bg-card`, `text-muted-foreground`), hover lift on project cards, and a basic collapsed sidebar (48px inline column). The user wants the dashboard to feel like the same product as the landing page.
+
+Two explicit user requests plus additional alignment changes identified.
+
+---
+
+## Changes
+
+### 1. Apollo brand font (user-requested)
+
+**Files:** `glass-sidebar.tsx`, `dashboard/page.tsx`
+
+- Sidebar "Apollo" text: `font-serif` → `font-brand` (Playfair Display)
+- Both mobile and desktop sidebar variants
+- Dashboard "Welcome to Apollo" heading: use `font-serif` with `font-brand` for the "Apollo" word
+
+### 2. Floating collapsed sidebar (user-requested)
+
+**Files:** `glass-sidebar.tsx`, `glass-sidebar-provider.tsx`, `(dashboard)/layout.tsx`
+
+**Architecture: Always-fixed sidebar + spacer div**
+
+The sidebar becomes `position: fixed` always. A new `<SidebarSpacer />` client component in the layout reserves width (240px expanded, 0px collapsed) so content reflows correctly.
+
+**Expanded state** (sidebar flush, full height):
+- `fixed inset-y-0 left-0 w-60` — full-height, flush left
+- `border-r border-black/[0.06]` — right border as separator
+- `bg-white/70 backdrop-blur-[20px]` — existing glass effect
+- Spacer: 240px
+
+**Collapsed state** (floating pill, icon rail):
+- `fixed left-3 top-1/2 -translate-y-1/2` — centred vertically, 12px from left edge
+- `w-14` (56px) — icon rail width
+- `rounded-2xl` — pill shape
+- `bg-white/80 backdrop-blur-[20px] zen-shadow-card` — elevated glass
+- `py-3` — compact vertical padding, auto height (content-sized)
+- Spacer: 0px (content goes full-width behind the floating sidebar)
+
+**Toggle button**: when collapsed, hide the `-right-3` chevron. Instead, clicking the collapsed rail expands it. Cmd+B keyboard shortcut still works.
+
+**Transition**: `transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)]` on the sidebar for left, top, width, border-radius, transform. Spacer transitions its width.
+
+**New export** — `SidebarSpacer` (add inside `glass-sidebar-provider.tsx`):
+```tsx
+export function SidebarSpacer() {
+  const { isExpanded, isMobile } = useGlassSidebar();
+  if (isMobile) return null;
+  return (
+    <div
+      className="transition-[width] duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
+      style={{ width: isExpanded ? 240 : 0 }}
+    />
+  );
+}
+```
+
+**Layout restructure** — sidebar outside the grid (it's fixed), spacer inside the grid:
+```tsx
+<div className="relative h-screen overflow-hidden">
+  <GlassSidebar />
+  <div className="grid h-screen grid-cols-[auto_1fr] overflow-hidden">
+    <SidebarSpacer />
+    <div className="flex flex-col overflow-hidden">
+      <DashboardHeader />
+      <main>...</main>
+    </div>
+  </div>
+</div>
+```
+
+### 3. Warm dashboard background
+
+**File:** `(dashboard)/layout.tsx`
+
+- `bg-[#ECECEC]` → `bg-[#F3F2EE]` — warmer grey matching landing page tones
+
+### 4. Dashboard home page — typography & card styling
+
+**File:** `dashboard/page.tsx`
+
+Current issues: uses generic tokens (`bg-card`, `text-muted-foreground`, `bg-primary`, `rounded-md`) that don't match the landing page design language.
+
+Changes:
+- **"Welcome to Apollo"**: `font-serif text-2xl tracking-tight text-[#2F2F2F]`
+- **Subtitle**: `text-[#6B6B6B]` instead of `text-muted-foreground`
+- **"New Project" button**: `rounded-full bg-[#2F2F2F] text-white hover:bg-[#2F2F2F]/90` (zen pill)
+- **Stat cards**: `rounded-2xl border border-black/[0.06] bg-white p-6` — serif labels, consistent typography
+- **"Recent Projects" heading**: `font-serif text-lg text-[#2F2F2F]`
+- **Recent project rows**: `rounded-2xl border border-black/[0.06] bg-white p-4` — remove `hover:bg-accent`, add `transition-[border-color,box-shadow] duration-[400ms] ease-zen hover:zen-shadow-card-hover hover:border-black/[0.10]`
+- **Empty state CTA**: same zen pill button
+- **Status badges**: keep colour coding, ensure `rounded-full`
+
+### 5. Projects page — cursor-tracking glow on project cards
+
+**File:** `projects/page.tsx`
+
+- Remove `hover:-translate-y-1` (banned hover lift)
+- Currently a server component → extract an inline `"use client"` `ProjectCard` component within the same file (keeps it colocated, no new file needed)
+- `ProjectCard` receives project data as props, renders the card with:
+  - `group`, `overflow-hidden`, `rounded-2xl`
+  - `onMouseMove` handler setting `--mouse-x`/`--mouse-y` CSS vars
+  - Sage glow overlay: `radial-gradient(600px circle at var(...), rgba(139,157,119,0.15)...)`
+  - Border: `hover:border-[#8B9D77]/30`
+  - Shadow: `zen-shadow-card` base → `hover:zen-shadow-card-hover`
+  - Content elements get `relative` for z-stacking above overlay
+
+### 6. Dashboard header — no changes needed
+
+Already uses glass treatment (`bg-white/70 backdrop-blur-[20px]`) and subtle border. Aligned with design language.
+
+---
+
+## Files Modified (summary)
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `components/layout/glass-sidebar.tsx` | Floating collapsed mode, brand font |
+| 2 | `components/layout/glass-sidebar-provider.tsx` | Add `SidebarSpacer` export |
+| 3 | `app/(dashboard)/layout.tsx` | New layout structure with spacer, warm bg |
+| 4 | `app/(dashboard)/dashboard/page.tsx` | Typography, card styling, zen buttons |
+| 5 | `app/(dashboard)/projects/page.tsx` | Extract ProjectCard, cursor-tracking glow |
+
+## What stays unchanged
+
+- Mobile sidebar (overlay sheet)
+- Project workspace (`project-workspace.tsx`)
+- Phase stepper, compile button, section viewer
+- All landing page files (soft-locked)
+- `globals.css`, `tailwind.config.ts`
+- Dashboard header
+
+---
+
+## Verification
+
+1. **Floating sidebar**: Cmd+B toggles — sidebar animates from flush 240px to floating 56px pill centred vertically, content reflows to full width. Click the floating pill to re-expand.
+2. **Brand font**: "Apollo" in sidebar uses Playfair Display
+3. **Warm background**: Dashboard is `#F3F2EE`, not cold `#ECECEC`
+4. **Dashboard home**: Stat cards use `rounded-2xl`, serif labels, zen shadows. Buttons are pill-shaped. No generic shadcn tokens visible.
+5. **Project cards**: Hover shows cursor-tracking sage glow (no vertical lift). Border tints sage, shadow deepens.
+6. **Mobile**: No regressions — sidebar overlay works, responsive grids intact
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+The collpased sidebar pill needs to have a frosted glass bg bar on the left edge, so as to not overlap over element s on the page, The transition animation between open and collapsed sidebar needs to be better. The collapsed pill sidebar should have the 'A' on the top, like the open sidebar has the Apollo branding ('A' is the collpased branding).
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 2.25.41 PM.png]
+
+---
+
+[Request interrupted by user]
+
+---
+
+I dont want a full length rail, I want a pill only, with a pacer behind it in frosted glass deesign. I want a way to open the sidebar to full width from the pill as well, as we have one to close the full width sidebar to pill. The pill border needs to be more defined, have a better shadow on the frosted glass spacer nehind it. The Branding needs to be bigger on the open sidebar, and maintain the size of 'A' in closed pill state
+
+---
+
+center apollo brand on the open sidebar, increase font size to fit 75% width. Also in closed increase font size of A to fit 75% width. the close button on the open sidebar is clipped now and only half is visible.
+
+---
+
+Now on this page (Projects>specific project) the top flow bar (ie front matter > Intro> Aims&Obj>...) is flawed. check the mockup again and do a gap analysis. then think ultra hard to fix it
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 2.40.00 PM.png]
+
+---
+
+ok, now back to landing. I want a dotgrid pattern for depth over the whole bg of the landing. none of the containers or elements should have harsh margins with it, and it should fade in outward with multiple stops at diff radii form the elements. Consider this an override of the soft lock
+
+---
+
+I want a denser grid, its currently barely visible
+
+---
+
+apply the same changes to the dashboard pages
+
+---
+
+in the dash home, the tagline type is "AI poweredthesis generation". change it to AI assisted academic writing platform
+
+---
+
+increasee font size of apollo in the line above thi tagline by 15%
+
+---
+
+now add the ditgrid pattern to the project specific pages as well
+
+---
+
+now soft lock all frontend dev again, and do a gap analysis of the plan, and achieved items. also show current status
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the entire conversation:
+
+1. **Initial request**: User provided a detailed plan for "Dashboard Design Refresh — Align with Landing Page" with 6 specific changes across 5 files.
+
+2. **Implementation of the plan**:
+   - Task 1: Updated `glass-sidebar.tsx` — floating collapsed mode + brand font (`font-brand` for "Apollo")
+   - Task 2: Added `SidebarSpacer` export to `glass-sidebar-provider.tsx` (240px expanded, 0px collapsed)
+   - Task 3: Updated dashboard layout — new structure with spacer, warm bg (`#ECECEC` → `#F3F2EE`)
+   - Task 4: Restyled dashboard home page — serif headings, brand font, zen pill buttons, rounded-2xl cards
+   - Task 5: Created `project-card.tsx` with cursor-tracking sage glow, removed hover:-translate-y-1
+
+3. **First user feedback on sidebar**: User didn't want full-length rail, wanted a pill with frosted glass spacer behind it. Key requests:
+   - Keep floating pill (not full-height rail)
+   - Frosted glass spacer behind the pill
+   - Way to open sidebar from pill (expand button)
+   - Better pill border + shadow
+   - Bigger branding on open sidebar
+   - "A" branding on collapsed pill
+
+4. **Second sidebar iteration**: Changed to architecture where `<aside>` is always `fixed inset-y-0 left-0`, transitions width between 240px and 80px. Full-height frosted glass backdrop strip. Pill centered vertically inside the strip.
+
+5. **Third sidebar feedback**: User wanted:
+   - Center "Apollo" branding on open sidebar
+   - Increase font size to fill 75% width
+   - Increase "A" font size to fill 75% of pill width
+   - Fix clipped collapse button (overflow-hidden issue)
+
+6. **Fix applied**: Moved collapse button outside the `overflow-hidden` content wrapper. Bumped "Apollo" to `text-4xl`, "A" to `text-3xl`. Centered branding.
+
+7. **Phase stepper fix**: User reported the pipeline timeline (phase flow bar) was flawed. Gap analysis revealed:
+   - Horizontal overflow (12 phases with long labels)
+   - Fixed-width connecting lines
+   - Tiny dots
+   - No visual hierarchy
+   - Excessive padding
+   
+   Fixed by: short labels, flex-1 connecting lines, 3-tier dot hierarchy, reduced padding.
+
+8. **Dot grid pattern**: User requested dot grid pattern for landing page. Key requirements:
+   - Dot grid over whole bg
+   - No harsh margins with elements
+   - Fade outward with multiple stops
+   - Override of soft lock on landing page files
+
+   Implementation:
+   - `.landing-dot-grid` CSS class with combined dot pattern + gradient background
+   - `.landing-card` / `.landing-card-elevated` with multi-stop box-shadow halos
+   - Scoped `.landing-dot-grid .zen-shadow-card` overrides
+   - Applied to all section cards
+
+9. **Denser grid**: User said dots were barely visible. Increased density from 24px→16px grid, opacity from 0.07→0.13.
+
+10. **Dashboard dot grid**: Applied same pattern to dashboard pages with `.dashboard-dot-grid` class.
+
+11. **Tagline change**: Changed "Your AI-powered thesis generation dashboard." to "AI assisted academic writing platform."
+
+12. **Apollo font size**: Increased "Apollo" in dashboard heading by 15% (from 24px to 27.6px/1.725rem).
+
+13. **Project-specific pages**: Added dot grid halos to project workspace panels (metadata, editor, PDF viewer, skeleton loader).
+
+14. **Final request**: Soft lock frontend dev again, gap analysis of plan vs achieved, current status summary.
+
+Now let me compile the soft-lock list and gap analysis:
+
+**Original Plan Items:**
+1. ✅ Apollo brand font — `font-brand` on sidebar + dashboard
+2. ✅ Floating collapsed sidebar — implemented with frosted glass strip + pill
+3. ✅ Warm dashboard background — `#F3F2EE`
+4. ✅ Dashboard home page typography & card styling
+5. ✅ Projects page cursor-tracking glow on project cards
+6. ✅ Dashboard header — confirmed no changes needed
+
+**Additional items implemented (not in original plan):**
+- Pipeline timeline fix (short labels, flex-1 lines, dot hierarchy)
+- Dot grid pattern on landing page with multi-stop halos
+- Dot grid pattern on dashboard pages
+- Dot grid pattern on project-specific pages
+- Tagline change
+- Apollo font size increase in dashboard heading
+- Multiple sidebar iterations based on feedback
+
+Summary:
+1. Primary Request and Intent:
+   The user requested a comprehensive "Dashboard Design Refresh — Align with Landing Page" to make the dashboard feel like the same product as the landing page. This involved 6 planned changes across 5 files, plus several additional requests that emerged during implementation:
+   - Apply `font-brand` (Playfair Display) to "Apollo" branding throughout
+   - Convert the desktop sidebar to a floating collapsed pill with frosted glass backdrop
+   - Warm the dashboard background from cold grey `#ECECEC` to `#F3F2EE`
+   - Restyle dashboard home with serif headings, zen pill buttons, rounded-2xl cards
+   - Add cursor-tracking sage glow to project cards (no hover lift)
+   - Fix the pipeline timeline (phase stepper) overflow and visual hierarchy
+   - Add a dot grid depth pattern across all landing and dashboard pages with multi-stop fade halos around cards
+   - Various typography tweaks (tagline, font sizes)
+   - Final request: re-soft-lock all frontend files and produce a gap analysis
+
+2. Key Technical Concepts:
+   - **CSS multi-stop box-shadow halos**: 4 concentric shadow layers at different blur/spread/opacity to create gradual dot-fade zones around cards
+   - **CSS combined backgrounds**: `radial-gradient` (dot grid) layered over `linear-gradient` (page gradient) via comma-separated `background-image`
+   - **Scoped CSS overrides**: `.landing-dot-grid .zen-shadow-card` to add halos only when inside the landing page root
+   - **Fixed sidebar with spacer pattern**: Sidebar is `position: fixed`, a `<SidebarSpacer>` client component reserves width in the grid layout
+   - **Frosted glass backdrop strip**: Full-height `backdrop-blur-[20px]` strip behind the floating pill
+   - **Width-only transition**: Both expanded and collapsed states share `fixed inset-y-0 left-0`, only width animates (smooth, no geometry jump)
+   - **Pipeline timeline short labels**: Abbreviated phase names + `flex-1` connecting lines to fit 12 phases without scroll
+   - **3-tier dot hierarchy**: Future 8px grey, completed 10px sage, current 14px charcoal with ring glow
+   - **Cursor-tracking glow**: CSS custom properties `--mouse-x`/`--mouse-y` set via `onMouseMove`, consumed by `radial-gradient`
+
+3. Files and Code Sections:
+
+   - **`apps/web/components/layout/glass-sidebar.tsx`**
+     - Core sidebar component. Went through 4 iterations based on user feedback.
+     - Final architecture: `<aside>` always `fixed inset-y-0 left-0 z-40`, transitions width between 240px (expanded) and 80px (collapsed). Full-height frosted glass backdrop (`bg-white/70` expanded, `bg-white/40` collapsed). Pill centered vertically inside collapsed strip. "Apollo" at `text-4xl` centered, "A" at `text-3xl` in pill. Collapse button placed OUTSIDE `overflow-hidden` wrapper to prevent clipping. Expand `ChevronRight` at bottom of pill.
+     - Exports `SIDEBAR_COLLAPSED_WIDTH = 80` and `SIDEBAR_EXPANDED_WIDTH = 240`
+
+   - **`apps/web/components/layout/glass-sidebar-provider.tsx`**
+     - Added `SidebarSpacer` component that reserves width (240px expanded, 80px collapsed) with matching zen easing transition
+     - Constants: `SPACER_EXPANDED = 240`, `SPACER_COLLAPSED = 80`
+
+   - **`apps/web/app/(dashboard)/layout.tsx`**
+     - Restructured: sidebar outside grid (fixed), spacer inside grid
+     - Background changed to `dashboard-dot-grid` class (was `bg-[#F3F2EE]`, originally `bg-[#ECECEC]`)
+     - Imports `SidebarSpacer` from provider
+
+   - **`apps/web/app/(dashboard)/dashboard/page.tsx`**
+     - Typography: `font-serif text-2xl` heading, `font-brand text-[1.725rem]` for "Apollo" (15% larger)
+     - Tagline: "AI assisted academic writing platform."
+     - Stat cards: `landing-card` class for dot-fade halos
+     - Recent project rows: `landing-card` class (replaced inline hover shadow)
+     - Empty state: `landing-card` class
+     - All generic shadcn tokens replaced (`bg-card` → `bg-white`, `text-muted-foreground` → `text-[#6B6B6B]`, `bg-primary` → `bg-[#2F2F2F]`)
+     - Buttons: `rounded-full bg-[#2F2F2F]` (zen pill style)
+
+   - **`apps/web/app/(dashboard)/projects/page.tsx`**
+     - Imports `ProjectCard` from `./project-card`
+     - Empty state card gets `landing-card` class
+     - Project data passed as serializable props to client component
+
+   - **`apps/web/app/(dashboard)/projects/project-card.tsx`** (NEW)
+     - Client component with cursor-tracking sage glow
+     - `onMouseMove` sets `--mouse-x`/`--mouse-y` CSS vars
+     - `radial-gradient(600px circle...)` with `rgba(139,157,119,0.15)` sage glow
+     - `zen-shadow-card` class (gets halo via scoped CSS rule)
+     - `hover:border-[#8B9D77]/30` — no hover lift
+
+   - **`apps/web/components/project/pipeline-timeline.tsx`**
+     - Complete rewrite: short labels via `SHORT_LABELS` record (Orient., Front, Intro, Aims, ROL, M & M, Results, Discuss., Concl., Refs, Append., Final QC)
+     - Connecting lines: `flex-1 min-w-2` instead of fixed `w-10`
+     - 3-tier dots: current `h-3.5 w-3.5 bg-[#2F2F2F] ring-[3px]`, completed `h-2.5 w-2.5 bg-[#8B9D77]`, future `h-2 w-2 bg-[#D1D1D1]`
+     - 3-tier labels: current bold charcoal, completed medium `#6B6B6B`, future `#B0B0B0`
+     - Container: `rounded-2xl bg-white/80 px-5 py-3.5` (was `rounded-3xl px-8 py-4 pt-10`)
+     - Nav: `flex w-full items-center` (was `flex items-center gap-0 overflow-x-auto min-w-max`)
+     - Removed `Check` icon import (no longer used in dots)
+
+   - **`apps/web/app/globals.css`**
+     - Added `.landing-dot-grid`: combined dot pattern (`rgba(47,47,47,0.13) 1px` at 16px grid) + page gradient
+     - Added `.dashboard-dot-grid`: same dot pattern on flat `#F3F2EE`
+     - Added `.landing-card`: multi-stop halo (4 layers: 15px/40px/70px/120px at 65%/40%/20%/7% opacity) with hover depth
+     - Added `.landing-card-elevated`: always has depth shadow + halo
+     - Added scoped overrides for `.landing-dot-grid .zen-shadow-card` and `.dashboard-dot-grid .zen-shadow-card` (+ hover variants)
+
+   - **`apps/web/app/page.tsx`**
+     - `bg-gradient-to-b from-[#F0EDE8] via-[#F5F3F0] to-[#FAFAFA]` → `landing-dot-grid`
+
+   - **`apps/web/components/landing/features-section.tsx`**
+     - Removed non-functional `hover:zen-shadow-card-hover` (now handled by scoped CSS `:hover` rule)
+
+   - **`apps/web/components/landing/pricing-section.tsx`**
+     - Inline shadows → `landing-card` (normal) / `landing-card-elevated` (popular)
+
+   - **`apps/web/components/landing/testimonials-section.tsx`**
+     - Inline transition+shadow → `landing-card`
+
+   - **`apps/web/components/landing/cta-section.tsx`**
+     - Inline shadow → `landing-card-elevated`
+
+   - **`apps/web/components/landing/sponsors-section.tsx`**
+     - Marquee fade: `from-[#FAFAFA]` → `from-[#F3F1ED]` (matches actual bg position)
+
+   - **`apps/web/app/(dashboard)/projects/[id]/page.tsx`**
+     - Metadata details panel: added `landing-card` class
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`**
+     - Editor panel, PDF viewer, read-only source view, skeleton loader: `shadow-[0_8px_30px_rgba(0,0,0,0.08)]` → `landing-card-elevated`
+
+4. Errors and Fixes:
+   - **Collapsed sidebar overlapping content**: Initial floating pill implementation had `left-3 top-1/2 -translate-y-1/2` with spacer width 0px, causing pill to float over page elements. User explicitly said "I dont want a full length rail, I want a pill only, with a spacer behind it in frosted glass design." Fixed by making aside always `fixed inset-y-0 left-0` with 80px width when collapsed, containing a frosted glass backdrop strip and the pill centered inside.
+   - **Collapse button clipped**: The `<aside>` had `overflow-hidden` which clipped the `-right-3` positioned chevron button. Fixed by separating content into an inner `overflow-hidden` wrapper and placing the button outside it directly on the aside.
+   - **`hover:zen-shadow-card-hover` not working**: Tailwind can't apply hover variants to custom CSS classes. Fixed by adding `.landing-dot-grid .zen-shadow-card:hover` rule in globals.css and removing the non-functional Tailwind class from features section.
+   - **TypeScript `npx tsc` failed**: First attempt used `npx tsc` which installed wrong package. Fixed by using `pnpm exec tsc --noEmit`.
+   - **Dot grid barely visible**: Initial opacity 0.07 at 24px grid too subtle. User said "I want a denser grid, its currently barely visible." Fixed by increasing to 0.13 opacity at 16px grid.
+   - **Sidebar transition jarring**: First implementation jumped between `top-1/2 -translate-y-1/2` (centered pill) and `inset-y-0` (full height). Fixed by making both states share `fixed inset-y-0 left-0` with only width animating.
+
+5. Problem Solving:
+   - Solved the multi-stop dot-fade halo challenge using CSS `box-shadow` with 4 concentric layers at different radii. This works because an element's own `overflow: hidden` does NOT clip its own `box-shadow`, so cards with cursor-tracking glow overlays still get proper halos.
+   - Solved the pipeline timeline overflow by introducing abbreviated labels and `flex-1` connecting lines that distribute phases evenly across available width.
+   - Solved the frosted glass spacer problem by using the aside element itself as a full-height frosted strip with the pill positioned inside it, while the `SidebarSpacer` reserves matching width in the layout grid.
+
+6. All User Messages:
+   - "Implement the following plan: # Plan: Dashboard Design Refresh — Align with Landing Page" (detailed 6-item plan with file changes)
+   - "The collpased sidebar pill needs to have a frosted glass bg bar on the left edge, so as to not overlap over elements on the page, The transition animation between open and collapsed sidebar needs to be better. The collapsed pill sidebar should have the 'A' on the top, like the open sidebar has the Apollo branding ('A' is the collpased branding)." [with screenshot]
+   - "I dont want a full length rail, I want a pill only, with a pacer behind it in frosted glass deesign. I want a way to open the sidebar to full width from the pill as well, as we have one to close the full width sidebar to pill. The pill border needs to be more defined, have a better shadow on the frosted glass spacer nehind it. The Branding needs to be bigger on the open sidebar, and maintain the size of 'A' in closed pill state"
+   - "center apollo brand on the open sidebar, increase font size to fit 75% width. Also in closed increase font size of A to fit 75% width. the close button on the open sidebar is clipped now and only half is visible."
+   - "Now on this page (Projects>specific project) the top flow bar (ie front matter > Intro> Aims&Obj>...) is flawed. check the mockup again and do a gap analysis. then think ultra hard to fix it" [with screenshot]
+   - "ok, now back to landing. I want a dotgrid pattern for depth over the whole bg of the landing. none of the containers or elements should have harsh margins with it, and it should fade in outward with multiple stops at diff radii form the elements. Consider this an override of the soft lock"
+   - "I want a denser grid, its currently barely visible"
+   - "apply the same changes to the dashboard pages"
+   - "in the dash home, the tagline type is 'AI poweredthesis generation'. change it to AI assisted academic writing platform"
+   - "increasee font size of apollo in the line above thi tagline by 15%"
+   - "now add the ditgrid pattern to the project specific pages as well"
+   - "now soft lock all frontend dev again, and do a gap analysis of the plan, and achieved items. also show current status" + detailed summary request
+
+7. Pending Tasks:
+   - **Re-soft-lock all frontend files** — User explicitly requested this
+   - **Gap analysis of plan vs achieved** — User explicitly requested this
+
+8. Current Work:
+   The user's final request was: "now soft lock all frontend dev again, and do a gap analysis of the plan, and achieved items. also show current status" combined with a detailed summary/compact request.
+   
+   **Gap Analysis — Plan vs Achieved:**
+
+   | Plan Item | Status | Notes |
+   |-----------|--------|-------|
+   | 1. Apollo brand font | ✅ Done | `font-brand` on sidebar (mobile+desktop), dashboard heading |
+   | 2. Floating collapsed sidebar | ✅ Done | 3 iterations. Final: frosted glass strip (80px) + centered pill + expand/collapse buttons |
+   | 3. Warm dashboard background | ✅ Done | `#ECECEC` → `#F3F2EE` (now via `dashboard-dot-grid` class) |
+   | 4. Dashboard home typography & cards | ✅ Done | Serif headings, zen pill buttons, rounded-2xl cards, all generic tokens replaced |
+   | 5. Project cards cursor-tracking glow | ✅ Done | New `ProjectCard` client component with sage glow, no hover lift |
+   | 6. Dashboard header unchanged | ✅ Confirmed | No changes needed |
+
+   **Additional items completed beyond original plan:**
+   - Pipeline timeline rewrite (short labels, flex-1 lines, 3-tier dot hierarchy)
+   - Dot grid pattern on landing page with multi-stop box-shadow halos
+   - Dot grid pattern on dashboard pages
+   - Dot grid pattern on project-specific pages
+   - Tagline change to "AI assisted academic writing platform."
+   - Apollo font size 15% increase in dashboard heading
+   - Landing page cards updated with halo classes (features, pricing, testimonials, CTA, sponsors)
+   - Project workspace panels updated with halo classes
+
+   **Files requiring soft-lock re-establishment (all modified landing + dashboard frontend files):**
+   
+   Landing page (re-lock):
+   - `apps/web/app/page.tsx`
+   - `apps/web/components/landing/features-section.tsx`
+   - `apps/web/components/landing/pricing-section.tsx`
+   - `apps/web/components/landing/testimonials-section.tsx`
+   - `apps/web/components/landing/cta-section.tsx`
+   - `apps/web/components/landing/sponsors-section.tsx`
+   - All other landing components that were already locked remain locked
+   
+   Dashboard (new lock):
+   - `apps/web/app/(dashboard)/layout.tsx`
+   - `apps/web/app/(dashboard)/dashboard/page.tsx`
+   - `apps/web/app/(dashboard)/projects/page.tsx`
+   - `apps/web/app/(dashboard)/projects/project-card.tsx`
+   - `apps/web/app/(dashboard)/projects/[id]/page.tsx`
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+   - `apps/web/components/layout/glass-sidebar.tsx`
+   - `apps/web/components/layout/glass-sidebar-provider.tsx`
+   - `apps/web/components/project/pipeline-timeline.tsx`
+   - `apps/web/app/globals.css` (dot grid + halo CSS sections)
+
+9. Optional Next Step:
+   Update the MEMORY.md file to reflect the new soft-lock list covering all landing page AND dashboard frontend files, per the user's request: "now soft lock all frontend dev again." This should document all files that were modified during this session and mark them as locked.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+I meant the full PLAN, in /docs/PLAN. gap analysis agaianst that. which sprints are done, which are midway, which are pending, what was achieved beyond plan. and a section on new suggestions based on the direction of the project . Think ultra hard
+
+---
+
+I agree with all your findings and suggestions as well. Craft a well thought out plan to achieve 100% on everything. Follow all UX and startegic suggestions which you made as well. Also the citataion management pipeline (starting from the first section with citations ie Intro through the end) doesnt work as intended. Intext citations as generated by AI are not being copiled in the database, deduped and verified, the verification pipeline itself works and pubmed and crossref quereies are working on manual check. but adding citations that way is making them orphaned citations by default, althought the \citekey exists in latex ) and the autmated Data analysis pipeline (the csv generation works, but the AI assissted automatic analysis pipeline errors out with error ":3000/api/projects/2…lyses/auto-detect:1 
+ Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+
+" this pipeline should not only recommend analyses, but automatically do them on approval as well. Each test suggested should have a short explainer card with eli15 version of explanation. The figure generation button tab exists but the automatic figure generation based on results (generated after results calculation) is nonexistent. Then after data analysis and figure analysis there needs to be an ai pass to actually generate the results section with proper formatting , tables, figures and plots placements and captions. Upon approval of this , shoiuld the user move to the discussion phase. Think ultra hard and assimilate all these into your full plan for completion.
+
+---
+
+[Request interrupted by user for tool use]
