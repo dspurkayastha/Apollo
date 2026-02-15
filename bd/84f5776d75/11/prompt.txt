@@ -1,0 +1,212 @@
+Implement the following plan:
+
+# LaTeX-to-Tiptap Converter + AI Review Pass
+
+## Context
+
+AI generates pure LaTeX for each thesis phase. Currently `rich_content_json` stays null after generation, so the Rich Text editor shows a blank doc. The user wants:
+1. AI-generated LaTeX auto-converted to Tiptap JSON so the Rich Text editor works immediately
+2. User edits in Rich Text (primary experience), converted back to LaTeX on save (already works via `tiptapToLatex()`)
+3. AI review pass before approval catches removed citations, word count drift, structural issues
+4. Compile to PDF from LaTeX as before
+
+---
+
+## Step 1: LaTeX-to-Tiptap Parser
+
+**New file:** `apps/web/lib/latex/latex-to-tiptap.ts`
+
+Two-pass regex-based parser targeting only AI-generated LaTeX (predictable subset):
+
+**Pass 1 — Block tokenizer:** Walks the string top-to-bottom, splitting into blocks:
+- `\section{T}` / `\subsection{T}` / `\subsubsection{T}` (and starred `*` variants) → heading nodes (level 1/2/3)
+- `\begin{itemize}...\end{itemize}` → bulletList, `\begin{enumerate}...\end{enumerate}` → orderedList
+- `\begin{quote}...\end{quote}` → blockquote
+- `\begin{longtable}`, `\begin{table}`, `\begin{figure}`, other unknown `\begin{env}` → **codeBlock** (preserve verbatim)
+- Double newlines → paragraph boundaries
+- Pre-processing: strip `\label{}`, `\needspace{}`, `---BIBTEX---` trailer, `%` comment lines
+
+**Pass 2 — Inline parser:** Recursive-descent within each block's text:
+- `\textbf{...}` → bold mark, `\textit{...}` / `\emph{...}` → italic mark
+- `\texttt{...}` → code mark, `\underline{...}` → underline mark
+- Nested formatting handled via mark accumulator passed through recursion
+- Escaped chars (`\%`, `\$`, `\&`, `\_`, `\#`, `\{`, `\}`, `\textbackslash{}`, `\textasciitilde{}`) → unescaped literals (inverse of `escape.ts`)
+
+**Citation handling (critical for round-trip):**
+- `\cite{key1,key2}` → **code-marked text node** containing raw `\cite{key1,key2}`
+- Renders in editor as inline code: `\cite{smith2024}`
+- Extract keys into `citationKeys[]` result
+- In `tiptapToLatex()` (existing file): add special case in `applyMarks()` — when a code-marked node matches `/^\\cite\{[^}]+\}$/`, output raw instead of `\texttt{}`
+
+**Returns:** `{ json: JSONContent, citationKeys: string[], warnings: string[] }`
+
+**Imports types from:** `tiptap-to-latex.ts` (already exports `TiptapNode`, `TiptapMark`)
+
+**New test file:** `apps/web/lib/latex/latex-to-tiptap.test.ts` — 25+ cases covering paragraphs, headings, lists, blockquotes, all marks, nested marks, citations, escaped chars, code blocks for complex environments, empty input, round-trip test (LaTeX → Tiptap → LaTeX content equivalence)
+
+---
+
+## Step 2: DB Migration + Type Update
+
+**Migration:** `supabase/migrations/018_add_ai_generated_latex.sql`
+```sql
+ALTER TABLE sections ADD COLUMN ai_generated_latex TEXT DEFAULT NULL;
+```
+
+Stores original AI-generated LaTeX for diff comparison during review. Never modified by user edits.
+
+**Type update in** `apps/web/lib/types/database.ts`:
+- Add `ai_generated_latex: string | null` to `Section` interface
+
+---
+
+## Step 3: Generate Route Integration
+
+**Modify:** `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+After AI streaming completes and `fullResponse` is assembled:
+1. Call `latexToTiptap(fullResponse)` to get Tiptap JSON
+2. Log any conversion warnings
+3. Store **both** in the section update:
+   - `latex_content: fullResponse`
+   - `rich_content_json: tiptapResult.json`
+   - `ai_generated_latex: fullResponse` (preserved original)
+4. Include `parseWarnings` in SSE "complete" event
+
+Phase 0 (synopsis parsing) unchanged — it returns JSON metadata, not LaTeX.
+
+---
+
+## Step 4: Citation Pass-through in tiptap-to-latex
+
+**Modify:** `apps/web/lib/latex/tiptap-to-latex.ts` — `applyMarks()` function
+
+Add before existing mark wrapping:
+```typescript
+// Citation commands in code marks pass through raw
+if (marks.length === 1 && marks[0].type === "code" && /^\\cite\{[^}]+\}$/.test(text)) {
+  return text;
+}
+```
+
+This ensures `\cite{key}` survives the Rich Text → LaTeX round-trip.
+
+---
+
+## Step 5: Review Section Logic
+
+**New file:** `apps/web/lib/ai/review-section.ts`
+
+Local checks only (no AI API call — fast, free, deterministic):
+
+1. **Citation diff:** Extract `\cite{key}` from current vs original (`ai_generated_latex`). Flag removed/added keys.
+2. **Word count:** Check against `getWordCountTarget(phaseNumber)` from `word-count-targets.ts`. Warn if outside range.
+3. **Structure check (phase-specific):**
+   - Phase 4 (ROL): must contain `\begin{longtable}` (required summary table)
+   - Phase 5 (M&M): at least 8 `\section`/`\subsection` commands (NBEMS sections)
+   - Phase 7 (Discussion): must contain Strengths/Limitations subsections
+   - Phase 8 (Conclusion): must contain Conclusions/Recommendations sections
+4. **British English spot-check:** Regex for common American spellings (analyze, behavior, color, center, randomized) → info-level suggestions.
+
+Returns: `{ issues: ReviewIssue[], passedReview: boolean }`
+
+---
+
+## Step 6: Review API Endpoint
+
+**New file:** `apps/web/app/api/projects/[id]/sections/[phase]/review/route.ts`
+
+`POST` — auth → fetch section → call `reviewSection()` comparing `latex_content` vs `ai_generated_latex` → return issues.
+
+Follows existing API route pattern (auth, validate, query, standard error schema).
+
+---
+
+## Step 7: Review Dialog + Workspace Integration
+
+**New file:** `apps/web/components/project/review-dialog.tsx`
+- AlertDialog showing categorised warnings/infos
+- "Go Back & Edit" (cancel) and "Approve Anyway" (proceed) buttons
+- Uses existing shadcn AlertDialog (install if needed: `pnpm dlx shadcn@latest add alert-dialog`)
+
+**Modify:** `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+1. **Default editor mode:** `useEffect` on `currentSection?.id` — set "richtext" when `rich_content_json` exists, "source" when null
+2. **Approve flow:** "Approve & Advance" button → `POST /review` → if issues, show ReviewDialog → user dismisses or goes back → `POST /approve` proceeds
+3. Review is **non-blocking** — if review API fails, approval proceeds directly
+
+---
+
+## Files Summary
+
+| Action | File |
+|--------|------|
+| NEW | `apps/web/lib/latex/latex-to-tiptap.ts` |
+| NEW | `apps/web/lib/latex/latex-to-tiptap.test.ts` |
+| NEW | `apps/web/lib/ai/review-section.ts` |
+| NEW | `apps/web/app/api/projects/[id]/sections/[phase]/review/route.ts` |
+| NEW | `apps/web/components/project/review-dialog.tsx` |
+| NEW | `supabase/migrations/018_add_ai_generated_latex.sql` |
+| MOD | `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` |
+| MOD | `apps/web/lib/latex/tiptap-to-latex.ts` (citation pass-through) |
+| MOD | `apps/web/lib/types/database.ts` (add `ai_generated_latex`) |
+| MOD | `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` |
+
+---
+
+## Execution Order
+
+```
+Step 1 (Parser + Tests) ──→ Step 4 (Citation pass-through) ──→ Step 3 (Generate route)
+Step 2 (DB migration) ──────────────────────────────────────→ Step 3
+Step 5 (Review logic) ──→ Step 6 (Review API) ──→ Step 7 (UI integration)
+```
+
+Steps 1-2 and Step 5 can run in parallel.
+
+---
+
+## Verification
+
+1. `pnpm test` — new parser tests + existing tiptap-to-latex tests pass
+2. Round-trip test: sample AI LaTeX → `latexToTiptap()` → `tiptapToLatex()` → content preserved, citations intact
+3. Manual: generate Phase 2 → Rich Text editor shows formatted content (not blank)
+4. Manual: edit in Rich Text → save → switch to Source → LaTeX reflects edits with `\cite{}` intact
+5. Manual: click "Approve & Advance" → review dialog shows any warnings → approve proceeds
+6. Manual: remove a citation in Rich Text → approve → review warns about removed citation
+7. `pnpm lint && pnpm type-check` — zero errors
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+RTF IS EMPTY, IF I EDIT, AND SAVE, APPROVE BUTTON GOES AWAY, AND COMPILE DOESNT SHOW UP ON PDF. (BLANK INTRO PAGE)
+
+---
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-14 at 8.07.48 AM.png]
+
+---
+
+each stage should show compiled pdfupto this stage, and on edit and save/approve, should re render.Now approve and move forward to next stage is still missing.
+
+---
+
+[Image: source: REDACTED 2026-02-14 at 8.18.04 AM.png]
+
+---
+
+approve anyway, doesnt advance to next phase , the save and compile buttons keep recompiling the original latex i feel, whatever the ai has written, and the bibtex entries, after user approval, should be formed to a introduction.tex and added to .bib respectively. THe main.tex neds to have /include intr.tex after that, and then compile should run> Use proper logic, dont work scoped in, get bigger pic first. align to PLAN, local cli version of workflow. and then fix this issue
+
+---
+
+[Image: source: REDACTED 2026-02-14 at 8.31.17 AM.png]
+
+[Image: source: REDACTED 2026-02-14 at 8.31.28 AM.png]
+
+[Image: source: REDACTED 2026-02-14 at 8.31.43 AM.png]
+
+---
+
+[Request interrupted by user for tool use]

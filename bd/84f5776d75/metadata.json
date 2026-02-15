@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 74,
+  "checkpoints_count": 77,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -154,6 +154,7 @@
     "apps/web/lib/r-plumber/analysis-runner.ts",
     "apps/web/lib/r-plumber/client.test.ts",
     "apps/web/lib/r-plumber/client.ts",
+    "apps/web/lib/types/database.ts",
     "apps/web/lib/validation/abbreviation-schemas.ts",
     "apps/web/lib/validation/analysis-schemas.ts",
     "apps/web/lib/validation/citation-schemas.ts",
@@ -264,13 +265,20 @@
       "context": "/bd/84f5776d75/10/context.md",
       "content_hash": "/bd/84f5776d75/10/content_hash.txt",
       "prompt": "/bd/84f5776d75/10/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/11/metadata.json",
+      "transcript": "/bd/84f5776d75/11/full.jsonl",
+      "context": "/bd/84f5776d75/11/context.md",
+      "content_hash": "/bd/84f5776d75/11/content_hash.txt",
+      "prompt": "/bd/84f5776d75/11/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 41194,
-    "cache_creation_tokens": 2647628,
-    "cache_read_tokens": 107647744,
-    "output_tokens": 247831,
-    "api_call_count": 1144
+    "input_tokens": 41294,
+    "cache_creation_tokens": 2794174,
+    "cache_read_tokens": 114661165,
+    "output_tokens": 270426,
+    "api_call_count": 1230
   }
 }
