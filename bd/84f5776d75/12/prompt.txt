@@ -1,0 +1,241 @@
+Implement the following plan:
+
+# Sprint 3: Bug Fix, Auto-Analysis, Auto-Figures, Hero + Dashboard Visual Polish
+
+## Context
+
+After the Zen redesign, live testing revealed: (1) compliance API 500 error, (2) no auto-analysis, (3) no auto-figure surfacing, and (4) major visual gaps between our implementation and the reference mockups. The hero is too sparse — the mockup shows scattered 3D paper pages with shadows, a cluster of 8+ glassmorphic translucent spheres, a frosted-glass chart card, and 3 staggered feature cards. The dashboard background lacks depth — panels need visible elevation against a darker workspace.
+
+---
+
+## WP-1: Fix Compliance API 500 Error
+
+### 1A. Migration — `apps/web/supabase/migrations/020_add_compliance_unique_constraint.sql` (NEW)
+
+```sql
+-- Deduplicate (keep most recent per project+guideline)
+DELETE FROM public.compliance_checks a
+USING public.compliance_checks b
+WHERE a.project_id = b.project_id
+  AND a.guideline_type = b.guideline_type
+  AND a.last_checked_at < b.last_checked_at;
+
+ALTER TABLE public.compliance_checks
+  ADD CONSTRAINT uq_compliance_project_guideline UNIQUE (project_id, guideline_type);
+```
+
+### 1B. Defensive error handling — `apps/web/app/api/projects/[id]/compliance/route.ts` (MOD)
+
+Replace lines 121-141: if upsert fails (error code `42P10` / `42712`), fall back to select→update/insert. Log full Postgres error (code, message, hint).
+
+---
+
+## WP-2: Auto-Analysis
+
+### 2A. Schema — `apps/web/lib/validation/analysis-schemas.ts` (MOD)
+
+Add `autoDetectSchema`, `AnalysisRecommendation` interface (analysis_type, rationale, parameters, confidence).
+
+### 2B. API — `apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts` (NEW)
+
+POST endpoint: auth → validate `{ dataset_id }` → fetch dataset columns + project study_type + Phase 0 synopsis → call Claude Haiku → return up to 5 `AnalysisRecommendation[]`.
+
+### 2C. Wizard UI — `apps/web/components/project/analysis-wizard.tsx` (MOD)
+
+Add `"auto-recommendations"` step. After dataset selection: **"Choose Manually"** | **"Auto-detect"** (AI icon). Recommendation cards show analysis type, rationale, confidence badge (sage/amber/grey), "Run This" and "Customise" buttons.
+
+---
+
+## WP-3: Auto-Figure Surfacing
+
+### 3A. Figure gallery — `apps/web/components/project/figure-gallery.tsx` (MOD)
+
+- Group: "Analysis Figures" (source_tool=ggplot2) vs "Uploaded & Diagrams"
+- Source badges: "R Analysis" (sage), "Diagram" (charcoal), "Uploaded" (grey)
+- Show image thumbnails when file_url + png/svg format; BarChart3 icon for PDF
+- Add `studyType` prop; show "Generate PRISMA Flow" button for systematic/meta studies
+
+### 3B. Pass studyType — `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` (MOD)
+
+Pass `studyType={project.study_type}` to `<FigureGallery>`.
+
+---
+
+## WP-4: Hero Rewrite — Match Reference Mockup
+
+The reference mockup shows: large "Apollo" serif title, subtext in lighter weight, then on the right a dramatic composition of **3-4 scattered thesis pages** at various 3D angles with deep drop shadows, a **cluster of 8-10 glassmorphic translucent spheres** (sage, amber, cream, grey — various sizes, overlapping), and a **frosted-glass chart card**. Below, 3 staggered feature cards (Writing, Analysis, Review).
+
+### 4A. Tailwind config — `apps/web/tailwind.config.ts` (MOD)
+
+Add font family:
+```typescript
+typewriter: ['"American Typewriter"', '"Courier New"', 'Courier', 'monospace'],
+```
+
+Add keyframes + animations:
+```typescript
+'typewriter-cursor': { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0' } },
+// → animation: 'typewriter-cursor 1s step-end infinite'
+```
+
+### 4B. Global CSS — `apps/web/app/globals.css` (MOD)
+
+**Navbar glass** — more transparent:
+```css
+.glass-nav { background: rgba(255,255,255,0.45); backdrop-filter: blur(24px) saturate(180%); }
+.glass-nav-scrolled { background: rgba(255,255,255,0.65); backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.06); }
+```
+
+**Card elevation** — visible shadows:
+```css
+.zen-shadow-card { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 10px 25px -3px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.02); }
+.zen-shadow-card-hover { box-shadow: 0 8px 12px -2px rgba(0,0,0,0.07), 0 20px 40px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.03); }
+```
+
+**Paper page shadows** (for hero):
+```css
+.paper-shadow { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15), 0 12px 24px -8px rgba(0,0,0,0.08); }
+```
+
+### 4C. Navbar — `apps/web/components/layout/navbar.tsx` (MOD)
+
+- Use `.glass-nav` / `.glass-nav-scrolled` classes instead of inline `bg-white/80`
+- Logo "Apollo" gets subtle gradient text
+
+### 4D. Hero — `apps/web/components/landing/hero-section.tsx` (MOD — full rewrite)
+
+**Left zone** (lg:col-span-6):
+- "Apollo" heading: `font-serif text-[120px] md:text-[140px]` — larger than current 96px. Motion entrance: y:60→0, scale:0.95→1, duration 1.0s
+- Subtext in `font-typewriter` (American Typewriter): "From synopsis to submission — structured, cited, compliant." Rendered via **TypewriterText** component (char-by-char reveal, 50ms/char, blinking cursor, 1200ms start delay, respects useReducedMotion)
+- Two CTA buttons below
+
+**Right zone** (lg:col-span-6) — The main visual composition:
+
+**ScatteredPages** component — 3 overlapping thesis pages at different 3D rotations:
+```
+Page 1 (back): rotate(-12deg) translateZ(-20px), w-[240px], 10+ grey text lines, paper-shadow
+Page 2 (mid):  rotate(-5deg) translateZ(0px), w-[260px], slightly offset, paper-shadow, page-curl corner
+Page 3 (front): rotate(3deg) translateZ(20px), w-[220px], topmost, paper-shadow
+```
+All pages: white bg, rounded-lg, 8+ horizontal grey lines (`h-[2px] bg-[#D8D8D8]` varying widths), subtitle line at top (`h-[3px] w-[60%] bg-[#BCBCBC]`). CSS perspective: parent `perspective: 1000px`, children `transform-style: preserve-3d`.
+Float animation: `float-thesis 6s ease-in-out infinite`.
+
+**GlassSpheres** component — cluster of 8-10 spheres:
+```
+Large sage:      w-16 h-16, bg-gradient-to-br from-[#8B9D77]/80 to-[#6B7D57]/60, backdrop-blur-[8px], border border-white/30
+Medium amber:    w-12 h-12, bg-gradient-to-br from-[#D4A373]/70 to-[#B8885A]/50, backdrop-blur-[8px], border border-white/20
+Small cream:     w-8  h-8,  bg-gradient-to-br from-[#E8DCC8]/80 to-[#D4C4A8]/60
+Medium sage-2:   w-10 h-10, bg-gradient-to-br from-[#8B9D77]/60 to-[#A8B894]/40
+Small charcoal:  w-6  h-6,  bg-gradient-to-br from-[#2F2F2F]/50 to-[#4A4A4A]/30
+Tiny amber:      w-5  h-5,  bg-gradient-to-br from-[#D4A373]/50 to-[#C4935A]/30
+Medium cream-2:  w-9  h-9,  bg-gradient-to-br from-[#F0E6D6]/70 to-[#E0D0B8]/50
+Small sage-3:    w-7  h-7,  bg-gradient-to-br from-[#A8B894]/60 to-[#8B9D77]/40
+```
+All spheres: `rounded-full`, subtle `border border-white/20`, staggered float-sphere animation with different delays. Positioned in a cluster using absolute positioning, overlapping naturally.
+
+**GlassChart** component — frosted glass card with visible chart:
+```
+Container: w-[220px], rounded-2xl, bg-white/40, backdrop-blur-[16px], border border-white/40,
+           shadow-[0_8px_32px_rgba(0,0,0,0.08)]
+SVG: Line chart with sage stroke (#8B9D77), filled area with gradient (sage to transparent),
+     subtle grid lines, data points
+```
+Float animation: `float-chart 10s ease-in-out infinite`.
+
+All three groups positioned with staggered motion entrance (delay 0.6s, 0.9s, 1.1s).
+
+### 4E. Features — `apps/web/components/landing/features-section.tsx` (MOD)
+
+- Use `zen-shadow-card` + `border border-black/[0.04]` on cards
+- Hover: `zen-shadow-card-hover`
+
+### 4F. Landing wrapper — `apps/web/app/page.tsx` (MOD)
+
+- Background: `bg-gradient-to-b from-[#F0EDE8] via-[#F5F3F0] to-[#FAFAFA]` — warm tinted top for contrast vs white cards
+
+---
+
+## WP-5: Dashboard Background Depth
+
+The reference mockup shows editor panels floating on a visibly darker workspace. Currently both are near-white.
+
+### 5A. Dashboard layout — `apps/web/app/(dashboard)/layout.tsx` (MOD)
+
+Change main background from `bg-[#FAFAFA]` to `bg-[#ECECEC]` — creates visible contrast against white editor panels.
+
+### 5B. Editor panels — `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` (MOD)
+
+Increase panel shadows from `shadow-[0_4px_20px_rgba(0,0,0,0.03)]` to `shadow-[0_8px_30px_rgba(0,0,0,0.08)]` for visible elevation against darker background.
+
+### 5C. Sidebar auto-collapse on workspace (verify)
+
+The sidebar should auto-collapse to 48px (icon-only) when on a project workspace page. This was implemented via `useGlassSidebar().setExpanded(false)` in the workspace useEffect. Verify it works — if it does, no change needed.
+
+---
+
+## Execution Order
+
+```
+WP-1 (Compliance fix)  ──────────────┐
+WP-4 (Hero rewrite)    ──────────────┤  parallel batch 1
+WP-5 (Dashboard depth) ──────────────┘
+
+WP-2 (Auto-analysis)   ──────────────┐  batch 2 (after WP-1)
+WP-3 (Auto-figures)    ──────────────┘  batch 2 (after WP-2)
+```
+
+## File Manifest (14 files: 2 NEW, 12 MOD)
+
+| # | File | Action | WP |
+|---|------|--------|----|
+| 1 | `apps/web/supabase/migrations/020_add_compliance_unique_constraint.sql` | NEW | 1A |
+| 2 | `apps/web/app/api/projects/[id]/compliance/route.ts` | MOD | 1B |
+| 3 | `apps/web/lib/validation/analysis-schemas.ts` | MOD | 2A |
+| 4 | `apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts` | NEW | 2B |
+| 5 | `apps/web/components/project/analysis-wizard.tsx` | MOD | 2C |
+| 6 | `apps/web/components/project/figure-gallery.tsx` | MOD | 3A |
+| 7 | `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` | MOD | 3B+5B |
+| 8 | `apps/web/tailwind.config.ts` | MOD | 4A |
+| 9 | `apps/web/app/globals.css` | MOD | 4B |
+| 10 | `apps/web/components/layout/navbar.tsx` | MOD | 4C |
+| 11 | `apps/web/components/landing/hero-section.tsx` | MOD | 4D |
+| 12 | `apps/web/components/landing/features-section.tsx` | MOD | 4E |
+| 13 | `apps/web/app/page.tsx` | MOD | 4F |
+| 14 | `apps/web/app/(dashboard)/layout.tsx` | MOD | 5A |
+
+## Verification
+
+1. `pnpm tsc --noEmit` — zero errors
+2. `pnpm test` — all tests pass
+3. Compliance: `POST /api/projects/:id/compliance` returns 200 not 500
+4. Auto-analysis: Dataset tab → select dataset → "Auto-detect" shows AI recommendations
+5. Figures: Analysis-generated figures appear in Figures tab grouped under "Analysis Figures"
+6. Hero: 3 scattered paper pages with 3D rotation + deep shadows, 8+ glassmorphic spheres, frosted chart card, typewriter subtext
+7. Dashboard: Panels visibly elevated (white) against darker workspace (#ECECEC)
+8. Navbar: Transparent glass effect visible when scrolling over content
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+check the hero. Doesnt look like the mockup i provided
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 8.36.23 AM.png]
+
+---
+
+The papers dont feel like paper as in the mock up. the glass speres are not made of glass, and the charts element is actually made of the glass sperees, not a separate element. The shadows and the lighting are what actually sell the hero. Plan extensive;y only about the HERO and how to get exact match with the mockup
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 8.39.10 AM.png]
+
+[Image: source: /Users/devs/Downloads/Gemini_Generated_Image_l3ofrfl3ofrfl3of.png]
+
+---
+
+[Request interrupted by user for tool use]
