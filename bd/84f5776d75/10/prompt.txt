@@ -1,0 +1,989 @@
+Implement the following plan:
+
+# Zen Modular Frontend Redesign
+
+## Context
+
+Complete visual overhaul of Apollo from dark-orange theme to "Japanese minimalism meets Apple Design Awards" — warm light theme (#FAFAFA), serif display typography (Source Serif 4), frosted glass surfaces, extreme breathing room, and zen-minimal interactions. Covers both the **landing page** and the **dashboard/editor**.
+
+---
+
+## Zen Aesthetic Guardrails (apply everywhere)
+
+- No borders thicker than 1px
+- No shadows darker than `rgba(0,0,0,0.1)`
+- No pure black `#000000` — use `#2F2F2F` maximum
+- Every element must "float" — avoid anchored, boxed-in appearances
+- Generous internal padding (64px landing cards, 40px editor panes) is non-negotiable
+- All transitions: `cubic-bezier(0.16, 1, 0.3, 1)` — 300ms UI, 400ms sidebar
+- `will-change: transform` on animated elements, remove after animation on mobile
+- Focus rings: `focus-visible` only — `2px solid rgba(47,47,47,0.1)`, offset 2px
+- Colour contrast minimum 4.5:1 for accessibility
+
+---
+
+## WP-0: Design System Foundation
+
+### 0A. Fonts — `apps/web/app/layout.tsx` (MOD)
+
+- Replace `Space_Grotesk` with `Source_Serif_4` from `next/font/google` (serif for display/headlines)
+- Add `JetBrains_Mono` from `next/font/google` (metadata/mono)
+- Keep `Inter` (body)
+- CSS variables: `--font-heading` → Source Serif 4, `--font-mono` → JetBrains Mono, `--font-body` → Inter
+- Theme: remove `forcedTheme="dark"`, set `defaultTheme="light"`
+- Add `antialiased` to body className
+- Add font-display: swap via `next/font` options
+
+### 0B. CSS palette — `apps/web/app/globals.css` (MOD)
+
+Replace `:root` with Zen palette:
+
+```css
+:root {
+  --background: 40 7% 98%;           /* #FAFAFA */
+  --foreground: 0 0% 18%;            /* #2F2F2F */
+  --card: 0 0% 100%;                 /* #FFFFFF */
+  --card-foreground: 0 0% 18%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 18%;
+  --primary: 90 16% 54%;             /* #8B9D77 sage */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 27 42% 64%;           /* #D4A373 amber */
+  --secondary-foreground: 0 0% 18%;
+  --muted: 40 7% 96%;
+  --muted-foreground: 0 0% 42%;      /* #6B6B6B */
+  --accent: 40 7% 96%;
+  --accent-foreground: 0 0% 18%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 0% / 0.06;          /* rgba(0,0,0,0.06) hairline */
+  --input: 0 0% 0% / 0.06;
+  --ring: 0 0% 18% / 0.1;
+  --radius: 1rem;                    /* 16px */
+  /* Sidebar */
+  --sidebar-background: 0 0% 100% / 0.7;
+  --sidebar-foreground: 0 0% 18%;
+  --sidebar-border: 0 0% 0% / 0.06;
+}
+```
+
+Add utility classes:
+```css
+.glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.glass-nav { background: rgba(255,255,255,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.zen-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+.zen-shadow-hover { box-shadow: 0 8px 30px rgba(0,0,0,0.06); }
+```
+
+Add keyframe animations:
+```css
+@keyframes float-thesis { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-20px) rotate(-3deg); } }
+@keyframes float-sphere { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes float-chart { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+```
+
+Keep `.dark` block intact (unused, future-proof).
+
+### 0C. Tailwind config — `apps/web/tailwind.config.ts` (MOD)
+
+- Container max-width: `1200px`
+- Add font families: `serif` (Source Serif 4 + fallbacks), `mono` (JetBrains Mono)
+- Add named colours: `sage: '#8B9D77'`, `amber: '#D4A373'`, `charcoal: '#2F2F2F'`
+- Add transition timing: `zen: 'cubic-bezier(0.16, 1, 0.3, 1)'`
+- Add keyframes: `float-thesis` (6s), `float-sphere` (8s), `float-chart` (10s)
+- Add animation utilities for the above
+
+### 0D. Install package
+
+```
+pnpm add react-resizable-panels
+```
+
+### 0E. Remove Remotion
+
+```
+pnpm remove @remotion/player remotion
+```
+
+Delete 3 files:
+- `apps/web/remotion/ApolloHeroVideo.tsx`
+- `apps/web/components/remotion/apollo-hero-player.tsx`
+- `apps/web/components/remotion/apollo-hero-player-inner.tsx`
+
+**Critical**: Hero import of `ApolloHeroPlayer` must be removed in the same step (WP-1B).
+
+---
+
+## WP-1: Landing — Navbar + Hero
+
+### 1A. FloatingNav — `apps/web/components/layout/navbar.tsx` (MOD — full rewrite)
+
+```tsx
+interface FloatingNavProps {
+  logo: string;
+  links: { label: string; href: string }[];
+  ctaText: string;
+}
+```
+
+- Position: `fixed top-8 left-1/2 -translate-x-1/2 z-50`, max-width 1200px, `px-8`
+- Glass bar: `bg-white/80 backdrop-blur-[20px] rounded-3xl border border-white/30 shadow-[0_2px_12px_rgba(0,0,0,0.02)] px-6 py-3`
+- Logo: "Apollo" in `font-serif text-[24px] font-medium text-charcoal` (no GraduationCap icon)
+- Links: `font-sans text-[14px] font-medium text-[#6B6B6B] hover:text-charcoal gap-8`
+- CTA pill: `bg-charcoal text-white rounded-[20px] px-4 py-2 text-[13px] font-medium`
+- Scroll behaviour: on scroll > 50px, add `shadow-[0_4px_20px_rgba(0,0,0,0.05)]`
+- Keep Clerk `SignedIn`/`SignedOut`/`UserButton` integration
+- Mobile: full-screen glass overlay hamburger menu
+- Entrance: fade in opacity 0→1, 600ms, delay 0ms
+
+### 1B. Hero — `apps/web/components/landing/hero-section.tsx` (MOD — full rewrite)
+
+Remove: `AnimatedGridPattern`, `ApolloHeroPlayer`, `TypewriterText`
+
+Structure: `min-h-[90vh]`, CSS Grid `grid-cols-12`, `place-items-center`
+
+**Left zone (cols 1-7):**
+- "Apollo" in `font-serif text-[64px] md:text-[96px] font-normal tracking-[-0.03em] leading-[1.1] text-charcoal`, with `ml-[-20px]` breaking grid
+- Subtitle "Thesis Writing &\nStatistical Analysis." in `font-sans text-[20px] text-[#6B6B6B] leading-relaxed`, indented `ml-10`, 32px below
+- Two CTAs: primary charcoal pill + secondary ghost pill
+- No container borders — pure floating typography
+
+**Right zone (cols 8-12) — AbstractViz:**
+Three floating sub-components with staggered depths:
+
+1. **ThesisPage**: Div rotated `-5deg`, `bg-white/90 backdrop-blur-[10px] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.1)]`, showing fake serif text lines (8-10 gray lines at varying widths), subtle page curl via `::after` pseudo. Animation: `float-thesis 6s ease-in-out infinite`.
+
+2. **DataSpheres**: Three absolute-positioned circles — sage 48px, amber 40px, charcoal 32px — with `border-radius: 50%`, gradient backgrounds (`linear-gradient(135deg, #8B9D77, #6B7D57)`), different Y-offsets. Animation: `float-sphere 8s ease-in-out infinite` with stagger.
+
+3. **MiniChart**: 200×120px white card, rounded-2xl, containing SVG line chart with 1.5px sage stroke, minimal axes. Animation: `float-chart 10s ease-in-out infinite`.
+
+**Load sequence** (motion/react):
+- Title: translateY(40px→0), opacity 0→1, 800ms, delay 200ms
+- Subtitle: same, delay 400ms
+- Floating elements: scale(0.9→1), opacity 0→1, stagger 150ms, delay 600ms
+
+### 1C. Landing wrapper — `apps/web/app/page.tsx` (MOD)
+
+- Remove `className="dark bg-background text-foreground"` wrapper → `bg-[#FAFAFA] text-[#2F2F2F] min-h-screen`
+- Keep all sections, replace `HeroSection` import
+
+---
+
+## WP-2: Landing — Remaining Sections (parallel with WP-1)
+
+All sections get: serif headings (`font-serif`), Zen palette, `py-[120px] md:py-[120px] py-16` padding, updated cards.
+
+### 2A. sponsors-section.tsx (MOD)
+- Monochrome logos: `opacity-40 hover:opacity-80`, remove gradient colours
+- Replace `from-background` gradient masks with `from-[#FAFAFA]`
+
+### 2B. features-section.tsx (MOD) — "Services" staggered cards
+```tsx
+interface ServiceCardProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  index: number; // 0,1,2 for stagger
+}
+```
+- 3-column grid, `gap-12` (48px)
+- Cards: `bg-white rounded-2xl p-16 shadow-[0_4px_20px_rgba(0,0,0,0.03)]`
+- Middle card (index 1): `transform -translate-y-8` (32px offset)
+- Icons: 48px lucide-react, 1.5px stroke, sage or charcoal
+- Title: `font-serif text-2xl text-charcoal`, 24px below icon
+- Description: `font-sans text-base text-[#6B6B6B] leading-relaxed`, 16px below title
+- Hover: `translateY(-4px)`, `shadow-[0_8px_30px_rgba(0,0,0,0.06)]`, 400ms zen
+
+### 2C. how-it-works-section.tsx (MOD)
+- Charcoal outlined step circles (remove orange)
+- 2px sage connecting lines (solid, not dashed)
+- Serif heading
+
+### 2D. pricing-section.tsx (MOD)
+- Replace `glow-border` with sage accent border
+- Charcoal buttons and badges
+- Cards: `rounded-2xl`, hairline border
+
+### 2E. testimonials-section.tsx (MOD)
+- White cards, serif quote text, hairline border
+
+### 2F. faq-section.tsx (MOD)
+- Serif heading, lighter accordion borders
+
+### 2G. cta-section.tsx (MOD)
+- Centred pill: `bg-white rounded-[32px] p-12 px-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)]`, max-width 600px
+- Serif 32px heading, charcoal CTA button
+- Remove orange glow orbs
+
+### 2H. footer-section.tsx (MOD)
+- Single-line: brand (serif "Apollo") left, links centre, copyright right
+- `border-t` hairline, `py-12`, `text-xs text-[#9CA3AF]`
+- Remove rounded card wrapper
+
+---
+
+## WP-3: Glass Sidebar (depends on WP-0)
+
+### 3A. GlassSidebar — `apps/web/components/layout/glass-sidebar.tsx` (NEW)
+
+```tsx
+interface GlassSidebarProps {
+  isOpen: boolean;
+  onToggle: () => void;
+  items: { icon: LucideIcon; label: string; id: string; href: string }[];
+  activeItem: string;
+  onItemClick: (id: string) => void;
+}
+```
+
+- Expanded: 240px, Collapsed: 48px
+- `bg-white/70 backdrop-blur-[20px] border-r border-black/[0.06]`
+- Transition: `width 400ms cubic-bezier(0.16, 1, 0.3, 1)`
+- Labels: `opacity` transition 200ms (fade, not display:none)
+- Toggle: 32px circle with chevron, rotation 180deg on toggle
+- Icons: 24px, 1.5px stroke
+- Active item: icon `text-charcoal` (#2F2F2F), others `text-[#9CA3AF]`
+- Hover: `opacity-70 → opacity-100`, `bg-black/[0.04] rounded-lg`
+- Active: `bg-black/[0.08] rounded-lg`
+- IconButton: 40px container, 24px icon
+- Footer: Clerk UserButton + label (hidden on collapse)
+- Cookie: `sidebar_state` (same key)
+- Keyboard: `Cmd/Ctrl+B`
+- Mobile: slide-in overlay with same glass
+
+### 3B. Provider — `apps/web/components/layout/glass-sidebar-provider.tsx` (NEW)
+
+- Context: `isExpanded`, `setExpanded`, `isMobile`
+- Export `useGlassSidebar()` hook
+- Cookie read on mount, write on toggle
+- Mobile detection via `useMediaQuery` or existing `useIsMobile` hook
+
+### 3C. Dashboard layout — `apps/web/app/(dashboard)/layout.tsx` (MOD)
+
+- Remove: `SidebarProvider`, `SidebarInset`, `AppSidebar`
+- Replace with: `GlassSidebarProvider` + `GlassSidebar`
+- Layout: `h-screen overflow-hidden`, CSS Grid `grid-cols-[auto_1fr]`
+- Main: `overflow-y-auto bg-[#FAFAFA]`
+
+### 3D. Dashboard header — `apps/web/components/layout/dashboard-header.tsx` (MOD)
+
+- Remove `SidebarTrigger` import
+- Use `useGlassSidebar()` for toggle
+- Zen breadcrumb styling
+
+### 3E. Workspace sidebar swap — in `project-workspace.tsx` (MOD)
+
+- `import { useSidebar }` → `import { useGlassSidebar }`
+- Update `setSidebarOpen(false)` → `setExpanded(false)`
+
+---
+
+## WP-4: Pipeline Timeline (depends on WP-3)
+
+### 4A. PipelineTimeline — `apps/web/components/project/pipeline-timeline.tsx` (NEW)
+
+```tsx
+interface PipelineTimelineProps {
+  currentPhase: number;
+  phasesCompleted: number[];
+  projectStatus: string;
+  devLicenceBypass?: boolean;
+  onPhaseClick?: (phase: number) => void;
+}
+```
+
+- Sticky top, centred horizontally
+- Container: `bg-[rgba(250,250,250,0.8)] backdrop-blur-[10px] rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.02)] px-8 py-4 mt-10`
+- Dots: `w-2 h-2 rounded-full`
+- Active: `bg-charcoal scale-[1.2]`
+- Completed: `bg-sage` with tiny check
+- Inactive: `bg-[#D1D1D1]`
+- Connecting lines: `h-0.5 w-10 bg-[#E5E5E5]`
+- Labels below: `font-mono text-[12px] uppercase tracking-[0.05em] text-[#6B6B6B]`
+- Active label: `text-charcoal font-medium`
+- Hover: `scale-[1.3]` on dots, 300ms zen transition
+- Transition: `all 300ms cubic-bezier(0.16, 1, 0.3, 1)`
+- Maps through all 12 PHASES from `@/lib/phases/constants`
+
+### 4B. Deprecate PhaseStepper — `apps/web/components/project/phase-stepper.tsx` (MOD)
+
+- Add `/** @deprecated Use PipelineTimeline instead */` comment
+
+---
+
+## WP-5: Resizable Editor Workspace (depends on WP-3, WP-4)
+
+### 5A. Workspace refactor — `project-workspace.tsx` (MOD)
+
+Replace flex split with `react-resizable-panels`:
+
+```tsx
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
+
+{/* Desktop only — mobile keeps tabbed approach */}
+<PanelGroup direction="horizontal" className="min-h-[70vh]">
+  <Panel defaultSize={50} minSize={30} className="pr-0">
+    <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-10 h-full">
+      {renderEditor()}
+    </div>
+  </Panel>
+  <PanelResizeHandle className="w-12 flex items-center justify-center group">
+    <div className="w-1 h-12 rounded-full bg-[#E5E5E5] group-hover:bg-[#D1D1D1] cursor-col-resize transition-colors" />
+  </PanelResizeHandle>
+  <Panel defaultSize={50} minSize={25} className="pl-0">
+    <div className="bg-[#FDFDFD] rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] h-full overflow-auto">
+      <PdfViewer key={pdfKey} url={pdfUrl} />
+    </div>
+  </Panel>
+</PanelGroup>
+```
+
+- Replace `PhaseStepper` → `PipelineTimeline`
+- Action bar: charcoal buttons, workspace tabs as zen pill selectors
+- Tab bar: keyboard shortcuts Tab order: Sidebar → Editor → PDF
+- Mobile: unchanged tabbed approach
+
+### 5B. Editor restyling
+
+| File | Changes |
+|------|---------|
+| `section-editor.tsx` | Bubble menu: glass styling. Body text: `font-serif text-[20px] leading-[32px]`. Placeholder: `text-[#D1D1D1]`. Auto-save indicator: `font-mono text-[12px] text-[#6B6B6B]` top-right, fade in/out. |
+| `latex-source-view.tsx` | Light CodeMirror theme, match Zen palette |
+| `word-count-bar.tsx` | Sage progress bar instead of green/orange |
+
+### 5C. PDF viewer — `apps/web/components/viewer/pdf-viewer.tsx` (MOD)
+
+- `bg-[#FDFDFD]`, same elevation as editor
+- Custom scrollbar: `4px width, rgba(0,0,0,0.1) track`
+- Controls: glass pill with page nav + zoom
+- Placeholder state: "Compiled PDF Preview" centred, subtle pulse animation
+- Paper texture: subtle `linear-gradient` overlay at 2% opacity
+
+### 5D. Project page — `apps/web/app/(dashboard)/projects/[id]/page.tsx` (MOD)
+
+- Serif title, Zen badge styling, light cards
+
+---
+
+## WP-6: Dashboard Pages Polish (depends on WP-3)
+
+| File | Changes |
+|------|---------|
+| `projects/page.tsx` | White cards, `rounded-2xl`, hairline border, hover lift, charcoal "New Project" button |
+| `compile-button.tsx` | Charcoal button colour |
+| `licence-banner.tsx` | Zen banner — amber accent for warning |
+| `section-viewer.tsx` | White card, hairline border, serif content text |
+| `citation-list-panel.tsx` | Glass panel styling |
+| `review-dialog.tsx` | Zen dialog styling |
+| `template-gallery.tsx` | Cards match Zen palette, charcoal icon circles |
+
+---
+
+## WP-7: UI Primitives (parallel with WP-1..6)
+
+### 7A. Button — `apps/web/components/ui/button.tsx` (MOD)
+
+- Add `pill` variant: `rounded-full`
+- Add `zen` variant: `bg-charcoal text-white hover:bg-charcoal/90 rounded-full`
+- Primary: `bg-charcoal` instead of orange
+- Focus: `focus-visible:ring-2 focus-visible:ring-charcoal/10 focus-visible:ring-offset-2`
+- ToggleButton sizing: 44px touch target minimum
+- Transition: `all 200ms ease`
+
+### 7B. Sidebar — `apps/web/components/ui/sidebar.tsx` (MOD)
+
+- Add `/** @deprecated Use GlassSidebar instead */` comment
+
+---
+
+## Responsive Breakpoints
+
+| Breakpoint | Landing | Dashboard |
+|------------|---------|-----------|
+| Desktop (1200px+) | Full asymmetric, 120px spacing, 3-col services | Side-by-side editor/PDF, resizable panels |
+| Tablet (768-1199px) | Hero stacks, 2-col services, 80px spacing | Narrower panels, sidebar collapses to icons |
+| Mobile (<768px) | Single column, 48px hero title, 64px spacing, 24px edge | Tabbed edit/preview (no resize), sidebar overlay |
+
+---
+
+## Execution Order
+
+```
+WP-0  (Foundation: fonts, CSS, Tailwind, packages)
+  ├─> WP-1  (Landing nav + hero)      ─┐
+  ├─> WP-2  (Landing sections)         ├─ parallel
+  ├─> WP-7  (UI primitives)            │
+  └─> WP-3  (Glass sidebar)           ─┘
+        ├─> WP-4  (Pipeline timeline)
+        │     └─> WP-5  (Resizable workspace)
+        └─> WP-6  (Dashboard pages polish)
+```
+
+---
+
+## File Manifest (38 files: 3 NEW, 32 MOD, 3 DEL)
+
+| # | File | Action | WP |
+|---|------|--------|----|
+| 1 | `apps/web/app/layout.tsx` | MOD | 0A |
+| 2 | `apps/web/app/globals.css` | MOD | 0B |
+| 3 | `apps/web/tailwind.config.ts` | MOD | 0C |
+| 4 | `apps/web/package.json` | MOD | 0D/0E |
+| 5 | `apps/web/remotion/ApolloHeroVideo.tsx` | DEL | 0E |
+| 6 | `apps/web/components/remotion/apollo-hero-player.tsx` | DEL | 0E |
+| 7 | `apps/web/components/remotion/apollo-hero-player-inner.tsx` | DEL | 0E |
+| 8 | `apps/web/components/layout/navbar.tsx` | MOD | 1A |
+| 9 | `apps/web/components/landing/hero-section.tsx` | MOD | 1B |
+| 10 | `apps/web/app/page.tsx` | MOD | 1C |
+| 11 | `apps/web/components/landing/sponsors-section.tsx` | MOD | 2A |
+| 12 | `apps/web/components/landing/features-section.tsx` | MOD | 2B |
+| 13 | `apps/web/components/landing/how-it-works-section.tsx` | MOD | 2C |
+| 14 | `apps/web/components/landing/pricing-section.tsx` | MOD | 2D |
+| 15 | `apps/web/components/landing/testimonials-section.tsx` | MOD | 2E |
+| 16 | `apps/web/components/landing/faq-section.tsx` | MOD | 2F |
+| 17 | `apps/web/components/landing/cta-section.tsx` | MOD | 2G |
+| 18 | `apps/web/components/landing/footer-section.tsx` | MOD | 2H |
+| 19 | `apps/web/components/layout/glass-sidebar.tsx` | NEW | 3A |
+| 20 | `apps/web/components/layout/glass-sidebar-provider.tsx` | NEW | 3B |
+| 21 | `apps/web/app/(dashboard)/layout.tsx` | MOD | 3C |
+| 22 | `apps/web/components/layout/dashboard-header.tsx` | MOD | 3D |
+| 23 | `apps/web/components/project/pipeline-timeline.tsx` | NEW | 4A |
+| 24 | `apps/web/components/project/phase-stepper.tsx` | MOD | 4B |
+| 25 | `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` | MOD | 3E+5A |
+| 26 | `apps/web/components/editor/section-editor.tsx` | MOD | 5B |
+| 27 | `apps/web/components/editor/latex-source-view.tsx` | MOD | 5B |
+| 28 | `apps/web/components/editor/word-count-bar.tsx` | MOD | 5B |
+| 29 | `apps/web/components/viewer/pdf-viewer.tsx` | MOD | 5C |
+| 30 | `apps/web/app/(dashboard)/projects/[id]/page.tsx` | MOD | 5D |
+| 31 | `apps/web/app/(dashboard)/projects/page.tsx` | MOD | 6 |
+| 32 | `apps/web/components/project/compile-button.tsx` | MOD | 6 |
+| 33 | `apps/web/components/project/licence-banner.tsx` | MOD | 6 |
+| 34 | `apps/web/components/project/section-viewer.tsx` | MOD | 6 |
+| 35 | `apps/web/components/project/citation-list-panel.tsx` | MOD | 6 |
+| 36 | `apps/web/components/project/review-dialog.tsx` | MOD | 6 |
+| 37 | `apps/web/components/ui/button.tsx` | MOD | 7A |
+| 38 | `apps/web/components/ui/sidebar.tsx` | MOD | 7B |
+
+---
+
+## Verification
+
+1. `pnpm tsc --noEmit` — zero TypeScript errors
+2. `pnpm test` — all 339 existing tests still pass
+3. `pnpm dev` — dev server starts, no build errors
+4. **Visual**: landing page — warm #FAFAFA bg, serif "Apollo" 96px, glass nav, floating thesis pages + spheres, staggered service cards
+5. **Visual**: dashboard — glass sidebar collapses (48px icons), pipeline dots at top, resizable editor/PDF panes, serif body text in editor
+6. **Auth**: Clerk sign in/out works on landing and dashboard
+7. **Sidebar**: Cmd+B toggle, cookie persists across loads, mobile overlay
+8. **Resize**: drag gutter, both panes stay usable
+9. **Mobile**: landing stacks vertically, dashboard tabs (no resize), sidebar overlay
+10. **No orange** anywhere — sage, amber, charcoal only
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+continue
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. The user provided a massive plan for a "Zen Modular Frontend Redesign" of the Apollo project. This is a complete visual overhaul from dark-orange theme to Japanese minimalism/Apple Design Awards aesthetic.
+
+2. The plan covers 8 work packages (WP-0 through WP-7) with specific execution order and dependencies.
+
+3. I started by reading all the files that needed to be modified (layout.tsx, globals.css, tailwind.config.ts, package.json, page.tsx, navbar.tsx, hero-section.tsx, dashboard layout, sponsors, features, how-it-works, pricing, testimonials, faq, cta, footer, dashboard-header, project-workspace, button, phase-stepper, project detail page, projects list page, compile-button, licence-banner, section-viewer, citation-list-panel, review-dialog, template-gallery, sidebar.tsx, app-sidebar, phases/constants, pdf-viewer, editor files, remotion files, use-mobile hook).
+
+4. I then executed WP-0 (Foundation) directly:
+   - Modified layout.tsx: Replaced Space_Grotesk with Source_Serif_4 and JetBrains_Mono, changed theme to light
+   - Rewrote globals.css: New Zen palette, utility classes, keyframe animations
+   - Rewrote tailwind.config.ts: New font families, colors (sage, amber, charcoal), timing functions, animations
+   - Installed react-resizable-panels via pnpm
+   - Removed @remotion/player and remotion packages
+   - Deleted 3 remotion files
+
+5. I then launched 4 parallel background agents:
+   - WP-1 agent (a3ed26f): Navbar + Hero rewrite
+   - WP-2 agent (a4706ff): 8 landing sections update
+   - WP-3 agent (a512211): Glass sidebar + provider (2 new + 2 modified)
+   - WP-4+7 agent (aa5db54): Pipeline timeline + button primitives
+
+6. While agents ran, I directly implemented:
+   - WP-5: Resizable Editor Workspace (project-workspace.tsx full rewrite with react-resizable-panels)
+   - WP-5B: Editor restyling (section-editor.tsx, latex-source-view.tsx, word-count-bar.tsx)
+   - WP-5C: PDF viewer update
+   - WP-5D: Project detail page update
+   - WP-6: All dashboard pages (projects/page.tsx, compile-button, licence-banner, section-viewer, citation-list-panel, review-dialog, template-gallery)
+
+7. All background agents completed successfully:
+   - WP-1: Wrote navbar.tsx (floating glass nav), hero-section.tsx (AbstractViz with floating elements), updated page.tsx
+   - WP-2: Wrote all 8 landing sections with Zen aesthetic
+   - WP-3: Created glass-sidebar-provider.tsx, glass-sidebar.tsx, modified dashboard layout and header
+   - WP-4+7: Created pipeline-timeline.tsx, deprecated phase-stepper, updated button.tsx with pill/zen variants, deprecated sidebar.tsx
+
+8. All 8 tasks were marked as completed. The user then said "continue" between the initial reads and the implementation phase.
+
+9. No TypeScript type-checking or test running has been done yet - that was listed as the verification step in the plan.
+
+10. No errors were encountered during the implementation.
+
+Let me now think about what files were created/modified and what the current state is:
+
+Files CREATED (3):
+- apps/web/components/layout/glass-sidebar-provider.tsx
+- apps/web/components/layout/glass-sidebar.tsx
+- apps/web/components/project/pipeline-timeline.tsx
+
+Files DELETED (3):
+- apps/web/remotion/ApolloHeroVideo.tsx
+- apps/web/components/remotion/apollo-hero-player.tsx
+- apps/web/components/remotion/apollo-hero-player-inner.tsx
+
+Files MODIFIED (32):
+- apps/web/app/layout.tsx
+- apps/web/app/globals.css
+- apps/web/tailwind.config.ts
+- apps/web/package.json (via pnpm add/remove)
+- apps/web/components/layout/navbar.tsx
+- apps/web/components/landing/hero-section.tsx
+- apps/web/app/page.tsx
+- apps/web/components/landing/sponsors-section.tsx
+- apps/web/components/landing/features-section.tsx
+- apps/web/components/landing/how-it-works-section.tsx
+- apps/web/components/landing/pricing-section.tsx
+- apps/web/components/landing/testimonials-section.tsx
+- apps/web/components/landing/faq-section.tsx
+- apps/web/components/landing/cta-section.tsx
+- apps/web/components/landing/footer-section.tsx
+- apps/web/app/(dashboard)/layout.tsx
+- apps/web/components/layout/dashboard-header.tsx
+- apps/web/components/project/phase-stepper.tsx (deprecated)
+- apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx
+- apps/web/components/editor/section-editor.tsx
+- apps/web/components/editor/latex-source-view.tsx
+- apps/web/components/editor/word-count-bar.tsx
+- apps/web/components/viewer/pdf-viewer.tsx
+- apps/web/app/(dashboard)/projects/[id]/page.tsx
+- apps/web/app/(dashboard)/projects/page.tsx
+- apps/web/components/project/compile-button.tsx
+- apps/web/components/project/licence-banner.tsx
+- apps/web/components/project/section-viewer.tsx
+- apps/web/components/project/citation-list-panel.tsx
+- apps/web/components/project/review-dialog.tsx
+- apps/web/components/project/template-gallery.tsx
+- apps/web/components/ui/button.tsx
+- apps/web/components/ui/sidebar.tsx (deprecated)
+
+The verification steps from the plan haven't been run yet:
+1. pnpm tsc --noEmit
+2. pnpm test
+3. pnpm dev
+
+Summary:
+1. Primary Request and Intent:
+   The user requested a complete "Zen Modular Frontend Redesign" of the Apollo thesis generation platform. The overhaul transforms the visual identity from a dark-orange theme to "Japanese minimalism meets Apple Design Awards" — warm light theme (#FAFAFA), serif display typography (Source Serif 4), frosted glass surfaces, extreme breathing room, and zen-minimal interactions. The plan covers both the landing page and the dashboard/editor, organized into 8 work packages (WP-0 through WP-7) with specific execution order and dependencies. The user provided an extremely detailed plan specifying exact CSS values, component structures, color codes, animation curves, and file manifest (38 files: 3 NEW, 32 MOD, 3 DEL).
+
+2. Key Technical Concepts:
+   - **Zen Aesthetic Guardrails**: No borders >1px, no shadows darker than rgba(0,0,0,0.1), no pure black (#000→#2F2F2F), floating elements, generous padding (64px cards, 40px panes)
+   - **Transition curve**: `cubic-bezier(0.16, 1, 0.3, 1)` — 300ms UI, 400ms sidebar
+   - **Color palette**: Sage (#8B9D77), Amber (#D4A373), Charcoal (#2F2F2F), Background (#FAFAFA)
+   - **Typography**: Source Serif 4 (serif/headings), Inter (body), JetBrains Mono (mono/metadata)
+   - **Glass morphism**: `bg-white/70 backdrop-blur-[20px]` pattern used for nav, sidebar, controls
+   - **react-resizable-panels**: For split editor/PDF pane workspace
+   - **CSS animations**: float-thesis (6s), float-sphere (8s), float-chart (10s) for hero AbstractViz
+   - **Focus rings**: `focus-visible` only — `2px solid rgba(47,47,47,0.1)`, offset 2px
+   - **Cookie persistence**: `sidebar_state` cookie for sidebar expanded/collapsed state
+   - **Keyboard shortcut**: `Cmd/Ctrl+B` for sidebar toggle
+
+3. Files and Code Sections:
+
+   **WP-0: Foundation (completed directly)**
+   
+   - `apps/web/app/layout.tsx` — Root layout font and theme configuration
+     - Replaced `Space_Grotesk` with `Source_Serif_4` and added `JetBrains_Mono`
+     - Changed `defaultTheme="dark"` to `defaultTheme="light"`, removed `forcedTheme="dark"`
+     - Added `antialiased` to body className, `font-display: swap` via next/font options
+     - CSS variables: `--font-heading` → Source Serif 4, `--font-mono` → JetBrains Mono, `--font-body` → Inter
+
+   - `apps/web/app/globals.css` — Complete rewrite with Zen palette
+     - New `:root` variables with sage primary (90 16% 54%), amber secondary (27 42% 64%), charcoal foreground (0 0% 18%), hairline borders (0 0% 0% / 0.06)
+     - Utility classes: `.glass`, `.glass-nav`, `.zen-shadow`, `.zen-shadow-hover`
+     - Keyframe animations: `float-thesis`, `float-sphere`, `float-chart`, `shimmer`
+     - Global focus-visible ring override
+     - `.dark` block kept intact for future-proofing
+
+   - `apps/web/tailwind.config.ts` — Complete rewrite
+     - Container max-width changed from 1400px to 1200px
+     - Added font families: `serif` (Source Serif 4 + fallbacks), `mono` (JetBrains Mono)
+     - Added named colors: `sage: '#8B9D77'`, `amber: '#D4A373'`, `charcoal: '#2F2F2F'`
+     - Added `transitionTimingFunction: { zen: 'cubic-bezier(0.16, 1, 0.3, 1)' }`
+     - Added keyframes and animation utilities for float-thesis (6s), float-sphere (8s), float-chart (10s)
+
+   - `apps/web/package.json` — Package changes
+     - Added: `react-resizable-panels`
+     - Removed: `@remotion/player`, `remotion`
+
+   - Deleted: `apps/web/remotion/ApolloHeroVideo.tsx`, `apps/web/components/remotion/apollo-hero-player.tsx`, `apps/web/components/remotion/apollo-hero-player-inner.tsx`
+
+   **WP-1: Landing Navbar + Hero (completed by agent a3ed26f)**
+
+   - `apps/web/components/layout/navbar.tsx` — Full rewrite to floating glass nav
+     - Fixed `top-8 left-1/2 -translate-x-1/2 z-50`, max-width 1200px
+     - Glass bar: `bg-white/80 backdrop-blur-[20px] rounded-3xl border border-white/30`
+     - Logo: `font-serif text-[24px]` (no GraduationCap icon)
+     - Scroll behavior: adds stronger shadow when scrollY > 50
+     - Mobile: custom full-screen glass overlay (replaced Sheet component)
+     - Keeps Clerk SignedIn/SignedOut/UserButton integration
+
+   - `apps/web/components/landing/hero-section.tsx` — Full rewrite with AbstractViz
+     - Removed: AnimatedGridPattern, ApolloHeroPlayer, TypewriterText
+     - Three floating sub-components: ThesisPage (fake serif lines + page curl), DataSpheres (3 gradient circles), MiniChart (SVG line chart)
+     - CSS Grid `grid-cols-12`: left zone (cols 1-7) with 96px serif "Apollo", subtitle, CTAs; right zone (cols 8-12) with floating elements
+     - Motion entrance: translateY(40→0) for text, scale(0.9→1) for floating elements, staggered delays
+     - Zen easing curve `[0.16, 1, 0.3, 1]`, respects `useReducedMotion`
+
+   - `apps/web/app/page.tsx` — Changed wrapper from `dark bg-background text-foreground` to `bg-[#FAFAFA] text-[#2F2F2F]`
+
+   **WP-2: Landing Sections (completed by agent a4706ff)**
+
+   - `apps/web/components/landing/sponsors-section.tsx` — Monochrome university cards, opacity-40 hover:opacity-80, `from-[#FAFAFA]` gradient masks
+   - `apps/web/components/landing/features-section.tsx` — 3-col staggered cards (middle offset -translate-y-8), `rounded-2xl bg-white p-16`, icons with strokeWidth 1.5
+   - `apps/web/components/landing/how-it-works-section.tsx` — Charcoal outlined circles, solid sage connecting lines (not dashed), serif headings
+   - `apps/web/components/landing/pricing-section.tsx` — Sage border for popular card, charcoal billing toggle, rounded-full buttons
+   - `apps/web/components/landing/testimonials-section.tsx` — White cards with hairline borders, serif italic quotes, sage avatar circles
+   - `apps/web/components/landing/faq-section.tsx` — Serif heading, `border-black/[0.06]` accordion items, `hover:no-underline` on triggers
+   - `apps/web/components/landing/cta-section.tsx` — Centred pill `rounded-[32px] bg-white`, serif 32px heading, removed orange glow orbs
+   - `apps/web/components/landing/footer-section.tsx` — Single-line layout (brand left, links center, copyright right), removed card wrapper
+
+   **WP-3: Glass Sidebar (completed by agent a512211)**
+
+   - `apps/web/components/layout/glass-sidebar-provider.tsx` — NEW
+     - Context: `isExpanded`, `setExpanded`, `isMobile`, `mobileOpen`, `setMobileOpen`, `toggleSidebar`
+     - Cookie persistence via `sidebar_state` cookie
+     - Keyboard shortcut: Cmd/Ctrl+B
+     - Uses existing `useIsMobile` hook
+
+   - `apps/web/components/layout/glass-sidebar.tsx` — NEW
+     - Desktop: 240px expanded / 48px collapsed, `bg-white/70 backdrop-blur-[20px]`, width transition 400ms zen curve
+     - Mobile: full overlay with backdrop, slide-in panel
+     - Nav items: Dashboard, Projects, Licences with lucide icons
+     - Toggle: floating chevron button on right edge, 180deg rotation
+     - Footer: Clerk UserButton + label
+
+   - `apps/web/app/(dashboard)/layout.tsx` — Replaced SidebarProvider/AppSidebar/SidebarInset with GlassSidebarProvider + GlassSidebar + CSS Grid layout
+   - `apps/web/components/layout/dashboard-header.tsx` — Replaced SidebarTrigger with useGlassSidebar toggle, glass styling
+
+   **WP-4+7: Pipeline Timeline + Button Primitives (completed by agent aa5db54)**
+
+   - `apps/web/components/project/pipeline-timeline.tsx` — NEW
+     - Sticky top, centred horizontal dot timeline
+     - Glass container: `bg-[rgba(250,250,250,0.8)] backdrop-blur-[10px] rounded-3xl`
+     - Dots: 2x2px (active=charcoal scaled 1.2, completed=sage with check, inactive=#D1D1D1)
+     - Connecting lines: `h-0.5 w-10`, sage for completed/current, grey for inactive
+     - Labels: `font-mono text-[11px] uppercase tracking-[0.05em]`
+
+   - `apps/web/components/project/phase-stepper.tsx` — Added `/** @deprecated Use PipelineTimeline instead */`
+   - `apps/web/components/ui/button.tsx` — Added `pill` and `zen` variants, changed default to charcoal `bg-[#2F2F2F]`, updated focus rings
+   - `apps/web/components/ui/sidebar.tsx` — Added `/** @deprecated Use GlassSidebar instead */`
+
+   **WP-5: Resizable Editor Workspace (completed directly)**
+
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` — Full rewrite
+     - Replaced `useSidebar` with `useGlassSidebar`, `setSidebarOpen(false)` → `setExpanded(false)`
+     - Replaced `PhaseStepper` with `PipelineTimeline`
+     - Desktop: `PanelGroup`/`Panel`/`PanelResizeHandle` from react-resizable-panels (50/50 default, 30/25 min)
+     - Resize handle: 12px wide with 1px rounded bar, hover color change
+     - Editor pane: `rounded-2xl bg-white p-10 shadow-[0_4px_20px_rgba(0,0,0,0.03)]`
+     - PDF pane: `rounded-2xl bg-[#FDFDFD] shadow-[0_4px_20px_rgba(0,0,0,0.03)]`
+     - Mobile: unchanged tabbed approach
+     - All UI elements (tabs, toggles) use rounded-full pill styling
+
+   - `apps/web/components/editor/section-editor.tsx` — Zen restyling
+     - Bubble menu: glass styling `bg-white/80 backdrop-blur-[20px] rounded-xl border-white/30`
+     - Body: `font-serif text-[18px] md:text-[20px] leading-[32px]`
+     - Placeholder: `text-[#D1D1D1]`
+     - Save indicator: `font-mono text-[12px] text-[#6B6B6B]`
+     - Blockquote border: sage `border-[#8B9D77]`
+     - Dropcursor: sage `#8B9D77`
+
+   - `apps/web/components/editor/latex-source-view.tsx` — Light CodeMirror theme, rounded-2xl border, zen shadow
+   - `apps/web/components/editor/word-count-bar.tsx` — Sage progress bar (`bg-[#8B9D77]`), amber for under, thinner bar (h-1.5), `bg-[#F0F0F0]` track
+
+   **WP-5C/5D: PDF Viewer + Project Page**
+
+   - `apps/web/components/viewer/pdf-viewer.tsx` — Glass pill controls, serif placeholder text, thin scrollbar styling, rounded-2xl container
+   - `apps/web/app/(dashboard)/projects/[id]/page.tsx` — Serif title, zen badge styling, rounded-full setup button, rounded-2xl metadata details
+
+   **WP-6: Dashboard Pages Polish (completed directly)**
+
+   - `apps/web/app/(dashboard)/projects/page.tsx` — White cards `rounded-2xl`, hover lift animation, charcoal "New Project" button (rounded-full), serif headings
+   - `apps/web/components/project/compile-button.tsx` — Sage success color `bg-[#8B9D77]/10 text-[#8B9D77]`, rounded-2xl result container
+   - `apps/web/components/project/licence-banner.tsx` — Amber accent `border-[#D4A373]/30 bg-[#D4A373]/10`, rounded-full attach button in charcoal
+   - `apps/web/components/project/section-viewer.tsx` — White card `rounded-2xl`, serif heading, sage/amber status badges, `bg-[#FAFAFA]` content area
+   - `apps/web/components/project/citation-list-panel.tsx` — Glass panel `bg-white/70 backdrop-blur-[20px]`, sage/amber tier colors, rounded-xl audit result
+   - `apps/web/components/project/review-dialog.tsx` — Zen dialog `rounded-2xl`, serif title, charcoal approve button rounded-full, amber/sage severity colors
+   - `apps/web/components/project/template-gallery.tsx` — Charcoal icon circles (rounded-full bg-[#2F2F2F]), serif headings, hover lift animation
+
+4. Errors and fixes:
+   - No errors were encountered during implementation. All file writes succeeded.
+   - No TypeScript type-checking or tests have been run yet to verify correctness.
+
+5. Problem Solving:
+   - The implementation was organized to respect the dependency graph: WP-0 first (foundation), then WP-1/2/3/7 in parallel, then WP-4/5/6
+   - Used 4 parallel background agents to speed up independent work packages
+   - Directly implemented WP-5 and WP-6 while agents were running to maximize throughput
+   - All task tracking was maintained via TaskCreate/TaskUpdate
+
+6. All user messages:
+   - Message 1: "Implement the following plan: # Zen Modular Frontend Redesign [extremely detailed plan with 8 work packages, file manifest, CSS specifications, component structures, responsive breakpoints, execution order, and verification steps]"
+   - Message 2: "continue" (after initial file reading phase)
+
+7. Pending Tasks:
+   - **Verification**: The plan specifies these verification steps that have NOT been run:
+     1. `pnpm tsc --noEmit` — zero TypeScript errors
+     2. `pnpm test` — all existing tests still pass
+     3. `pnpm dev` — dev server starts, no build errors
+   - No visual verification has been done
+   - The `apps/web/components/ui/animated-grid.tsx` component is still imported nowhere but may still exist in the codebase (was only used in the old hero, which was rewritten)
+
+8. Current Work:
+   All 8 work packages have been implemented and marked as completed:
+   - WP-0: Design System Foundation ✓
+   - WP-1: Landing Navbar + Hero ✓
+   - WP-2: Landing Remaining Sections ✓
+   - WP-3: Glass Sidebar + Provider ✓
+   - WP-4: Pipeline Timeline ✓
+   - WP-5: Resizable Editor Workspace ✓
+   - WP-6: Dashboard Pages Polish ✓
+   - WP-7: UI Primitives ✓
+   
+   All task statuses were updated to "completed" just before the summary request. The background agents all confirmed successful completion.
+
+9. Optional Next Step:
+   Run the verification steps specified in the plan:
+   - `pnpm tsc --noEmit` to check for TypeScript errors (the plan states "zero TypeScript errors" required)
+   - `pnpm test` to verify existing tests still pass (plan states "all 339 existing tests still pass")
+   - Fix any type errors or test failures that arise from the redesign (e.g., the `useSidebar` → `useGlassSidebar` migration may have been missed in some files, or imports of deleted Remotion components may still exist elsewhere)
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+<task-notification>
+<task-id>a3ed26f</task-id>
+<status>completed</status>
+<summary>Agent "WP-1: Navbar + Hero rewrite" completed</summary>
+<result>All three files are updated. Here is a summary of the changes:
+
+---
+
+### 1. `/Users/devs/Downloads/Apollo/apps/web/components/layout/navbar.tsx` -- Full Rewrite
+
+**What changed:**
+- Removed imports for `GraduationCap`, `Button`, `Sheet`, `SheetContent`, `SheetHeader`, `SheetTitle`, `SheetTrigger` (shadcn/ui components no longer needed).
+- Added imports for `useEffect`, `X` (from lucide-react) for the custom mobile overlay.
+- The navbar is now a **floating glass bar**: `fixed top-8 left-1/2` with `max-w-[1200px]`, centered via `-translate-x-1/2`. It uses `rounded-3xl`, `border-white/30`, `bg-white/80`, and `backdrop-blur-[20px]` for the frosted glass effect.
+- Added a **scroll shadow** effect: listens to `window.scrollY > 50` and transitions between two subtle box shadows.
+- **Logo** is now a serif text link (`font-serif text-[24px]`) instead of the `GraduationCap` icon.
+- Desktop links and auth buttons are styled with raw Tailwind classes (no `Button` component), with the "Get Started" CTA as a `rounded-[20px]` pill button in `bg-[#2F2F2F]`.
+- **Mobile menu** replaced the shadcn `Sheet` with a custom full-screen overlay (`fixed inset-0 z-[60]`) with `bg-white/90 backdrop-blur-[20px]`, using `X` icon to close. The Clerk `UserButton` and `SignedIn`/`SignedOut` guards are preserved.
+
+### 2. `/Users/devs/Downloads/Apollo/apps/web/components/landing/hero-section.tsx` -- Full Rewrite
+
+**What changed:**
+- Removed imports for `useState`, `useEffect`, `Button`, `AnimatedGridPattern`, `ApolloHeroPlayer`.
+- Removed `TypewriterText` component, `springTransition`/`noMotion` constants, `containerVariants`/`itemVariants`/`videoVariants`.
+- Added three new pure-CSS/SVG sub-components for the **AbstractViz** composition:
+  - `ThesisPage` -- a white rounded card with gray skeleton lines simulating a thesis document, with a page-curl effect.
+  - `DataSpheres` -- three floating gradient spheres (sage green, warm terracotta, dark charcoal) with staggered `animationDelay` using custom `animate-float-sphere` class.
+  - `MiniChart` -- a small white card containing an SVG line chart with sage-green data points.
+- The hero layout is now a **12-column grid** (`lg:grid-cols-12`): left zone (7 cols) has the large serif "Apollo" heading (`text-[96px]` on desktop), a minimal subtitle ("Thesis Writing & Statistical Analysis."), and two CTA buttons (filled pill + outlined pill). Right zone (5 cols) has the three AbstractViz elements positioned absolutely with staggered motion entrance.
+- All animations use a **Zen easing curve** `[0.16, 1, 0.3, 1]` and respect `useReducedMotion`.
+- The hero elements reference CSS animation classes (`animate-float-thesis`, `animate-float-sphere`, `animate-float-chart`) that need corresponding keyframes in `globals.css`.
+
+### 3. `/Users/devs/Downloads/Apollo/apps/web/app/page.tsx` -- Single-line Edit
+
+**What changed:**
+- Line 14: Replaced `className="dark bg-background text-foreground min-h-screen"` with `className="bg-[#FAFAFA] text-[#2F2F2F] min-h-screen"`.
+- This removes the `dark` theme class and the CSS variable-based colours, replacing them with explicit Zen palette values: warm off-white background (`#FAFAFA`) and charcoal text (`#2F2F2F`).
+- All existing imports remain unchanged -- no `AnimatedGridPattern` or `ApolloHeroPlayer` imports were present in `page.tsx` (those were only in the hero section).
+
+**Note:** The hero section references three custom animation classes (`animate-float-thesis`, `animate-float-sphere`, `animate-float-chart`). You will need to add corresponding `@keyframes` definitions in `/Users/devs/Downloads/Apollo/apps/web/app/globals.css` for those floating animations to work.</result>
+<usage>total_tokens: 29308
+tool_uses: 7
+duration_ms: 81388</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a3ed26f.output
+
+---
+
+<task-notification>
+<task-id>a512211</task-id>
+<status>completed</status>
+<summary>Agent "WP-3: Glass sidebar + provider" completed</summary>
+<result>All four files have been written successfully. Here is a summary of what was done:
+
+### Files Created
+
+1. **`/Users/devs/Downloads/Apollo/apps/web/components/layout/glass-sidebar-provider.tsx`** -- A client-side React context provider that manages the glass sidebar state. It tracks expanded/collapsed state (persisted via cookie), mobile open/close state, and provides a `toggleSidebar` function. It also registers a `Cmd/Ctrl+B` keyboard shortcut for toggling. The `useGlassSidebar` hook is exported for consuming components.
+
+2. **`/Users/devs/Downloads/Apollo/apps/web/components/layout/glass-sidebar.tsx`** -- The glass sidebar component itself. On mobile it renders as a fixed overlay with a backdrop and close button. On desktop it renders as a collapsible `<aside>` element with a glassmorphism effect (`bg-white/70 backdrop-blur-[20px]`), smooth width transition using a cubic-bezier easing curve (240px expanded, 48px collapsed), navigation links (Dashboard, Projects, Licences), a Clerk `UserButton`, and a floating chevron toggle button positioned on the right edge.
+
+### Files Modified
+
+3. **`/Users/devs/Downloads/Apollo/apps/web/app/(dashboard)/layout.tsx`** -- Replaced the old `SidebarProvider` + `AppSidebar` + `SidebarInset` structure with the new `GlassSidebarProvider` + `GlassSidebar` + CSS grid layout (`grid-cols-[auto_1fr]`). The cookie reading logic now defaults to expanded (`!== "false"` instead of `=== "true"`). The main content area now has a `bg-[#FAFAFA]` background.
+
+4. **`/Users/devs/Downloads/Apollo/apps/web/components/layout/dashboard-header.tsx`** -- Replaced the old `SidebarTrigger` and `Separator` imports with the new `useGlassSidebar` hook and a `PanelLeft` icon button (visible only on mobile via `md:hidden`). The header now uses the glass effect styling (`bg-white/70 backdrop-blur-[20px] border-black/[0.06]`) and breadcrumb items have explicit colour classes (`text-[#2F2F2F]` for active, `text-[#9CA3AF]` for links).</result>
+<usage>total_tokens: 23816
+tool_uses: 7
+duration_ms: 53397</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a512211.output
+
+---
+
+<task-notification>
+<task-id>aa5db54</task-id>
+<status>completed</status>
+<summary>Agent "WP-4+7: Timeline + button primitives" completed</summary>
+<result>All four changes are confirmed. Here is a summary of what was done:
+
+---
+
+**1. CREATED** `/Users/devs/Downloads/Apollo/apps/web/components/project/pipeline-timeline.tsx`
+- New `PipelineTimeline` component with a Zen-style horizontal dot-and-line timeline
+- Uses a frosted glass container (`bg-[rgba(250,250,250,0.8)]` with `backdrop-blur-[10px]`) pinned to the top via `sticky`
+- Renders connecting lines between phase dots, coloured green (`#8B9D77`) for completed/current phases and grey (`#E5E5E5`) otherwise
+- Phase dots scale up on hover with a cubic-bezier easing, and completed dots show a small check icon
+- Labels are monospace, uppercase, 11px with tight tracking
+
+**2. MODIFIED** `/Users/devs/Downloads/Apollo/apps/web/components/project/phase-stepper.tsx`
+- Added `/** @deprecated Use PipelineTimeline instead */` comment on line 2, right after the `"use client"` directive
+- All existing code remains intact so current imports continue to work
+
+**3. MODIFIED** `/Users/devs/Downloads/Apollo/apps/web/components/ui/button.tsx`
+- Updated the base CVA class string: `transition-colors` changed to `transition-all duration-200 ease-out`, focus ring now uses `ring-[#2F2F2F]/10` with `ring-offset-2`
+- **default** variant now uses charcoal `bg-[#2F2F2F]` instead of theme `bg-primary`
+- **outline** variant now uses `border-black/[0.06]` and `bg-white` with `hover:bg-black/[0.04]`
+- **ghost** variant now uses `hover:bg-black/[0.04]` instead of theme accent
+- **link** variant now uses `text-[#2F2F2F]`
+- Added two new variants: **pill** (`rounded-full`) and **zen** (`bg-[#2F2F2F] text-white rounded-full`)
+
+**4. MODIFIED** `/Users/devs/Downloads/Apollo/apps/web/components/ui/sidebar.tsx`
+- Added `/** @deprecated Use GlassSidebar instead */` comment on line 2, right after the `"use client"` directive
+- All existing code and exports remain intact so current imports continue to work</result>
+<usage>total_tokens: 32555
+tool_uses: 11
+duration_ms: 53928</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/aa5db54.output
+
+---
+
+<task-notification>
+<task-id>a4706ff</task-id>
+<status>completed</status>
+<summary>Agent "WP-2: Landing sections update" completed</summary>
+<result>All 8 landing page section files have been written successfully with the Apollo Zen redesign. Here is a summary of the changes made to each file:
+
+### Files Updated
+
+1. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/sponsors-section.tsx`**
+   - Removed `color` property (gradient colours) from universities array
+   - Replaced `from-background` gradient masks with `from-[#FAFAFA]`
+   - Cards now use monochrome styling: `bg-[#2F2F2F]` initial badges, `opacity-40 hover:opacity-80` transition
+   - Padding changed from `py-20 sm:py-28` to `py-16 md:py-[120px]`
+
+2. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/features-section.tsx`**
+   - Replaced spring animations with cubic-bezier easing `[0.16, 1, 0.3, 1]`
+   - Cards now use `rounded-2xl bg-white p-10 lg:p-16` with subtle box shadows instead of `border bg-card`
+   - Middle column cards offset up with `lg:-translate-y-8` (staggered layout)
+   - Icons use `text-[#2F2F2F]` with `strokeWidth={1.5}` instead of `text-primary` with ring backgrounds
+   - Headings use `font-serif` class, text colours use explicit charcoal `#2F2F2F` and grey `#6B6B6B`
+
+3. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/how-it-works-section.tsx`**
+   - Step circles changed from `border-primary bg-primary/20 text-primary` to `border-2 border-[#2F2F2F] text-[#2F2F2F]`
+   - Connecting lines changed from dashed `border-dashed border-primary/50` to solid `h-0.5 bg-[#8B9D77]` (sage)
+   - Heading uses `font-serif`, all text uses explicit Zen palette colours
+   - Removed `whileHover` spring animation from items
+
+4. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/pricing-section.tsx`**
+   - Replaced `glow-border` with `border-[#8B9D77]` (sage accent) for popular card
+   - Billing toggle uses `bg-[#2F2F2F] text-white` instead of `bg-background shadow-sm`
+   - "Most Popular" badge uses `bg-[#2F2F2F]` instead of `bg-primary`
+   - Check marks use `text-[#8B9D77]` (sage) instead of `text-primary`
+   - Buttons use charcoal `bg-[#2F2F2F]` and `rounded-full` instead of shadcn `Button` component
+   - Removed `Button` import, cards use `rounded-2xl` with hairline borders
+
+5. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/testimonials-section.tsx`**
+   - Cards changed from `rounded-xl border bg-card` to `rounded-2xl border border-black/[0.06] bg-white`
+   - Quote text uses `font-serif text-sm italic leading-relaxed text-[#2F2F2F]`
+   - Avatar circles use `bg-[#8B9D77]/20 text-[#8B9D77]` (sage) instead of `bg-primary/20 text-primary`
+   - Heading uses `font-serif` with explicit colour values
+
+6. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/faq-section.tsx`**
+   - Replaced spring transitions with cubic-bezier easing
+   - AccordionItem uses `border-black/[0.06]` (hairline borders)
+   - AccordionTrigger adds `text-[#2F2F2F] hover:no-underline`
+   - AccordionContent uses `text-[#6B6B6B]` instead of `text-muted-foreground`
+   - Heading uses `font-serif`
+
+7. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/cta-section.tsx`**
+   - Removed orange glow orbs and grid pattern overlay
+   - Removed `Button` component import; uses native anchor/link elements with charcoal styling
+   - Container changed to centred pill: `max-w-[600px] rounded-[32px] bg-white` with subtle shadow
+   - Heading uses `font-serif text-[32px]`, no gradient text
+   - CTA buttons use `rounded-full bg-[#2F2F2F]` with hairline border outline variant
+
+8. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/footer-section.tsx`**
+   - Simplified from 4-column grid layout to single-line: brand left, links centre, copyright right
+   - Removed rounded card wrapper (`rounded-2xl border bg-card`)
+   - Added `border-t border-black/[0.06]` top hairline border
+   - Brand uses `font-serif text-lg` instead of icon + bold text
+   - Removed `GraduationCap` icon import and `motion` import
+   - Links use `text-xs text-[#9CA3AF] hover:text-[#2F2F2F]`</result>
+<usage>total_tokens: 56082
+tool_uses: 25
+duration_ms: 243404</usage>
+</task-notification>
+Full transcript available at: REDACTED.output
+
+---
+
+start the dev server so that i can check locally
+
+---
+
+## Error Type
+Runtime TypeError
+
+## Error Message
+frame.join is not a function
+
+Next.js version: 15.5.12 (Turbopack)
+
+---
+
+Attached error from console. it happens when trying to check for compliance. also attached data nad Analysis tab and the whole UI. Dataset generation works , but the statistical test to run needs to be manually selected  and performed (eg predictor. outcome selection etc). There needs to be an automated option as well. Same for figure generation (both RoL figures [which will be from known publications via pubmed search or web search] and statistical figures [after the analysis completes]). For the UI, the landing page feels 'too' sparse right now, the Hero elements are too less. The top navbar is not glassmorphic /transparent.The cards and the background are not sufficiently separated, no proper shadow, no elevation. The copy of the Hero is bad. and the Apollo branding needs to be better  and the subtext need to be in American Typewriter light font, and both should have some motion. The subtext should appear as would a typewritten document. PLAN for all of this. Use subagents for planning and execution
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 7.57.15 AM.png]
+
+[Image: source: REDACTED 2026-02-15 at 7.59.07 AM.png]
+
+[Image: source: REDACTED 2026-02-15 at 8.06.34 AM.png]
+
+[Image: source: REDACTED 2026-02-15 at 8.06.51 AM.png]
+
+[Image: source: REDACTED 2026-02-15 at 8.07.23 AM.png]
+
+---
+
+[Request interrupted by user for tool use]
