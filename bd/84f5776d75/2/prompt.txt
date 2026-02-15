@@ -1,0 +1,606 @@
+Implement the following plan:
+
+# Sprint 5-6 Completion: Citation Provenance Pipeline
+
+## Context
+
+Sprints 0–4 are complete. Sprint 5-6 (AI Integration + Citations) is partially done — Claude API streaming, AI generation, rate limiting, and PII redaction all work. The **missing** deliverables are:
+
+1. **Citation provenance pipeline**: AI generates → CrossRef/PubMed lookup → insert verified → flag unverifiable
+2. **PubMed/CrossRef search UI in editor**
+3. **Bidirectional citation integrity audit**
+
+Per `docs/PLAN.md`: "User can generate a full Introduction draft with streaming; all citations have provenance class (A/B/C/D) assigned; no Tier D citations remain unresolved in test thesis."
+
+## Existing Infrastructure (already built)
+
+- `citations` table with full schema (migration 006): `cite_key`, `bibtex_entry`, `provenance_tier`, `evidence_type`, `source_doi`, `source_pmid`, `attested_by_user_id`, `verified_at`, unique index on `(project_id, cite_key)`, RLS policies
+- `Citation` type in `lib/types/database.ts` with `ProvenanceTier` and `EvidenceType`
+- `section.citation_keys[]` populated during AI generation and editor saves
+- `assembleThesisContent()` fetches citations from DB, deduplicates BibTeX (citations table wins)
+- `splitBibtex()` and `deduplicateBibEntries()` in `lib/latex/assemble.ts`
+- Standard API patterns: `getAuthenticatedUser()`, `createAdminSupabaseClient()`, Zod validation, error helpers
+
+## Plan API Endpoints (from PLAN.md §504-509)
+
+```
+GET    /api/projects/:id/citations        List citations
+POST   /api/projects/:id/citations        Add citation (DOI/PMID lookup)
+POST   /api/projects/:id/citations/audit  Bidirectional integrity check
+GET    /api/citations/search?q=           Search PubMed/CrossRef
+```
+
+---
+
+## WP1: Citation Resolution Library
+
+Three modules under `apps/web/lib/citations/`. Pure functions + fetch calls, no Next.js dependencies.
+
+### `lib/citations/crossref.ts`
+
+| Function | Signature | Notes |
+|----------|-----------|-------|
+| `lookupDOI` | `(doi: string) => Promise<{ bibtex: string; work: CrossRefWork } \| null>` | Content negotiation `Accept: application/x-bibtex`. 10s timeout. `mailto:` header from `CROSSREF_MAILTO` env var. |
+| `searchCrossRef` | `(query: string, rows?: number) => Promise<CrossRefSearchResult>` | `https://api.crossref.org/works?query=...&rows=N` |
+| `crossRefWorkToBibtex` | `(work: CrossRefWork, citeKey: string) => string` | Fallback if content negotiation fails. Strips `doi = {…}` field from output (DOI underscores crash `vancouver.bst` — per `lessons.md`). |
+
+Types: `CrossRefWork { doi, title, authors: string[], journal, year, volume, issue, pages, type }`, `CrossRefSearchResult { items, totalResults }`
+
+### `lib/citations/pubmed.ts`
+
+| Function | Signature | Notes |
+|----------|-----------|-------|
+| `lookupPMID` | `(pmid: string) => Promise<PubMedArticle \| null>` | `esummary.fcgi?db=pubmed&id=PMID&retmode=json`. 10s timeout. Optional `PUBMED_API_KEY`. |
+| `searchPubMed` | `(query: string, maxResults?: number) => Promise<PubMedSearchResult>` | `esearch.fcgi` → `esummary.fcgi` two-step. |
+| `pubmedArticleToBibtex` | `(article: PubMedArticle, citeKey: string) => string` | If article has DOI, cascade to `lookupDOI()` for better BibTeX. |
+
+Types: `PubMedArticle { pmid, title, authors, journal, year, volume, issue, pages, doi }`, `PubMedSearchResult { items, totalResults }`
+
+### `lib/citations/resolve.ts`
+
+| Function | Signature | Notes |
+|----------|-----------|-------|
+| `parseBibtexEntries` | `(raw: string) => Map<string, string>` | Reuse regex from `deduplicateBibEntries()` in `assemble.ts` |
+| `extractHints` | `(bibtexEntry: string) => { doi: string \| null; pmid: string \| null }` | Regex for `doi = {…}` and `pmid` in note/keywords fields |
+| `resolveEntry` | `(citeKey: string, rawBibtex: string) => Promise<ResolvedCitation>` | See algorithm below |
+| `resolveAllEntries` | `(rawBibtex: string) => Promise<ResolutionResult>` | `Promise.allSettled()` with concurrency limit of 3 |
+
+**Resolution algorithm** (`resolveEntry`):
+1. Extract `doi` and `pmid` hints from BibTeX
+2. If DOI → `lookupDOI(doi)`. Success → **Tier A**, `evidence_type: "doi"`
+3. If PMID (and no DOI match) → `lookupPMID(pmid)`. Success → **Tier A**, `evidence_type: "pmid"`
+4. If no hints or lookups fail → title search via `searchCrossRef(title)`. Top result with Levenshtein similarity > 0.85 → **Tier A**
+5. All fail → **Tier D** with original AI BibTeX preserved
+
+**BibTeX sanitisation**: Strip `doi = {…}` field from all output (DOI stored in `source_doi` column only).
+
+**Files**: `apps/web/lib/citations/crossref.ts` (NEW), `apps/web/lib/citations/pubmed.ts` (NEW), `apps/web/lib/citations/resolve.ts` (NEW)
+
+---
+
+## WP2: Citation API Routes + Validation Schemas
+
+### `lib/validation/citation-schemas.ts` (NEW)
+
+```typescript
+citationCreateSchema = z.object({
+  doi: z.string().max(500).trim().optional(),
+  pmid: z.string().max(50).trim().optional(),
+  cite_key: z.string().min(1).max(200).trim().optional(),
+  bibtex_entry: z.string().max(10000).trim().optional(),
+}).refine(data => data.doi || data.pmid || data.bibtex_entry, "Provide doi, pmid, or bibtex_entry")
+
+citationUpdateSchema = z.object({
+  bibtex_entry: z.string().max(10000).trim().optional(),
+  provenance_tier: z.enum(["A","B","C","D"]).optional(),
+  evidence_type: z.enum(["doi","pmid","isbn","url","manual"]).optional(),
+  evidence_value: z.string().max(1000).trim().optional(),
+  attested: z.boolean().optional(),
+})
+
+citationSearchSchema = z.object({
+  q: z.string().min(2).max(500).trim(),
+  source: z.enum(["crossref","pubmed"]).default("pubmed"),
+  limit: z.coerce.number().int().min(1).max(20).default(10),
+})
+```
+
+### Routes
+
+| Route | File | Method | Logic |
+|-------|------|--------|-------|
+| List citations | `app/api/projects/[id]/citations/route.ts` | GET | Auth → ownership → query `citations` table by `project_id`, order by `serial_number, created_at` |
+| Add/resolve citation | Same file | POST | Auth → validate body → if DOI: `lookupDOI()` → Tier A; if PMID: `lookupPMID()` → Tier A; if bibtex_entry: `resolveEntry()` → auto-classify. Generate `cite_key` if not provided (surname+year). Upsert on `(project_id, cite_key)`. |
+| Update citation | `app/api/projects/[id]/citations/[citationId]/route.ts` | PUT | Auth → ownership → if `attested: true`: set `attested_by_user_id`, `attested_at`, promote to Tier B/C |
+| Delete citation | Same file | DELETE | Auth → ownership → delete → 204 |
+| Run audit | `app/api/projects/[id]/citations/audit/route.ts` | POST | Auth → fetch sections + citations → `auditCitations()` → return result |
+| Search external | `app/api/citations/search/route.ts` | GET | Auth (no project check) → validate query params → `searchCrossRef()` or `searchPubMed()` → return results |
+
+**Files**: `apps/web/app/api/projects/[id]/citations/route.ts` (NEW), `apps/web/app/api/projects/[id]/citations/[citationId]/route.ts` (NEW), `apps/web/app/api/projects/[id]/citations/audit/route.ts` (NEW), `apps/web/app/api/citations/search/route.ts` (NEW), `apps/web/lib/validation/citation-schemas.ts` (NEW)
+
+---
+
+## WP3: Auto-Resolution After AI Generation
+
+### `lib/citations/auto-resolve.ts` (NEW)
+
+```typescript
+export async function resolveSectionCitations(projectId: string, fullLatexResponse: string): Promise<void>
+```
+
+1. `splitBibtex(fullLatexResponse)` → extract BibTeX trailer
+2. `resolveAllEntries(bib)` → get resolved citations
+3. Batch-select existing citations for this project (to avoid overwriting verified/attested ones)
+4. Upsert only NEW or UNVERIFIED citations (skip if existing has `verified_at` or `attested_at` set)
+
+### Modification: `app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+After section update succeeds and before sending SSE `complete` event, fire-and-forget:
+
+```typescript
+void resolveSectionCitations(project.id, fullResponse).catch(err =>
+  console.error("Background citation resolution failed:", err)
+);
+```
+
+Non-blocking — does not hold up the SSE stream.
+
+---
+
+## WP4: Citation Search UI
+
+### `components/project/citation-search-dialog.tsx` (NEW)
+
+- Dialog with search input + source toggle (PubMed / CrossRef)
+- Calls `GET /api/citations/search?q=...&source=...`
+- Results list: title, authors, journal, year, "Insert" button
+- "Insert" calls `POST /api/projects/{id}/citations` with DOI/PMID, then `onInsert(citeKey)` callback
+- Debounced search (300ms)
+
+### `components/project/citation-list-panel.tsx` (NEW)
+
+- Table of project citations with tier badges (A=green, B=blue, C=amber, D=red)
+- Attest button (Tier D → C), Edit BibTeX modal, Delete
+- "Run Audit" button, "Add Citation" button
+
+### Integration points
+
+| File | Change |
+|------|--------|
+| `components/editor/section-editor.tsx` | Add toolbar button (BookOpen icon) → opens `CitationSearchDialog`. `onInsert` inserts `\cite{key}` as code-marked Tiptap node. |
+| `app/(dashboard)/projects/[id]/page.tsx` | Fetch citations in server component, pass to workspace |
+| `app/(dashboard)/projects/[id]/project-workspace.tsx` | Add citations prop, render `CitationListPanel` below word count bar (collapsible) |
+
+---
+
+## WP5: Bidirectional Citation Audit
+
+### `lib/citations/audit.ts` (NEW)
+
+```typescript
+export interface AuditResult {
+  missingCitations: { citeKey: string; usedInPhases: number[] }[];
+  orphanedCitations: { citationId: string; citeKey: string; tier: string }[];
+  tierDBlocking: { citationId: string; citeKey: string; usedInPhases: number[] }[];
+  totalCitations: number;
+  totalCiteCommands: number;
+  integrityScore: number;  // 0-100
+}
+
+export function auditCitations(sections: Section[], citations: Citation[]): AuditResult
+```
+
+**Algorithm**:
+1. Collect all cite keys from `section.citation_keys[]` → map `citeKey → Set<phaseNumber>`
+2. Build citation lookup: `citeKey → Citation`
+3. Forward: cite keys in sections not in citation DB → `missingCitations`
+4. Reverse: citations in DB not in any section → `orphanedCitations`
+5. Tier D used in sections → `tierDBlocking`
+6. Score: `(commands with Tier A/B/C match) / total commands × 100`
+
+Pure function — no I/O, trivially testable.
+
+---
+
+## WP6: Tests
+
+### Unit tests
+
+| File (NEW) | Tests | Mocking |
+|------------|-------|---------|
+| `lib/citations/crossref.test.ts` | `lookupDOI` (valid, 404, timeout, strips doi field), `searchCrossRef` (results, empty, limit), `crossRefWorkToBibtex` (valid, missing fields, escapes) | Mock `global.fetch` |
+| `lib/citations/pubmed.test.ts` | `lookupPMID` (valid, invalid, timeout), `searchPubMed` (results, empty, limit), `pubmedArticleToBibtex` (valid, DOI cascade) | Mock `global.fetch` |
+| `lib/citations/resolve.test.ts` | `parseBibtexEntries` (single, multiple, empty, malformed), `extractHints` (DOI, PMID, none), `resolveEntry` (DOI→A, PMID→A, title→A, fail→D, sanitise), `resolveAllEntries` (parallel, partial failure) | Mock crossref/pubmed modules |
+| `lib/citations/audit.test.ts` | All match, missing, orphaned, Tier D blocking, integrity score, empty sections, empty citations, no keys | No mocking (pure function) |
+| `lib/citations/auto-resolve.test.ts` | Resolves trailer, skips when no trailer, no overwrite of verified, upserts new | Mock supabase + resolve |
+
+### E2E test
+
+| File (NEW) | Tests |
+|------------|-------|
+| `tests/citations-e2e.test.ts` | Full flow: AI generates section → BibTeX extracted → auto-resolve runs → citations in DB with tiers → audit returns clean. Also: manual add via DOI → Tier A. Manual add via PMID → Tier A. Unresolvable → Tier D. Student attests → Tier C. Audit catches orphaned + missing. |
+
+---
+
+## Environment Variables
+
+Add to `.env.example`:
+```
+# CrossRef polite pool (recommended, not required)
+CROSSREF_MAILTO=
+
+# PubMed API key (optional — 3 req/s without, 10 req/s with)
+PUBMED_API_KEY=
+```
+
+---
+
+## Execution Order
+
+```
+WP1 (crossref.ts, pubmed.ts, resolve.ts) + tests
+  ↓
+WP5 (audit.ts) + tests  [parallel with WP1 — no dependency]
+  ↓
+WP2 (API routes + schemas) + tests
+  ↓
+WP3 (auto-resolve.ts + generate route integration) + tests
+  ↓
+WP4 (citation-search-dialog, citation-list-panel, editor integration)
+  ↓
+WP6 (E2E test)
+```
+
+## Files Summary
+
+| Action | File |
+|--------|------|
+| NEW | `apps/web/lib/citations/crossref.ts` |
+| NEW | `apps/web/lib/citations/pubmed.ts` |
+| NEW | `apps/web/lib/citations/resolve.ts` |
+| NEW | `apps/web/lib/citations/audit.ts` |
+| NEW | `apps/web/lib/citations/auto-resolve.ts` |
+| NEW | `apps/web/lib/validation/citation-schemas.ts` |
+| NEW | `apps/web/app/api/projects/[id]/citations/route.ts` |
+| NEW | `apps/web/app/api/projects/[id]/citations/[citationId]/route.ts` |
+| NEW | `apps/web/app/api/projects/[id]/citations/audit/route.ts` |
+| NEW | `apps/web/app/api/citations/search/route.ts` |
+| NEW | `apps/web/components/project/citation-search-dialog.tsx` |
+| NEW | `apps/web/components/project/citation-list-panel.tsx` |
+| MOD | `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` — fire-and-forget auto-resolve |
+| MOD | `apps/web/components/editor/section-editor.tsx` — citation search toolbar button |
+| MOD | `apps/web/app/(dashboard)/projects/[id]/page.tsx` — fetch citations |
+| MOD | `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` — citations panel |
+| MOD | `apps/web/.env.example` — add CROSSREF_MAILTO, PUBMED_API_KEY |
+| NEW | `apps/web/lib/citations/crossref.test.ts` |
+| NEW | `apps/web/lib/citations/pubmed.test.ts` |
+| NEW | `apps/web/lib/citations/resolve.test.ts` |
+| NEW | `apps/web/lib/citations/audit.test.ts` |
+| NEW | `apps/web/lib/citations/auto-resolve.test.ts` |
+| NEW | `apps/web/tests/citations-e2e.test.ts` |
+
+## Verification
+
+1. `pnpm test` — all existing 226 tests still pass + new citation tests pass
+2. `pnpm tsc --noEmit` — zero TypeScript errors
+3. Manual: generate Introduction → citations auto-resolved in DB with Tier A/B/D
+4. Manual: search PubMed → insert citation → `\cite{key}` in editor + citation in DB
+5. Manual: run audit → shows integrity score, no false positives
+6. Manual: attest Tier D citation → promoted to Tier C
+7. Manual: compile thesis → `references.bib` includes verified citations
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+DO a gap analysis with sprint 5-6 now. If complete proceed to sprint 7-8. If incomplete, complete it
+
+---
+
+Yes
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me analyze the conversation chronologically:
+
+1. **Initial Setup**: The user asked to implement a detailed plan for "Sprint 5-6 Completion: Citation Provenance Pipeline". The plan was extremely detailed with 6 work packages (WP1-WP6).
+
+2. **WP1 Implementation**: Created citation resolution library files:
+   - `crossref.ts` - DOI lookup, CrossRef search, BibTeX generation
+   - `pubmed.ts` - PMID lookup, PubMed search, BibTeX conversion
+   - `resolve.ts` - Resolution algorithm (DOI→A, PMID→A, title search→A, fail→D)
+
+3. **WP5 Implementation** (parallel with WP1):
+   - `audit.ts` - Bidirectional citation integrity audit (pure function)
+
+4. **WP2 Implementation**: API routes and validation schemas:
+   - `citation-schemas.ts` - Zod validation schemas
+   - `citations/route.ts` - GET/POST for listing and adding citations
+   - `citations/[citationId]/route.ts` - PUT/DELETE for individual citations
+   - `citations/audit/route.ts` - POST for running audit
+   - `citations/search/route.ts` - GET for external search
+
+5. **WP3 Implementation**: Auto-resolve after AI generation:
+   - `auto-resolve.ts` - Fire-and-forget citation resolution
+   - Modified `generate/route.ts` to call auto-resolve after generation
+
+6. **WP4 Implementation**: Citation Search UI:
+   - `citation-search-dialog.tsx` - Dialog with search, source toggle, insert
+   - `citation-list-panel.tsx` - Collapsible panel with tier badges, attest, delete, audit
+   - Modified `section-editor.tsx` - Added "Cite" toolbar button
+   - Modified `project-workspace.tsx` - Added citations panel and search dialog
+   - Modified `page.tsx` - Fetched citations in server component
+
+7. **WP6 Implementation**: Tests:
+   - 5 unit test files + 1 E2E test file
+   - 62 new tests, all passing
+   - 288 total tests passing
+
+8. **User asked for gap analysis**: "DO a gap analysis with sprint 5-6 now. If complete proceed to sprint 7-8. If incomplete, complete it"
+
+9. **Gap Analysis Found 5 Gaps**:
+   - Gap 1: Tier D `\cite{key}` not stripped in assembly (Critical)
+   - Gap 2: No prompt caching (Medium)
+   - Gap 3: No model routing (Medium)
+   - Gap 4: No token budget tracking (Medium)
+   - Gap 5: AI conversation persistence (Low)
+
+10. **Gap Fixes**:
+    - Added `stripTierDCitations()` to `assemble.ts` with tests
+    - Added `cache_control: { type: "ephemeral" }` to system prompts
+    - Added model routing logic (Sonnet for now, TODO Opus when available)
+    - Created `token-budget.ts` with `checkTokenBudget()` and `recordTokenUsage()`
+    - Modified `recordTokenUsage()` to persist conversation ID to sections
+
+11. **User said "Yes"** to proceed to Sprint 7-8
+
+12. **Sprint 7-8 Planning**:
+    - Read PLAN.md for Sprint 7-8 requirements
+    - Audited existing infrastructure
+    - Entered plan mode
+    - Asked user about priority scope - user chose "Everything"
+    - Launched Plan agent to design full Sprint 7-8 implementation
+    - Plan agent returned comprehensive 10-WP plan
+    - Was about to write the plan file and exit plan mode when summary was requested
+
+Now let me trace through all the important files, their contents, and changes.
+
+Key files created:
+- `apps/web/lib/citations/crossref.ts`
+- `apps/web/lib/citations/pubmed.ts`
+- `apps/web/lib/citations/resolve.ts`
+- `apps/web/lib/citations/audit.ts`
+- `apps/web/lib/citations/auto-resolve.ts`
+- `apps/web/lib/validation/citation-schemas.ts`
+- `apps/web/app/api/projects/[id]/citations/route.ts`
+- `apps/web/app/api/projects/[id]/citations/[citationId]/route.ts`
+- `apps/web/app/api/projects/[id]/citations/audit/route.ts`
+- `apps/web/app/api/citations/search/route.ts`
+- `apps/web/components/project/citation-search-dialog.tsx`
+- `apps/web/components/project/citation-list-panel.tsx`
+- `apps/web/lib/ai/token-budget.ts`
+- Test files (6 new)
+
+Key files modified:
+- `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - auto-resolve, prompt caching, model routing, token budgets
+- `apps/web/components/editor/section-editor.tsx` - Cite button
+- `apps/web/app/(dashboard)/projects/[id]/page.tsx` - fetch citations
+- `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - citations panel
+- `apps/web/lib/latex/assemble.ts` - Tier D stripping
+- `apps/web/lib/latex/assemble.test.ts` - Tier D tests
+- `apps/web/.env.example` - CrossRef/PubMed vars
+- `.env.example` - CrossRef/PubMed vars
+
+No errors encountered during implementation - all 294 tests passed, 0 TypeScript errors throughout.
+
+User messages:
+1. "Implement the following plan: [Sprint 5-6 plan]"
+2. "DO a gap analysis with sprint 5-6 now. If complete proceed to sprint 7-8. If incomplete, complete it"
+3. "Yes" (to proceed to Sprint 7-8)
+4. "Everything" (when asked about Sprint 7-8 scope priority)
+5. Summary request
+
+Current work: In plan mode for Sprint 7-8, had just received the comprehensive plan from the Plan agent, and was about to write the plan file and call ExitPlanMode. The user chose "Everything" scope.
+
+Summary:
+1. Primary Request and Intent:
+   The user requested implementation of the Sprint 5-6 "Citation Provenance Pipeline" for the Apollo AI-Powered Thesis Generation Platform. After completing that, they asked for a gap analysis against the plan, and to fix any gaps before proceeding to Sprint 7-8. After gaps were fixed, the user said "Yes" to proceed to Sprint 7-8 and chose "Everything" scope (full Sprint 7 + Sprint 8: R analysis, compliance dashboards, dataset upload, observability, Mermaid, Playwright E2E).
+
+2. Key Technical Concepts:
+   - **Citation Provenance Tiers**: A (DOI/PMID verified), B (ISBN/URL confirmed), C (manual/attested), D (unverifiable - blocks Final QC)
+   - **Resolution Algorithm**: DOI lookup → PMID lookup → title search (Levenshtein similarity > 0.85) → Tier D fallback
+   - **Tier D Stripping**: `\cite{tierD_key}` replaced with `% UNRESOLVED: key` comment in compiled LaTeX; Tier D BibTeX excluded from output
+   - **Prompt Caching**: `cache_control: { type: "ephemeral" }` on system prompts for 60-70% token savings
+   - **Token Budget**: 100K output tokens per phase, 1.2M total per thesis, hard-stop enforcement
+   - **Compute Semaphore**: 3-unit capacity (compile=2, analysis=1), max queue depth 5
+   - **Fire-and-forget pattern**: `void resolveSectionCitations().catch(console.error)` after SSE stream completes
+   - **Tiptap round-trip**: `latexToTiptap()` → `tiptapToLatex()` for sanitization
+   - **Assembly pipeline**: chapters as separate files via `\input{chapters/xxx.tex}`, NOT inline in main.tex
+
+3. Files and Code Sections:
+
+   **NEW FILES CREATED (Sprint 5-6):**
+
+   - `apps/web/lib/citations/crossref.ts`
+     - CrossRef DOI lookup via content negotiation, search API, BibTeX generation
+     - Strips DOI field from BibTeX (DOI underscores crash `vancouver.bst`)
+     - Key functions: `lookupDOI()`, `searchCrossRef()`, `crossRefWorkToBibtex()`, `stripDoiField()`
+
+   - `apps/web/lib/citations/pubmed.ts`
+     - PubMed E-Utilities (esearch → esummary two-step), PMID lookup
+     - DOI cascade: if article has DOI, calls `lookupDOI()` for better BibTeX
+     - Key functions: `lookupPMID()`, `searchPubMed()`, `pubmedArticleToBibtex()`
+
+   - `apps/web/lib/citations/resolve.ts`
+     - Resolution algorithm: DOI→A, PMID→A, title search (Levenshtein >0.85)→A, fail→D
+     - Batch resolution with concurrency limit of 3 via `Promise.allSettled()`
+     - Key functions: `parseBibtexEntries()`, `extractHints()`, `resolveEntry()`, `resolveAllEntries()`
+     - Key type: `ResolvedCitation { citeKey, bibtex, provenanceTier, evidenceType, evidenceValue, sourceDoi, sourcePmid }`
+
+   - `apps/web/lib/citations/audit.ts`
+     - Pure function for bidirectional citation integrity checking
+     - Forward: cite keys in sections not in DB → missingCitations
+     - Reverse: citations in DB not in any section → orphanedCitations
+     - Tier D used in sections → tierDBlocking
+     - Score: `(commands with Tier A/B/C match) / total commands × 100`
+     - Key function: `auditCitations(sections: Section[], citations: Citation[]): AuditResult`
+
+   - `apps/web/lib/citations/auto-resolve.ts`
+     - Fire-and-forget resolution after AI generation
+     - Splits BibTeX trailer, resolves entries, upserts only NEW or UNVERIFIED (skips verified/attested)
+     - Key function: `resolveSectionCitations(projectId: string, fullLatexResponse: string): Promise<void>`
+
+   - `apps/web/lib/validation/citation-schemas.ts`
+     - Zod schemas: `citationCreateSchema` (doi|pmid|bibtex_entry refine), `citationUpdateSchema`, `citationSearchSchema`
+
+   - `apps/web/app/api/projects/[id]/citations/route.ts`
+     - GET: List citations ordered by serial_number, created_at
+     - POST: Add/resolve citation (DOI→lookupDOI→TierA, PMID→lookupPMID→TierA, bibtex→resolveEntry→auto-classify)
+     - Generates cite keys: `generateCiteKey(authors, year)` → surname+year format
+
+   - `apps/web/app/api/projects/[id]/citations/[citationId]/route.ts`
+     - PUT: Update citation, handle attestation (D→C with manual, D→B with isbn/url)
+     - DELETE: Remove citation, return 204
+
+   - `apps/web/app/api/projects/[id]/citations/audit/route.ts`
+     - POST: Fetch sections + citations → `auditCitations()` → return result
+
+   - `apps/web/app/api/citations/search/route.ts`
+     - GET: Auth-only (no project check), validate query params, call `searchCrossRef()` or `searchPubMed()`
+
+   - `apps/web/components/project/citation-search-dialog.tsx`
+     - Radix Dialog with search input, PubMed/CrossRef toggle, debounced search (300ms)
+     - Results list with title, authors, journal, year, "Insert" button
+     - Insert calls POST `/api/projects/{id}/citations` then `onInsert(citeKey)` callback
+
+   - `apps/web/components/project/citation-list-panel.tsx`
+     - Collapsible panel with tier badges (A=green, B=blue, C=amber, D=red)
+     - Attest button (Tier D→C), Delete button, "Run Audit" button, "Add Citation" button
+     - Shows audit results: integrity score, missing/orphaned/Tier D blocking counts
+
+   - `apps/web/lib/ai/token-budget.ts` (Gap fix)
+     - `checkTokenBudget(projectId, phaseNumber)`: Queries ai_conversations table, enforces 100K/phase and 1.2M/thesis limits
+     - `recordTokenUsage(projectId, phaseNumber, totalTokens, modelUsed)`: Inserts to ai_conversations, links via ai_conversation_id to section
+
+   - Test files (6 new): `crossref.test.ts`, `pubmed.test.ts`, `resolve.test.ts`, `audit.test.ts`, `auto-resolve.test.ts`, `tests/citations-e2e.test.ts`
+
+   **MODIFIED FILES (Sprint 5-6 + Gap Fixes):**
+
+   - `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+     - Added import for `resolveSectionCitations` and `checkTokenBudget`/`recordTokenUsage`
+     - Added prompt caching: `system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }]`
+     - Added model routing: `[2, 7].includes(phaseNumber) ? "claude-sonnet-4-5-20250929" : "claude-sonnet-4-5-20250929"` (Sonnet fallback until Opus API access)
+     - Added token budget check before generation: `checkTokenBudget(project.id, phaseNumber)`
+     - Changed `await messageStream.finalMessage()` to `const finalMessage = await messageStream.finalMessage()` to capture usage
+     - Added fire-and-forget token recording: `void recordTokenUsage(project.id, phaseNumber, totalTokens, model)`
+     - Added fire-and-forget citation resolution: `void resolveSectionCitations(project.id, fullResponse)`
+
+   - `apps/web/lib/latex/assemble.ts`
+     - Added `stripTierDCitations(chapterBody, tierDKeys)` function that replaces `\cite{tierD_key}` with `% UNRESOLVED: key — provide source or remove` comments
+     - In `assembleThesisContent()`: builds `tierDKeys` set from citations, calls `stripTierDCitations()` on each chapter body
+     - Excluded Tier D BibTeX entries from final output: `citation.provenance_tier !== "D"` filter
+
+   - `apps/web/lib/latex/assemble.test.ts`
+     - Added import for `stripTierDCitations`
+     - Added 6 new tests: Tier D stripping (single, mixed, no tierD, multiple), assembly integration (strips from chapters, excludes from BibTeX)
+
+   - `apps/web/components/editor/section-editor.tsx`
+     - Added `BookOpen` icon import and `CitationSearchDialog` import
+     - Added `citationSearchOpen` state
+     - Added "Cite" toolbar button that opens `CitationSearchDialog`
+     - Added `CitationSearchDialog` component with `onInsert` callback that appends `\cite{key}` as code-marked text
+
+   - `apps/web/app/(dashboard)/projects/[id]/page.tsx`
+     - Added `Citation` type import
+     - Added citations fetch from Supabase
+     - Passes `citations` prop to `ProjectWorkspace`
+
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+     - Added `Citation` type import, `CitationListPanel` and `CitationSearchDialog` imports
+     - Added `citations` to `ProjectWorkspaceProps` interface
+     - Added `citationSearchOpen` state
+     - Renders `CitationListPanel` below word count bar
+     - Renders `CitationSearchDialog` with router refresh on insert
+
+   - `apps/web/.env.example` and `.env.example`
+     - Added `CROSSREF_MAILTO` and `PUBMED_API_KEY` environment variables
+
+   **KEY FILES READ (for understanding patterns):**
+
+   - `apps/web/lib/types/database.ts` - All TypeScript interfaces including Citation, ProvenanceTier, EvidenceType, Dataset, Analysis, Figure, ComplianceCheck
+   - `apps/web/lib/api/auth.ts` - `getAuthenticatedUser()` pattern with JIT provisioning
+   - `apps/web/lib/api/errors.ts` - Error helpers: `unauthorised()`, `notFound()`, `validationError()`, `internalError()`, `conflict()`, `queueFull()`, `badRequest()`, `rateLimited()`
+   - `apps/web/lib/latex/assemble.ts` - Assembly pipeline with `splitBibtex()`, `deduplicateBibEntries()`, `assembleThesisContent()`
+   - `apps/web/lib/ai/prompts.ts` - All phase system prompts (0-8), COMMON_RULES, `getPhaseSystemPrompt()`, `getPhaseUserMessage()`
+   - `apps/web/lib/ai/client.ts` - Anthropic client singleton
+   - `apps/web/lib/ai/rate-limit.ts` - In-memory rate limiter (10 req/hour/user)
+   - `apps/web/lib/compute/semaphore.ts` - Global semaphore (3 units, compile=2, analysis=1)
+   - `apps/web/docker/plumber.R` - Only health/echo endpoints, marked "Sprint 7-8" for analysis
+   - `apps/web/docker/docker-compose.yml` - R service: port 8787, 512MB mem, network_mode: none (needs fixing for Sprint 7-8)
+   - `apps/web/docker/Dockerfile.r-plumber` - R 4.4.0 with plumber, tidyverse, gtsummary, ggplot2, jsonlite
+
+4. Errors and Fixes:
+   - No runtime errors encountered during implementation
+   - All 294 tests passed throughout (226 existing + 62 new citation tests + 6 Tier D stripping tests)
+   - `pnpm tsc --noEmit` returned 0 errors at every checkpoint
+   - The gap analysis itself identified 5 design gaps that were architectural omissions rather than code errors
+
+5. Problem Solving:
+   - **Tier D Citation Compilation Problem**: Plan required Tier D `\cite{key}` to never appear in compiled LaTeX. Solved by adding `stripTierDCitations()` that handles single keys, mixed `\cite{a,b}` commands (keeps non-D, comments out D), and excluding Tier D BibTeX from output.
+   - **Prompt Caching**: Added `cache_control: { type: "ephemeral" }` to the system prompt array format in the Anthropic SDK call.
+   - **Token Budget Tracking**: Created `token-budget.ts` module that queries `ai_conversations` table for per-phase and per-thesis budget enforcement, with conversation ID linkback to sections.
+   - **No Dialog component**: Used `@radix-ui/react-dialog` (already installed) directly instead of a shadcn Dialog wrapper for `CitationSearchDialog`.
+
+6. All User Messages:
+   - "Implement the following plan: # Sprint 5-6 Completion: Citation Provenance Pipeline [extremely detailed 6-WP plan with file lists, function signatures, algorithms, test specifications]"
+   - "DO a gap analysis with sprint 5-6 now. If complete proceed to sprint 7-8. If incomplete, complete it"
+   - "Yes" (in response to "Sprint 5-6 is now complete. Ready for Sprint 7-8. Shall I proceed?")
+   - "Everything" (in response to AskUserQuestion about Sprint 7-8 priority scope - chose full Sprint 7 + Sprint 8 including R endpoints, compliance, observability, Mermaid, Playwright E2E)
+
+7. Pending Tasks:
+   - **Sprint 7-8 Full Implementation** (currently in plan mode):
+     - WP1: R Plumber analysis endpoints (plumber.R expansion, Dockerfile updates, docker-compose networking fix)
+     - WP2: R client library (`lib/r-plumber/client.ts`) + analysis runner
+     - WP3: Dataset upload API + CSV/Excel parsing (papaparse, xlsx)
+     - WP4: Analysis API routes (run, get results, Inngest async)
+     - WP5: Compliance engine (CONSORT/STROBE/PRISMA/STARD/CARE checklists, NBEMS checker, AI-assisted via Haiku)
+     - WP6: Figure management API (upload, Mermaid generation, delete)
+     - WP7: UI Components (dataset upload, analysis wizard, compliance dashboard, figure gallery, progress dashboard)
+     - WP8: Observability (Sentry traces, structured logging, PII scrubbing)
+     - WP9: Mermaid integration (client-side rendering with `mermaid` npm package)
+     - WP10: Tests (unit + Playwright E2E)
+
+8. Current Work:
+   Currently **in plan mode** for Sprint 7-8 implementation. The Plan agent has returned a comprehensive 10-work-package plan covering all Sprint 7-8 deliverables. The plan file at `/Users/devs/.claude/plans/merry-herding-liskov.md` needs to be written/updated with the Sprint 7-8 plan, and then `ExitPlanMode` should be called for user approval.
+
+   Key Sprint 7-8 findings from exploration:
+   - Database tables (datasets, analyses, figures, compliance_checks) already migrated with RLS
+   - TypeScript types already defined in database.ts
+   - Compute semaphore fully implemented and tested
+   - R Plumber Docker image exists but only has health/echo endpoints
+   - **Critical**: docker-compose.yml has `network_mode: none` on r-plumber — must be changed to bridge network for HTTP access
+   - Inngest client + basic thesis workflow exist; need analysis runner function
+   - No API routes exist for datasets, analyses, figures, or compliance
+   - No UI components exist for Sprint 7-8 features
+   - Sentry/PostHog not configured
+   - Playwright configured but no E2E tests written
+   - New dependencies needed: `papaparse`, `xlsx`, `mermaid`, `@sentry/nextjs`
+   - New R packages needed: `survival`, `survminer`, `pROC`, `gt`, `meta`, `broom`, `readr`, `readxl`, `base64enc`
+
+9. Optional Next Step:
+   Write the Sprint 7-8 implementation plan to the plan file and call `ExitPlanMode` for user approval. The user explicitly chose "Everything" scope and said "Yes" to proceeding. The plan agent has already designed the complete 10-WP implementation plan. The immediate action is to finalize the plan file content and present it for approval before beginning implementation.
+
+   Relevant user quotes:
+   - User: "Yes" (to proceed to Sprint 7-8)
+   - User: "Everything" (scope: "Both Sprint 7 and 8 in full — R endpoints, compliance, observability, Mermaid, Playwright E2E. Largest scope.")
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]

@@ -3,9 +3,12 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 18,
+  "checkpoints_count": 20,
   "files_touched": [
+    ".env.example",
+    "apps/web/.env.example",
     "apps/web/app/(dashboard)/layout.tsx",
+    "apps/web/app/(dashboard)/projects/[id]/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
     "apps/web/app/api/citations/search/route.ts",
     "apps/web/app/api/inngest/route.ts",
@@ -158,13 +161,20 @@
       "context": "/bd/84f5776d75/1/context.md",
       "content_hash": "/bd/84f5776d75/1/content_hash.txt",
       "prompt": "/bd/84f5776d75/1/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/2/metadata.json",
+      "transcript": "/bd/84f5776d75/2/full.jsonl",
+      "context": "/bd/84f5776d75/2/context.md",
+      "content_hash": "/bd/84f5776d75/2/content_hash.txt",
+      "prompt": "/bd/84f5776d75/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 9877,
-    "cache_creation_tokens": 831838,
-    "cache_read_tokens": 31913491,
-    "output_tokens": 45261,
-    "api_call_count": 330
+    "input_tokens": 12396,
+    "cache_creation_tokens": 1036084,
+    "cache_read_tokens": 42713312,
+    "output_tokens": 82566,
+    "api_call_count": 440
   }
 }
