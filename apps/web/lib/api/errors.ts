@@ -47,6 +47,12 @@ export function badRequest(message: string) {
   return errorResponse(ERROR_CODES.BAD_REQUEST, message, 400);
 }
 
+export function queueFull(estimatedWaitSeconds?: number) {
+  return errorResponse(ERROR_CODES.RATE_LIMITED, "Compute queue is full", 429, {
+    ...(estimatedWaitSeconds !== undefined ? { estimated_wait_seconds: estimatedWaitSeconds } : {}),
+  });
+}
+
 export function internalError(message = "Internal server error") {
   return errorResponse(ERROR_CODES.INTERNAL_ERROR, message, 500);
 }

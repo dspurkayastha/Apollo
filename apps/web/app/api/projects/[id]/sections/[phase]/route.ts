@@ -11,6 +11,8 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { sectionUpdateSchema } from "@/lib/validation/section-schemas";
 import { isValidPhase } from "@/lib/phases/transitions";
 import { getPhase } from "@/lib/phases/constants";
+import { tiptapToLatex } from "@/lib/latex/tiptap-to-latex";
+import { extractCiteKeys } from "@/lib/citations/extract-keys";
 
 export async function GET(
   _request: NextRequest,
@@ -99,13 +101,55 @@ export async function PUT(
 
     const phaseDef = getPhase(phaseNumber);
 
-    // Upsert the section
-    const updateData = {
-      ...parsed.data,
-      ...(parsed.data.latex_content !== undefined
-        ? { word_count: countWords(parsed.data.latex_content) }
-        : {}),
-    };
+    // Fetch existing section to preserve status and other fields on save
+    const { data: existingSection } = await supabase
+      .from("sections")
+      .select("status, citation_keys")
+      .eq("project_id", id)
+      .eq("phase_number", phaseNumber)
+      .single();
+
+    // Build update payload based on save mode
+    let updateData: Record<string, unknown> = {};
+    let hasContent = false;
+
+    if (parsed.data.rich_content_json) {
+      // Rich text save: convert Tiptap JSON → LaTeX
+      const result = tiptapToLatex(
+        parsed.data.rich_content_json as unknown as Parameters<typeof tiptapToLatex>[0]
+      );
+      updateData = {
+        rich_content_json: parsed.data.rich_content_json,
+        latex_content: result.latex,
+        word_count: countWords(result.latex),
+        citation_keys: result.citationKeys,
+      };
+      hasContent = result.latex.trim().length > 0;
+    } else if (parsed.data.latex_content !== undefined) {
+      // Source view save: raw LaTeX — invalidate rich_content_json
+      updateData = {
+        latex_content: parsed.data.latex_content,
+        rich_content_json: null,
+        word_count: countWords(parsed.data.latex_content),
+        citation_keys: extractCiteKeys(parsed.data.latex_content),
+      };
+      hasContent = parsed.data.latex_content.trim().length > 0;
+    }
+
+    if (parsed.data.status !== undefined) {
+      updateData.status = parsed.data.status;
+    }
+
+    // Determine status: preserve existing, but promote "draft" → "review"
+    // when saving meaningful content (so the Approve button appears)
+    let resolvedStatus = existingSection?.status ?? "draft";
+    if (
+      updateData.status === undefined &&
+      resolvedStatus === "draft" &&
+      hasContent
+    ) {
+      resolvedStatus = "review";
+    }
 
     const { data: section, error } = await supabase
       .from("sections")
@@ -115,9 +159,10 @@ export async function PUT(
           phase_number: phaseNumber,
           phase_name: phaseDef?.name ?? `phase_${phaseNumber}`,
           latex_content: "",
+          rich_content_json: null,
           word_count: 0,
-          citation_keys: [],
-          status: "draft",
+          citation_keys: existingSection?.citation_keys ?? [],
+          status: resolvedStatus,
           ...updateData,
           updated_at: new Date().toISOString(),
         },

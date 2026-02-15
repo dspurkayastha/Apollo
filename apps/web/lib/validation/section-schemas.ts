@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const sectionUpdateSchema = z.object({
   latex_content: z.string().optional(),
+  rich_content_json: z.record(z.unknown()).optional(),
   status: z.enum(["draft", "generating", "review", "approved"]).optional(),
 });
 

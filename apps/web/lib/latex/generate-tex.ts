@@ -50,6 +50,19 @@ export function generateTex(
       );
   }
 
+  // Set logo paths based on university type
+  const logoMap: Record<string, { university: string; institute: string }> = {
+    sskm: { university: "logo/wbuhs-logo", institute: "logo/sskm-logo" },
+    ssuhs: { university: "logo/ssuhs-logo", institute: "logo/ssuhs-logo" },
+  };
+  const logos = logoMap[project.university_type ?? ""] ?? logoMap.sskm;
+  // Insert \universitylogo and \institutelogo commands after metadata block
+  const logoCommands = `\\universitylogo{${logos.university}}\n\\institutelogo{${logos.institute}}`;
+  tex = tex.replace(
+    /(\\begin\{document\})/,
+    `${logoCommands}\n\n$1`
+  );
+
   // Replace field values
   for (const field of FIELD_MAP) {
     let value: string | undefined;

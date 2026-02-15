@@ -34,6 +34,8 @@ export async function compileTex(
     watermark?: boolean;
     clsFiles?: string[];
     bstFile?: string;
+    bibContent?: string;
+    chapterFiles?: Record<string, string>;
   }
 ): Promise<CompileResult> {
   const mode = getCompileMode();
@@ -50,7 +52,7 @@ export async function compileTex(
 }
 
 async function mockCompile(texContent: string): Promise<CompileResult> {
-  // For testing: just validate the TeX has basic structure
+  // For testing: validate basic TeX structure
   const hasDocumentClass = /\\documentclass/.test(texContent);
   const hasBeginDocument = /\\begin\{document\}/.test(texContent);
   const hasEndDocument = /\\end\{document\}/.test(texContent);
@@ -60,11 +62,24 @@ async function mockCompile(texContent: string): Promise<CompileResult> {
   if (!hasBeginDocument) errors.push("Missing \\begin{document}");
   if (!hasEndDocument) errors.push("Missing \\end{document}");
 
+  const success = errors.length === 0;
+
+  // In mock mode, write a minimal placeholder PDF so the compile route sees a pdfPath
+  let pdfPath: string | null = null;
+  if (success) {
+    const mockPdfDir = path.join(os.tmpdir(), "apollo-mock-pdf");
+    await mkdir(mockPdfDir, { recursive: true });
+    pdfPath = path.join(mockPdfDir, "main.pdf");
+    // Minimal valid PDF (1-page blank)
+    const minimalPdf = `%PDF-1.0\n1 0 obj<</Pages 2 0 R>>endobj\n2 0 obj<</Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n`;
+    await writeFile(pdfPath, minimalPdf);
+  }
+
   return {
-    success: errors.length === 0,
-    pdfPath: null,
+    success,
+    pdfPath,
     log: { errors, warnings: [], errorCount: errors.length, warningCount: 0 },
-    rawLog: errors.length === 0 ? "Mock compilation successful" : errors.join("\n"),
+    rawLog: success ? "Mock compilation successful" : errors.join("\n"),
     compileTimeMs: 1,
   };
 }
@@ -76,6 +91,8 @@ async function dockerCompile(
     watermark?: boolean;
     clsFiles?: string[];
     bstFile?: string;
+    bibContent?: string;
+    chapterFiles?: Record<string, string>;
   }
 ): Promise<CompileResult> {
   const start = Date.now();
@@ -121,8 +138,16 @@ async function dockerCompile(
       // Logo dir may not exist
     }
 
-    // Create empty references.bib
-    await writeFile(path.join(workDir, "references.bib"), "");
+    // Write references.bib (populated or empty)
+    await writeFile(path.join(workDir, "references.bib"), options.bibContent ?? "");
+
+    // Write chapter files
+    if (options.chapterFiles) {
+      await mkdir(path.join(workDir, "chapters"), { recursive: true });
+      for (const [filename, content] of Object.entries(options.chapterFiles)) {
+        await writeFile(path.join(workDir, filename), content);
+      }
+    }
 
     // Create output directory
     const outputDir = path.join(workDir, "output");
@@ -202,6 +227,8 @@ async function localCompile(
   options: {
     projectId: string;
     watermark?: boolean;
+    bibContent?: string;
+    chapterFiles?: Record<string, string>;
   }
 ): Promise<CompileResult> {
   const start = Date.now();
@@ -234,8 +261,16 @@ async function localCompile(
       // May not exist
     }
 
-    // Create empty references.bib
-    await writeFile(path.join(workDir, "references.bib"), "");
+    // Write references.bib (populated or empty)
+    await writeFile(path.join(workDir, "references.bib"), options.bibContent ?? "");
+
+    // Write chapter files
+    if (options.chapterFiles) {
+      await mkdir(path.join(workDir, "chapters"), { recursive: true });
+      for (const [filename, content] of Object.entries(options.chapterFiles)) {
+        await writeFile(path.join(workDir, filename), content);
+      }
+    }
 
     // Run pdflatex → bibtex → pdflatex × 2
     const pdflatexArgs = ["-interaction=nonstopmode", "-output-directory", workDir, path.join(workDir, "main.tex")];

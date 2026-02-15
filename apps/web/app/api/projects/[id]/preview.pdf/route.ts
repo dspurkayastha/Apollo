@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { readFile } from "fs/promises";
 import { getAuthenticatedUser } from "@/lib/api/auth";
 import { unauthorised, notFound, internalError } from "@/lib/api/errors";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -40,13 +41,20 @@ export async function GET(
       return notFound("No compiled PDF available — trigger a compilation first");
     }
 
-    // In production, this would generate a signed R2 URL
-    // For now, return the URL reference
-    return NextResponse.json({
-      data: {
-        pdf_url: compilation.pdf_url,
-      },
-    });
+    // In production, this would generate a signed R2 URL and redirect.
+    // For local dev, read the PDF file from disk and stream it.
+    try {
+      const pdfBytes = await readFile(compilation.pdf_url);
+      return new Response(pdfBytes, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": "inline",
+          "Cache-Control": "private, max-age=60",
+        },
+      });
+    } catch {
+      return notFound("PDF file not found on disk — recompile to regenerate");
+    }
   } catch (err) {
     console.error("Unexpected error in GET /api/projects/[id]/preview.pdf:", err);
     return internalError();

@@ -36,7 +36,13 @@ export function canAdvancePhase(
 
   // Check if next phase requires a licence
   const nextPhase = getPhase(current_phase + 1);
-  if (nextPhase?.requiresLicence && status !== "licensed" && status !== "completed") {
+  const devBypass = process.env.DEV_LICENCE_BYPASS === "true";
+  if (
+    nextPhase?.requiresLicence &&
+    status !== "licensed" &&
+    status !== "completed" &&
+    !devBypass
+  ) {
     return {
       allowed: false,
       reason: "Active licence required to advance beyond Phase 1",

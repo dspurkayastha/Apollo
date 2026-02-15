@@ -14,6 +14,7 @@ import { canAdvancePhase } from "@/lib/phases/transitions";
 import { getPhase } from "@/lib/phases/constants";
 import { generateFrontMatterLatex } from "@/lib/latex/front-matter";
 import type { Project, Section } from "@/lib/types/database";
+import { inngest } from "@/lib/inngest/client";
 
 export async function POST(
   _request: NextRequest,
@@ -67,12 +68,27 @@ export async function POST(
 
     const typedSection = section as Section;
 
-    // Section must be in review status to be approved
-    if (typedSection.status !== "review") {
-      return conflict(
-        `Section must be in 'review' status to approve (currently '${typedSection.status}')`
-      );
+    // Section must have approvable content
+    if (typedSection.status === "generating") {
+      return conflict("Section is still generating — wait for completion before approving");
     }
+
+    if (typedSection.status === "approved") {
+      return conflict("Section is already approved");
+    }
+
+    if (typedSection.status === "draft") {
+      if (!typedSection.latex_content?.trim()) {
+        return badRequest("Cannot approve a draft section with no content — generate content first");
+      }
+      // Auto-promote draft with content to review, then approve below
+      await supabase
+        .from("sections")
+        .update({ status: "review", updated_at: new Date().toISOString() })
+        .eq("id", typedSection.id);
+    }
+
+    // At this point status is "review" (either originally or just promoted)
 
     // Check if project can advance
     const transitionCheck = canAdvancePhase(typedProject, "approved");
@@ -133,6 +149,23 @@ export async function POST(
         },
         { onConflict: "project_id,phase_number" }
       );
+    }
+
+    // Emit Inngest event for workflow orchestration (skip if not configured)
+    if (process.env.INNGEST_EVENT_KEY) {
+      try {
+        await inngest.send({
+          name: "thesis/phase.approved",
+          data: {
+            projectId: id,
+            phaseNumber,
+            userId: authResult.user.id,
+          },
+        });
+      } catch (inngestError) {
+        // Non-blocking — workflow will retry on next approval
+        console.warn("Failed to emit Inngest event:", inngestError);
+      }
     }
 
     return NextResponse.json({

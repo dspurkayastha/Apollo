@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { readFile } from "fs/promises";
 import path from "path";
 import { getAuthenticatedUser } from "@/lib/api/auth";
@@ -7,11 +8,14 @@ import {
   notFound,
   internalError,
   conflict,
+  queueFull,
 } from "@/lib/api/errors";
+import { tryAcquire, release } from "@/lib/compute/semaphore";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { generateTex } from "@/lib/latex/generate-tex";
+import { assembleThesisContent } from "@/lib/latex/assemble";
 import { compileTex } from "@/lib/latex/compile";
-import type { Project, Compilation } from "@/lib/types/database";
+import { preflightChapter, aiValidateChapters } from "@/lib/latex/validate";
+import type { Project, Section, Citation, Compilation } from "@/lib/types/database";
 
 export async function POST(
   _request: NextRequest,
@@ -50,94 +54,186 @@ export async function POST(
       return conflict("A compilation is already in progress");
     }
 
-    // Create compilation record
-    const { data: compilation, error: compilationError } = await supabase
-      .from("compilations")
-      .insert({
-        project_id: id,
-        trigger: "manual",
-        status: "running",
-        warnings: [],
-        errors: [],
-      })
-      .select("*")
-      .single();
-
-    if (compilationError || !compilation) {
-      console.error("Failed to create compilation record:", compilationError);
-      return internalError("Failed to start compilation");
+    // Admission control — acquire compute slot
+    const slot = tryAcquire("compile", id, authResult.user.id);
+    if (!slot.acquired) {
+      if (slot.position !== undefined) {
+        return queueFull(Math.ceil((slot.estimatedWaitMs ?? 30000) / 1000));
+      }
+      return queueFull();
     }
 
-    // Read the template
-    let template: string;
     try {
-      const templatesDir = path.resolve(process.cwd(), "../../templates");
-      template = await readFile(path.join(templatesDir, "main.tex"), "utf-8");
-    } catch {
+      // Create compilation record
+      const { data: compilation, error: compilationError } = await supabase
+        .from("compilations")
+        .insert({
+          project_id: id,
+          trigger: "manual",
+          status: "running",
+          warnings: [],
+          errors: [],
+        })
+        .select("*")
+        .single();
+
+      if (compilationError || !compilation) {
+        console.error("Failed to create compilation record:", compilationError);
+        return internalError("Failed to start compilation");
+      }
+
+      // Read the template
+      let template: string;
+      try {
+        const templatesDir = path.resolve(process.cwd(), "../../templates");
+        template = await readFile(path.join(templatesDir, "main.tex"), "utf-8");
+      } catch {
+        await updateCompilation(supabase, compilation.id, {
+          status: "failed",
+          errors: ["Template file not found"],
+        });
+        return internalError("LaTeX template not found");
+      }
+
+      // Fetch sections and citations for assembly
+      const [sectionsResult, citationsResult] = await Promise.all([
+        supabase
+          .from("sections")
+          .select("*")
+          .eq("project_id", id)
+          .in("status", ["approved", "review"]),
+        supabase
+          .from("citations")
+          .select("*")
+          .eq("project_id", id),
+      ]);
+
+      const sections = (sectionsResult.data ?? []) as Section[];
+      const citations = (citationsResult.data ?? []) as Citation[];
+
+      // Assemble thesis content (metadata + chapter files + BibTeX)
+      const { tex, bib, chapterFiles, warnings: texWarnings } = assembleThesisContent(
+        template,
+        typedProject,
+        sections,
+        citations
+      );
+
+      // Pre-flight validation on each chapter
+      const preflightIssues = Object.entries(chapterFiles).flatMap(
+        ([filename, content]) => preflightChapter(filename, content)
+      );
+
+      const preflightErrors = preflightIssues.filter((i) => i.severity === "error");
+      const preflightWarnings = preflightIssues.filter((i) => i.severity === "warning");
+
+      if (preflightErrors.length > 0) {
+        await updateCompilation(supabase, compilation.id, {
+          status: "failed",
+          errors: preflightErrors.map(
+            (i) => `${i.chapter}${i.line ? `:${i.line}` : ""}: ${i.message}`
+          ),
+          warnings: preflightWarnings.map(
+            (i) => `${i.chapter}${i.line ? `:${i.line}` : ""}: ${i.message}`
+          ),
+        });
+
+        return NextResponse.json(
+          {
+            data: {
+              compilation_id: compilation.id,
+              status: "validation_failed",
+              issues: preflightIssues,
+              action: "Fix the issues in the section editor and retry",
+            },
+          },
+          { status: 422 }
+        );
+      }
+
+      // AI validation (non-blocking — runs in parallel with compile setup)
+      const aiValidationPromise = aiValidateChapters(chapterFiles);
+
+      // Compile
+      const isWatermark = typedProject.status === "sandbox";
+      const result = await Sentry.startSpan(
+        {
+          name: "latex.compile",
+          op: "compile.latex",
+          attributes: {
+            "project.id": id,
+            "compile.watermark": isWatermark,
+            "compile.chapters": Object.keys(chapterFiles).length,
+          },
+        },
+        () =>
+          compileTex(tex, {
+            projectId: id,
+            watermark: isWatermark,
+            bibContent: bib,
+            chapterFiles,
+          })
+      );
+
+      // Collect all warnings
+      const aiIssues = await aiValidationPromise;
+      const aiWarnings = aiIssues.map(
+        (i) => `[AI] ${i.chapter}: ${i.message}`
+      );
+      const allWarnings = [
+        ...texWarnings,
+        ...preflightWarnings.map(
+          (i) => `${i.chapter}${i.line ? `:${i.line}` : ""}: ${i.message}`
+        ),
+        ...aiWarnings,
+        ...result.log.warnings.map(String),
+      ];
+
+      if (result.success && result.pdfPath) {
+        await updateCompilation(supabase, compilation.id, {
+          status: "completed",
+          warnings: allWarnings,
+          errors: [],
+          pdf_url: result.pdfPath,
+          log_text: result.rawLog.slice(0, 50000),
+          compile_time_ms: result.compileTimeMs,
+        });
+
+        return NextResponse.json({
+          data: {
+            compilation_id: compilation.id,
+            status: "completed",
+            warnings: allWarnings,
+            errors: [],
+            compile_time_ms: result.compileTimeMs,
+          },
+        });
+      }
+
+      // Compilation failed
       await updateCompilation(supabase, compilation.id, {
         status: "failed",
-        errors: ["Template file not found"],
-      });
-      return internalError("LaTeX template not found");
-    }
-
-    // Generate populated TeX
-    const { tex, warnings: texWarnings } = generateTex(template, typedProject);
-
-    // Compile
-    const isWatermark = typedProject.status === "sandbox";
-    const result = await compileTex(tex, {
-      projectId: id,
-      watermark: isWatermark,
-    });
-
-    // Update compilation record
-    const allWarnings = [...texWarnings, ...result.log.warnings.map(String)];
-
-    if (result.success && result.pdfPath) {
-      // Read PDF and store URL (in production this would upload to R2)
-      // For now, store the local path reference
-      await updateCompilation(supabase, compilation.id, {
-        status: "completed",
         warnings: allWarnings,
-        errors: [],
-        pdf_url: result.pdfPath,
+        errors: result.log.errors,
         log_text: result.rawLog.slice(0, 50000),
         compile_time_ms: result.compileTimeMs,
       });
 
-      return NextResponse.json({
-        data: {
-          compilation_id: compilation.id,
-          status: "completed",
-          warnings: allWarnings,
-          errors: [],
-          compile_time_ms: result.compileTimeMs,
+      return NextResponse.json(
+        {
+          data: {
+            compilation_id: compilation.id,
+            status: "failed",
+            warnings: allWarnings,
+            errors: result.log.errors,
+            compile_time_ms: result.compileTimeMs,
+          },
         },
-      });
+        { status: 422 }
+      );
+    } finally {
+      release(slot.jobId!);
     }
-
-    // Compilation failed
-    await updateCompilation(supabase, compilation.id, {
-      status: "failed",
-      warnings: allWarnings,
-      errors: result.log.errors,
-      log_text: result.rawLog.slice(0, 50000),
-      compile_time_ms: result.compileTimeMs,
-    });
-
-    return NextResponse.json(
-      {
-        data: {
-          compilation_id: compilation.id,
-          status: "failed",
-          warnings: allWarnings,
-          errors: result.log.errors,
-          compile_time_ms: result.compileTimeMs,
-        },
-      },
-      { status: 422 }
-    );
   } catch (err) {
     console.error("Unexpected error in POST /api/projects/[id]/compile:", err);
     return internalError();
