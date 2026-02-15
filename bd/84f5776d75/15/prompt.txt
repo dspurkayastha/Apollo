@@ -1,0 +1,843 @@
+Implement the following plan:
+
+# Plan: Apollo Platform Completion — Bug Fixes + Sprint 9-10 + Polish
+
+## Context
+
+Sprints 0-8 are ~95% complete. Three critical pipelines are broken (citations, analysis, results generation). Sprint 9-10 (payments, export, supervisor, PWA) is ~25% done. This plan covers everything needed to reach 100%.
+
+---
+
+## Execution Phases
+
+```
+PHASE A — Critical Bug Fixes (parallel, no dependencies):
+  WP-1: Citation Pipeline Fix
+  WP-2: Auto-Detect Analysis 500 Fix
+  WP-3: Dataset Rows Storage
+
+PHASE B — Pipeline Completion (sequential, depends on A):
+  WP-4: Analysis UX — Auto-Run + ELI15 Cards     (needs WP-2, WP-3)
+  WP-5: AI Results Section Generation              (needs WP-4)
+  WP-6: Figure Surfacing in Results Flow            (needs WP-4)
+
+PHASE C — Sprint 9-10 Features (parallel, independent):
+  WP-7:  Payment Integration (Razorpay + Stripe)
+  WP-8:  Export Endpoints (PDF/DOCX/Source/Stats)
+  WP-9:  Supervisor Collaboration v1
+  WP-10: PWA Setup
+
+PHASE D — Quality + Polish (parallel, lowest priority):
+  WP-11: Quality Gate Automation
+  WP-12: Onboarding Tour
+  WP-13: PDF Preview Polish
+  WP-14: WhatsApp Share
+  WP-15: Template Preview
+  WP-16: Queue Status on Compile Button
+```
+
+---
+
+## PHASE A — Critical Bug Fixes
+
+### WP-1: Citation Pipeline Fix
+
+**Problem**: AI generates `\cite{key}` + `---BIBTEX---` trailer. Three gaps:
+- **Gap A**: Source-view saves don't extract `citation_keys` (route.ts lines 127-135)
+- **Gap B**: If trailer is missing/malformed, `resolveSectionCitations()` silently returns
+- **Gap C**: Cite keys in body with no matching BibTeX become orphaned (no DB entry)
+
+**Changes**:
+
+1. **New file** `lib/citations/extract-keys.ts` — shared `extractCiteKeys(latex)` regex utility
+2. **Fix** `app/api/projects/[id]/sections/[phase]/route.ts` lines 127-135 — add `citation_keys: extractCiteKeys(parsed.data.latex_content)` to source-view save path
+3. **Fix** `lib/citations/auto-resolve.ts` — after trailer resolution, extract ALL `\cite{}` keys from body. For each key with no DB entry AND no trailer BibTeX, upsert a Tier D placeholder (`provenance_tier: 'D'`, empty `bibtex_entry`). Also attempt CrossRef/PubMed lookup by parsing the key name (e.g., `smith2023` → search "smith 2023")
+4. **Update** `lib/latex/tiptap-to-latex.ts` — import shared `extractCiteKeys` instead of inline regex
+
+**Files**: `lib/citations/extract-keys.ts` (new), `sections/[phase]/route.ts`, `lib/citations/auto-resolve.ts`, `lib/latex/tiptap-to-latex.ts`
+
+---
+
+### WP-2: Auto-Detect Analysis 500 Fix
+
+**Problem**: `analyses/auto-detect/route.ts` line 103 — `JSON.parse()` throws when AI returns markdown fences. Catch block returns `internalError()` (500).
+
+**Changes**:
+
+1. Strip markdown fences before parsing: `text.replace(/```json?\s*\n?/gi, '').replace(/```\s*$/gm, '').trim()`
+2. Fallback regex extraction: `text.match(/\[[\s\S]*\]/)` → parse that
+3. Return empty `[]` recommendations instead of 500 when all parsing fails
+4. Wrap outer catch with better error messages (timeout → 504, API error → 502)
+
+**Files**: `app/api/projects/[id]/analyses/auto-detect/route.ts`
+
+---
+
+### WP-3: Dataset Rows Storage
+
+**Problem**: `analysis-runner.ts` line 162 passes `[]` (empty array) to R Plumber. Parsed rows are available during upload but never stored.
+
+**Changes**:
+
+1. **Migration** `021_add_rows_json_to_datasets.sql` — `ALTER TABLE datasets ADD COLUMN rows_json JSONB`
+2. **Fix** `app/api/projects/[id]/datasets/route.ts` — store `rows_json: parsed.rows` on insert
+3. **Fix** `app/api/projects/[id]/datasets/generate/route.ts` — same for AI-generated datasets
+4. **Fix** `lib/r-plumber/analysis-runner.ts` lines 149-162 — fetch `rows_json` from dataset, pass to `runAnalysis()`
+5. **Update** `lib/types/database.ts` — add `rows_json: Record<string, unknown>[] | null` to `Dataset`
+
+**Files**: migration (new), `datasets/route.ts`, `datasets/generate/route.ts`, `analysis-runner.ts`, `database.ts`
+
+---
+
+## PHASE B — Pipeline Completion
+
+### WP-4: Analysis UX — Auto-Run + ELI15 Cards
+
+**Problem**: Users click "Run This" one at a time. No beginner-friendly explanations.
+
+**Changes**:
+
+1. **New file** `lib/ai/analysis-explanations.ts` — static `ANALYSIS_ELI15` map with `{ title, eli15, when }` for each of the 9 analysis types. ELI15 = "explain like I'm 15" — one plain-English paragraph + "when to use"
+2. **Rewrite** `components/project/analysis-wizard.tsx`:
+   - Add checkboxes to recommendation cards + "Select All" / "Run All Selected" buttons
+   - Show ELI15 explainer card below each recommendation (collapsible)
+   - Track `selectedRecs: Set<number>` state
+   - "Run All Selected" → sequential POST for each, track `runningIds: string[]`
+   - Multi-poll all running analyses simultaneously
+   - After all complete → toast with "Generate Results" CTA
+   - Existing analyses list: show completion status, summary, inline figures
+
+**Files**: `lib/ai/analysis-explanations.ts` (new), `components/project/analysis-wizard.tsx`
+
+---
+
+### WP-5: AI Results Section Generation
+
+**Problem**: Phase 6 (Results) has no AI generation. After analyses complete, user must write manually.
+
+**Changes**:
+
+1. **Add** `RESULTS_SYSTEM_PROMPT` to `lib/ai/prompts.ts`:
+   - Structure: Baseline characteristics (Table 1) → Primary outcome → Secondary → Subgroup
+   - Instructions: past tense, reference all tables/figures, include R-generated `table_latex` verbatim, place `\includegraphics` for figures, NEVER fabricate numbers
+   - Include `---BIBTEX---` instruction (Results usually has 0 new citations)
+
+2. **Add** Phase 6 cases to `getPhaseSystemPrompt()` and `getPhaseUserMessage()` in `lib/ai/prompts.ts`:
+   - User message includes: all completed `analyses.results_json.summary`, all `results_json.table_latex`, all figure labels/captions, synopsis context
+
+3. **Add** `6` to `AI_GENERATABLE_PHASES` in `project-workspace.tsx` (line 96)
+
+4. **Modify** `sections/[phase]/generate/route.ts` `handleSectionGenerate()`:
+   - Before calling Claude for Phase 6, fetch all completed analyses + ggplot2 figures for the project
+   - Build supplementary context string with analysis summaries, LaTeX tables, and figure references
+   - Append to user message
+
+5. **Add** Phase 6 sub-step indicator in `project-workspace.tsx`:
+   - When `viewingPhase === 6`, show checklist above editor:
+     - [ ] Upload/generate dataset (green if datasets.length > 0)
+     - [ ] Run analyses (green if any analysis status=completed)
+     - [ ] Generate Results section (enabled button when analyses done)
+
+**Files**: `lib/ai/prompts.ts`, `sections/[phase]/generate/route.ts`, `project-workspace.tsx`
+
+---
+
+### WP-6: Figure Surfacing in Results Flow
+
+**Problem**: Figures are generated by R but not well-surfaced in the analysis workflow.
+
+**Changes**:
+
+1. **Pass** `setWorkspaceTab` and `figures` props from `project-workspace.tsx` → `AnalysisWizard`
+2. **Show** inline figure previews in completed analysis cards (query figures by `figure_type === analysis.analysis_type`)
+3. **Add** "View in Figures tab" button that switches to figures workspace tab
+4. **Toast** when all analyses complete: "All analyses complete — view figures" with action button
+
+**Files**: `components/project/analysis-wizard.tsx`, `project-workspace.tsx`
+
+---
+
+## PHASE C — Sprint 9-10 Features
+
+### WP-7: Payment Integration
+
+**Changes**:
+
+1. **Migration** `022_create_processed_webhooks.sql`:
+   ```sql
+   CREATE TABLE processed_webhooks (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     provider TEXT NOT NULL,
+     event_id TEXT UNIQUE NOT NULL,
+     event_type TEXT NOT NULL,
+     processed_at TIMESTAMPTZ DEFAULT now()
+   );
+   ```
+
+2. **New** `lib/payments/provision-licence.ts` — shared logic: insert `thesis_licenses` row, link to user
+3. **New** `lib/payments/razorpay.ts` — SDK wrapper, order creation, signature verification
+4. **New** `lib/payments/stripe.ts` — SDK wrapper, session creation, event construction
+5. **New** `lib/validation/payment-schemas.ts` — Zod schemas for checkout + webhook payloads
+6. **New** `app/api/checkout/route.ts` — POST: accept `plan_type` + `currency`, create Razorpay order or Stripe session, return redirect URL
+7. **New** `app/api/webhooks/razorpay/route.ts` — HMAC-SHA256 verify, idempotent, provision licence
+8. **New** `app/api/webhooks/stripe/route.ts` — `constructEvent()` verify, idempotent, provision licence
+9. **Install** `razorpay` + update `stripe` packages in `package.json`
+
+**Files**: 8 new files + migration + package.json
+
+---
+
+### WP-8: Export Endpoints
+
+**Changes**:
+
+1. **New** `lib/api/licence-gate.ts` — helper: checks `project.status` is `licensed` or `completed`, returns 402 otherwise
+2. **New** `app/api/projects/[id]/export/pdf/route.ts` — licence gate + compile + stream clean PDF
+3. **New** `app/api/projects/[id]/export/docx/route.ts` — licence gate + call pandoc in Docker → stream DOCX
+4. **New** `app/api/projects/[id]/export/source/route.ts` — licence gate + `assembleThesisContent()` → ZIP (main.tex, refs.bib, chapters/, cls, bst)
+5. **New** `app/api/projects/[id]/export/stats/route.ts` — licence gate + ZIP (R scripts from analyses, dataset CSV, results JSON)
+6. **Update** `docker/Dockerfile.latex` — add `pandoc` to the TeX Live image
+7. **New** `components/project/export-menu.tsx` — dropdown menu with 4 export options, each with status/loading
+
+**Files**: 6 new files + Dockerfile update
+
+---
+
+### WP-9: Supervisor Collaboration v1 (Simplified)
+
+**Design**: Read-only PDF link with comment form. No supervisor auth required.
+
+**Changes**:
+
+1. **Migration** `023_create_review_system.sql`:
+   - `review_tokens` (id, project_id, token UNIQUE, expires_at, created_by, created_at)
+   - `review_comments` (id, project_id, review_token_id, reviewer_name, phase_number, comment_text, created_at)
+
+2. **New** `app/api/projects/[id]/share/route.ts` — POST: generate crypto random token (48 chars), store with 7-day expiry, return shareable URL `/review/{token}`
+3. **New** `app/api/review/[token]/route.ts` — GET: validate token + expiry, return project metadata + PDF URL
+4. **New** `app/api/review/[token]/comments/route.ts` — GET/POST: list/add comments (no auth, token-gated)
+5. **New** `app/review/[token]/page.tsx` — public page: PDF viewer + comment form + phase selector
+6. **New** `components/project/share-dialog.tsx` — modal to generate/copy share link
+7. **New** `components/project/review-comments.tsx` — display supervisor comments in workspace
+
+**Files**: 7 new files + migration
+
+---
+
+### WP-10: PWA Setup
+
+**Changes**:
+
+1. **New** `public/manifest.json` — app name "Apollo Thesis", standalone display, theme `#2F2F2F`, warm bg `#FDFDFD`
+2. **New** `public/sw.js` — minimal service worker: cache app shell + static assets, network-first for API
+3. **Generate** `public/icon-192.png` + `public/icon-512.png` from existing SVG icon
+4. **New** `components/providers/pwa-provider.tsx` — registers service worker, handles install prompt
+5. **Update** `app/layout.tsx` — add `<link rel="manifest">`, `<meta name="theme-color">`, PWA provider
+
+**Files**: 4 new files + layout.tsx update
+
+---
+
+## PHASE D — Quality + Polish
+
+### WP-11: Quality Gate Automation
+
+1. **New** `lib/compliance/spell-check.ts` — British English check (strip LaTeX, check against en-GB dictionary, flag American spellings)
+2. **New** `lib/compliance/data-consistency.ts` — extract numbers from Results, cross-ref with `analyses.results_json`
+3. **New** `lib/compliance/plagiarism.ts` — internal 5-gram similarity between sections
+4. **Update** `app/api/projects/[id]/sections/[phase]/review/route.ts` — add quality checks alongside AI review
+5. **Update** `components/project/compliance-dashboard.tsx` — add quality gate section
+
+### WP-12: Onboarding Tour
+
+1. **New** `components/onboarding/tour-overlay.tsx` — 4-step tooltip tour (sidebar, new project, phase stepper, editor). Framer Motion. `localStorage: apollo_onboarding_complete`
+2. **New** `components/providers/onboarding-provider.tsx` — checks localStorage, shows tour for new users
+3. **Update** `app/(dashboard)/layout.tsx` — wrap with onboarding provider
+
+### WP-13: PDF Preview Polish
+
+1. **Update** `components/viewer/pdf-viewer.tsx`:
+   - Page thumbnails sidebar (collapsible)
+   - Watermark diagonal ribbon for sandbox projects (CSS `::after`)
+   - Subtle fade transition on page change
+
+### WP-14: WhatsApp Share
+
+1. **New** `components/project/whatsapp-share-button.tsx` — generates `wa.me` deep link with review URL
+2. **Update** `project-workspace.tsx` — add share button in header area
+
+### WP-15: Template Preview
+
+1. **Generate** `public/samples/wbuhs-sample.pdf` + `public/samples/ssuhs-sample.pdf`
+2. **Update** `components/project/template-gallery.tsx` — preview thumbnail + "Preview PDF" button
+
+### WP-16: Queue Status on Compile Button
+
+1. **Update** `components/project/compile-button.tsx` — when compile returns 202/429, extract queue position from response and display "N ahead — est. Ns" badge. Poll for slot availability.
+
+---
+
+## New Database Migrations Summary
+
+| # | File | Purpose |
+|---|------|---------|
+| 021 | `021_add_rows_json_to_datasets.sql` | Store parsed CSV rows for analysis |
+| 022 | `022_create_processed_webhooks.sql` | Payment webhook idempotency |
+| 023 | `023_create_review_system.sql` | Supervisor review tokens + comments |
+
+---
+
+## New Files Summary (27 new files)
+
+| WP | File | Purpose |
+|----|------|---------|
+| 1 | `lib/citations/extract-keys.ts` | Shared `\cite{}` key extraction |
+| 4 | `lib/ai/analysis-explanations.ts` | ELI15 explainer text per analysis type |
+| 7 | `lib/payments/provision-licence.ts` | Licence creation from payment |
+| 7 | `lib/payments/razorpay.ts` | Razorpay SDK wrapper |
+| 7 | `lib/payments/stripe.ts` | Stripe SDK wrapper |
+| 7 | `lib/validation/payment-schemas.ts` | Payment Zod schemas |
+| 7 | `app/api/checkout/route.ts` | Checkout session creation |
+| 7 | `app/api/webhooks/razorpay/route.ts` | Razorpay webhook handler |
+| 7 | `app/api/webhooks/stripe/route.ts` | Stripe webhook handler |
+| 8 | `lib/api/licence-gate.ts` | 402 gate for exports |
+| 8 | `app/api/projects/[id]/export/pdf/route.ts` | Clean PDF export |
+| 8 | `app/api/projects/[id]/export/docx/route.ts` | DOCX via pandoc |
+| 8 | `app/api/projects/[id]/export/source/route.ts` | Source ZIP export |
+| 8 | `app/api/projects/[id]/export/stats/route.ts` | Stats ZIP export |
+| 8 | `components/project/export-menu.tsx` | Export dropdown UI |
+| 9 | `app/api/projects/[id]/share/route.ts` | Generate review token |
+| 9 | `app/api/review/[token]/route.ts` | Validate token + metadata |
+| 9 | `app/api/review/[token]/comments/route.ts` | Review comments CRUD |
+| 9 | `app/review/[token]/page.tsx` | Public review page |
+| 9 | `components/project/share-dialog.tsx` | Share link modal |
+| 9 | `components/project/review-comments.tsx` | Comments display |
+| 10 | `public/manifest.json` | PWA manifest |
+| 10 | `public/sw.js` | Service worker |
+| 10 | `components/providers/pwa-provider.tsx` | SW registration |
+| 11 | `lib/compliance/spell-check.ts` | British English checker |
+| 11 | `lib/compliance/data-consistency.ts` | Number consistency |
+| 12 | `components/onboarding/tour-overlay.tsx` | First-time tour |
+
+---
+
+## Modified Files Summary (16 files)
+
+| WP | File | Change |
+|----|------|--------|
+| 1 | `sections/[phase]/route.ts` | Extract cite keys on source-view save |
+| 1 | `lib/citations/auto-resolve.ts` | Tier D placeholders + body-key extraction |
+| 1 | `lib/latex/tiptap-to-latex.ts` | Use shared extractCiteKeys |
+| 2 | `analyses/auto-detect/route.ts` | Strip fences, fallback parse, no 500 |
+| 3 | `datasets/route.ts` | Store rows_json on upload |
+| 3 | `datasets/generate/route.ts` | Store rows_json on generate |
+| 3 | `lib/r-plumber/analysis-runner.ts` | Fetch rows_json, pass to R |
+| 3 | `lib/types/database.ts` | Add rows_json to Dataset |
+| 4 | `components/project/analysis-wizard.tsx` | Batch run, ELI15, multi-poll |
+| 5 | `lib/ai/prompts.ts` | RESULTS_SYSTEM_PROMPT + Phase 6 routing |
+| 5 | `sections/[phase]/generate/route.ts` | Gather analysis context for Phase 6 |
+| 5+6 | `project-workspace.tsx` | Phase 6 in AI set, sub-steps, pass props |
+| 8 | `docker/Dockerfile.latex` | Add pandoc |
+| 10 | `app/layout.tsx` | Manifest + theme-color meta |
+| 12 | `app/(dashboard)/layout.tsx` | Onboarding provider |
+| 16 | `components/project/compile-button.tsx` | Queue position badge |
+
+---
+
+## Verification
+
+1. **Citation pipeline**: Generate an Introduction → verify cite keys appear in `sections.citation_keys` AND in `citations` table (Tier A for resolved, Tier D for orphaned). Edit in source view, add new `\cite{test2024}` → verify it appears in citation panel as Tier D
+2. **Analysis pipeline**: Upload CSV → auto-detect → verify no 500 → run analyses → verify R receives actual data rows → verify figures generated → verify results appear
+3. **Results generation**: Complete 2+ analyses → click "Generate Results" on Phase 6 → verify AI output includes R-generated tables verbatim, figure placements, statistical narrative
+4. **Payments**: Test Razorpay webhook with test mode → verify licence auto-provisioned. Same for Stripe
+5. **Export**: Download PDF (no watermark), DOCX, source ZIP, stats ZIP — all require active licence
+6. **Supervisor**: Generate share link → open in incognito → view PDF → leave comment → verify student sees comment
+7. **PWA**: Visit on mobile Chrome → verify "Add to Home Screen" prompt appears
+8. **Full flow**: Create project → setup wizard → generate Phase 2-5 → upload dataset → run analyses → generate Phase 6 → approve → generate Phase 7-8 → compile → export PDF
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+The Payment frontend is not created or wired i think. Thw data analysis is still broken. and i cannot go beyond results section to check anything else
+
+---
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-15 at 4.38.40 PM.png]
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-15 at 4.38.38 PM.png]
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-15 at 4.38.33 PM.png]
+
+[Image: source: /Users/devs/Desktop/Screenshot 2026-02-15 at 4.38.28 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me analyze the conversation chronologically:
+
+1. The user provided a massive implementation plan with 16 work packages across 4 phases (A-D) for the Apollo platform.
+
+2. I read numerous existing files to understand the codebase before making changes.
+
+3. Phase A - Critical Bug Fixes:
+   - WP-1: Created extract-keys.ts, fixed route.ts to extract cite keys on source saves, rewrote auto-resolve.ts, updated tiptap-to-latex.ts
+   - WP-2: Fixed auto-detect/route.ts to strip markdown fences, add fallback parsing, return empty array instead of 500
+   - WP-3: Created migration 021, updated Dataset type, fixed datasets/route.ts and analysis-runner.ts
+
+4. Phase B - Pipeline Completion:
+   - WP-4: Created analysis-explanations.ts, rewrote analysis-wizard.tsx with batch run + ELI15
+   - WP-5: Added RESULTS_SYSTEM_PROMPT, Phase 6 routing, analysis context gathering in generate route
+   - WP-6: Added figures prop passing and figure surfacing in workspace
+
+5. Phase C - Sprint 9-10 Features:
+   - WP-7: Payment integration (Razorpay + Stripe) - created 8 files
+   - WP-8: Export endpoints - created 6 files + Dockerfile update
+   - WP-9: Supervisor collaboration - created 7 files + migration
+   - WP-10: PWA setup - created 4 files + layout updates
+
+6. Phase D - Quality + Polish:
+   - WP-11: Quality gate automation (spell-check.ts, data-consistency.ts)
+   - WP-12: Onboarding tour (tour-overlay.tsx)
+   - WP-13: PDF preview polish (rewrote pdf-viewer.tsx with thumbnails, watermark)
+   - WP-14: WhatsApp share button
+   - WP-15: Template preview in gallery
+   - WP-16: Queue status on compile button
+
+7. TypeScript check passed with 0 errors, 339 tests passed.
+
+8. Then the user's SECOND message reported THREE issues:
+   a. Payment frontend is not created or wired
+   b. Data analysis is still broken (500 errors, 429 errors, "Internal server error" toast)
+   c. Cannot go beyond Results section
+
+The screenshots show:
+- Console errors: 500s from `/api/projects/.../analyses/...`, 400 (Bad Request), 429 (Too Many Requests)
+- React warning about `<select>` value prop being multiple when multiple is false (in AnalysisWizard)
+- POST errors from analysis-wizard.tsx:212 returning 500
+- Toast showing "Internal server error" and "Compute queue is full"
+
+Key issues from screenshots:
+1. The analysis run endpoint (`POST /api/projects/:id/analyses`) is returning 500 - this is likely because the `rows_json` column hasn't been applied to the database yet (migration 021 was created but not run), or the R Plumber service isn't running
+2. The analysis polling endpoint is returning 500/400/429 
+3. A React warning about `<select>` value prop in AnalysisWizard
+4. Payment frontend was never created - I only created backend API routes and webhook handlers, but no checkout UI component
+5. Cannot advance beyond Results - this likely means Phase 6→7 transition isn't working properly
+
+The user's MOST RECENT message explicitly asks me to:
+1. Create/wire payment frontend
+2. Fix the broken data analysis
+3. Fix the inability to go beyond Results section
+
+I need to focus on these three issues in my next steps.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked me to implement a comprehensive 16-work-package plan to complete the Apollo thesis generation platform. The plan covered 4 phases: Phase A (3 critical bug fixes), Phase B (3 pipeline completion items), Phase C (4 Sprint 9-10 features), and Phase D (6 quality/polish items). After I completed all 16 WPs and confirmed 0 TypeScript errors and 339 passing tests, the user reported THREE critical issues still broken:
+   - **Payment frontend not created or wired** - I only built backend API routes/webhooks, no UI checkout component
+   - **Data analysis still broken** - 500/400/429 errors when running analyses via "Run This" or "Run 4 Selected"
+   - **Cannot go beyond Results section** - Phase progression past Phase 6 appears blocked
+
+2. Key Technical Concepts:
+   - Next.js 15 App Router with TypeScript strict mode
+   - Supabase (PostgreSQL + Auth + RLS)
+   - Anthropic Claude API for AI generation (SSE streaming)
+   - R Plumber for statistical analysis execution
+   - Razorpay (INR) + Stripe (USD) payment processing
+   - Tiptap rich text editor with LaTeX round-trip conversion
+   - 12-phase GOLD Standard thesis methodology
+   - Citation pipeline with 4 provenance tiers (A-D)
+   - Service worker PWA with cache strategies
+   - Soft-locked files (landing page, dashboard, CSS) requiring explicit approval
+
+3. Files and Code Sections:
+
+   **WP-1: Citation Pipeline**
+   - `apps/web/lib/citations/extract-keys.ts` (NEW) — shared `extractCiteKeys()` regex utility used by multiple modules
+   - `apps/web/app/api/projects/[id]/sections/[phase]/route.ts` — Added `citation_keys: extractCiteKeys(parsed.data.latex_content)` to source-view save path (line ~130)
+   - `apps/web/lib/citations/auto-resolve.ts` — Complete rewrite to extract ALL body cite keys and create Tier D placeholders for orphans
+   - `apps/web/lib/latex/tiptap-to-latex.ts` — Replaced inline `extractCitationKeys` with shared `extractCiteKeys` import
+
+   **WP-2: Auto-Detect Analysis**
+   - `apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts` — Added markdown fence stripping, fallback regex extraction, empty array return instead of 500, 504/502 error codes
+
+   **WP-3: Dataset Rows Storage**
+   - `apps/web/supabase/migrations/021_add_rows_json_to_datasets.sql` (NEW) — `ALTER TABLE datasets ADD COLUMN rows_json JSONB`
+   - `apps/web/lib/types/database.ts` — Added `rows_json: Record<string, unknown>[] | null` to Dataset interface
+   - `apps/web/app/api/projects/[id]/datasets/route.ts` — Added `rows_json: parsed.rows` to insert
+   - `apps/web/lib/r-plumber/analysis-runner.ts` — Changed `executeAnalysis()` to fetch `rows_json` from dataset instead of passing `[]`
+
+   **WP-4: Analysis UX**
+   - `apps/web/lib/ai/analysis-explanations.ts` (NEW) — ELI15 explanations for 9 analysis types
+   - `apps/web/components/project/analysis-wizard.tsx` — Complete rewrite with batch selection, "Select All"/"Run All Selected", collapsible ELI15 cards, multi-poll via `runningIds: Set<string>`, inline figure previews. New props: `figures?: Figure[]`, `onViewFigures?: () => void`
+
+   **WP-5: AI Results Generation**
+   - `apps/web/lib/ai/prompts.ts` — Added `RESULTS_SYSTEM_PROMPT`, Phase 6 cases in `getPhaseSystemPrompt()` and `getPhaseUserMessage()`
+   - `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` — Added Phase 6 analysis context gathering (fetches completed analyses + figures, appends summaries/tables/figure labels to user message)
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` — Added `6` to `AI_GENERATABLE_PHASES`, Phase 6 sub-step checklist, passed `figures` and `onViewFigures` to AnalysisWizard, imported `CheckCircle2`
+
+   **WP-7: Payment Integration (backend only - NO frontend)**
+   - `apps/web/supabase/migrations/022_create_processed_webhooks.sql` (NEW)
+   - `apps/web/lib/validation/payment-schemas.ts` (NEW) — Zod schemas, PLAN_PRICES
+   - `apps/web/lib/payments/provision-licence.ts` (NEW) — provisionLicence(), isEventProcessed(), markEventProcessed()
+   - `apps/web/lib/payments/razorpay.ts` (NEW) — createRazorpayOrder(), verifyRazorpaySignature()
+   - `apps/web/lib/payments/stripe.ts` (NEW) — createStripeSession(), constructStripeEvent()
+   - `apps/web/app/api/checkout/route.ts` (NEW)
+   - `apps/web/app/api/webhooks/razorpay/route.ts` (NEW)
+   - `apps/web/app/api/webhooks/stripe/route.ts` (NEW)
+
+   **WP-8: Export Endpoints**
+   - `apps/web/lib/api/licence-gate.ts` (NEW)
+   - `apps/web/app/api/projects/[id]/export/pdf/route.ts` (NEW)
+   - `apps/web/app/api/projects/[id]/export/docx/route.ts` (NEW)
+   - `apps/web/app/api/projects/[id]/export/source/route.ts` (NEW)
+   - `apps/web/app/api/projects/[id]/export/stats/route.ts` (NEW)
+   - `apps/web/components/project/export-menu.tsx` (NEW)
+   - `docker/Dockerfile.latex` — Added `pandoc`
+
+   **WP-9: Supervisor Collaboration**
+   - `apps/web/supabase/migrations/023_create_review_system.sql` (NEW)
+   - `apps/web/app/api/projects/[id]/share/route.ts` (NEW)
+   - `apps/web/app/api/review/[token]/route.ts` (NEW)
+   - `apps/web/app/api/review/[token]/comments/route.ts` (NEW)
+   - `apps/web/app/review/[token]/page.tsx` (NEW)
+   - `apps/web/components/project/share-dialog.tsx` (NEW)
+   - `apps/web/components/project/review-comments.tsx` (NEW)
+
+   **WP-10: PWA**
+   - `apps/web/public/manifest.json` (NEW)
+   - `apps/web/public/sw.js` (NEW)
+   - `apps/web/components/providers/pwa-provider.tsx` (NEW)
+   - `apps/web/app/layout.tsx` — Added manifest link, theme-color, apple-touch-icon, PWAProvider wrapper
+
+   **WP-11-16: Polish**
+   - `apps/web/lib/compliance/spell-check.ts` (NEW) — British English checker
+   - `apps/web/lib/compliance/data-consistency.ts` (NEW) — Number cross-referencing
+   - `apps/web/components/onboarding/tour-overlay.tsx` (NEW) — 4-step tooltip tour
+   - `apps/web/components/viewer/pdf-viewer.tsx` — Rewritten with thumbnails sidebar, sandbox watermark, improved controls
+   - `apps/web/components/project/whatsapp-share-button.tsx` (NEW)
+   - `apps/web/components/project/template-gallery.tsx` — Added university format section
+   - `apps/web/components/project/compile-button.tsx` — Rewritten with queue position polling
+
+4. Errors and fixes:
+   - TypeScript compilation: Passed with 0 errors after all changes
+   - Tests: All 339 tests passed across 30 files
+   - **CURRENT UNFIXED ISSUES reported by user:**
+     - **Analysis 500 errors**: Console shows `POST /api/projects/:id/analyses` returning 500 and 429. The `analysis-runner.ts` fix expects `rows_json` column in DB but migration 021 likely hasn't been applied to the running DB. Also the R Plumber Docker service may not be running (the errors look like connection failures to the R service, hitting the compute semaphore limit, and `rows_json` column not existing yet)
+     - **React warning**: "The `value` prop supplied to `<select>` must be a scalar value if `multiple` is false. Check the render method of `AnalysisWizard`" — this suggests `columnMapping[role]` might be returning a non-scalar value
+     - **Payment frontend missing**: I never created a checkout page or pricing component for the frontend
+     - **Cannot advance past Results**: Phase progression beyond Phase 6 may be blocked
+
+5. Problem Solving:
+   - Successfully implemented all 16 work packages from the plan
+   - All TypeScript checks and tests pass
+   - Three critical runtime issues remain: broken analysis pipeline (500/429 errors), missing payment frontend UI, and inability to progress past Results phase
+
+6. All user messages:
+   - **Message 1**: "Implement the following plan: [Full 16-WP plan with Phase A-D details]" with reference to plan mode transcript
+   - **Message 2**: "The Payment frontend is not created or wired i think. Thw data analysis is still broken. and i cannot go beyond results section to check anything else" — accompanied by 4 screenshots showing console errors (500s, 400s, 429s from analyses endpoints, React select warning, "Internal server error" and "Compute queue is full" toasts)
+
+7. Pending Tasks:
+   - **Create payment frontend/checkout UI** — No checkout page, pricing page, or payment button was created, only backend APIs
+   - **Fix data analysis pipeline** — 500 errors when running analyses. Need to investigate: (a) whether migration 021 was applied, (b) whether R Plumber is running, (c) the actual server-side error logs, (d) fix the React `<select>` warning in AnalysisWizard
+   - **Fix phase progression past Results** — User cannot advance beyond Phase 6 (Results). Need to check transitions.ts and the approve route for Phase 6→7
+   - **Wire export-menu.tsx and share-dialog.tsx into project-workspace.tsx** — These components were created but never added to the workspace UI
+
+8. Current Work:
+   The user just reported three critical issues. I had just finished all 16 WPs and confirmed tests pass. The user's exact words: "The Payment frontend is not created or wired i think. Thw data analysis is still broken. and i cannot go beyond results section to check anything else"
+
+9. Optional Next Step:
+   Address the three reported issues in priority order:
+   1. **Fix the analysis pipeline 500 errors** — Read the analyses POST route to understand why it's returning 500, check if the `rows_json` migration was applied, check the R Plumber client connection, and fix the React `<select>` warning
+   2. **Fix phase progression past Results** — Read `lib/phases/transitions.ts` to check if Phase 6→7 transition is supported, read the approve route
+   3. **Create payment frontend** — Build a checkout/pricing page component and wire it into the dashboard/licence-banner
+
+   The user's exact quote: "The Payment frontend is not created or wired i think. Thw data analysis is still broken. and i cannot go beyond results section to check anything else"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+analyses are still failing, check
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 5.51.49 PM.png]
+
+[Image: source: REDACTED 2026-02-15 at 5.52.13 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me analyze the conversation chronologically:
+
+1. **Context from previous session**: The conversation is a continuation from a previous session that ran out of context. The summary indicates:
+   - 16 work packages were implemented across 4 phases (A-D) for the Apollo platform
+   - All TypeScript checks passed (0 errors), 339 tests passed
+   - The user reported THREE issues: (a) Payment frontend not created, (b) Data analysis still broken with 500/429 errors, (c) Cannot go beyond Results section
+
+2. **First message in this session**: The assistant read multiple files to understand the current state:
+   - `compile-button.tsx`, `template-gallery.tsx`, `whatsapp-share-button.tsx`, `pdf-viewer.tsx`, `tour-overlay.tsx`
+   - These were read from system-reminder context showing previous tool calls
+
+3. **Assistant's analysis phase**: Read multiple critical files in parallel:
+   - `analyses/route.ts` - The POST handler for creating analyses
+   - `transitions.ts` - Phase transition logic
+   - `analysis-wizard.tsx` - Frontend for running analyses
+   - `analysis-runner.ts` - Backend R Plumber execution
+   - `licence-banner.tsx` - Licence prompt UI
+   - `project-workspace.tsx` - Main workspace component
+
+4. **Root cause identification**: The assistant identified three root causes:
+   - **Analysis 500s**: `app/api/inngest/route.ts` only registered `thesisPhaseWorkflow`, NOT `analysisRunnerFn`. When Inngest isn't configured (`INNGEST_EVENT_KEY` not set), `inngest.send()` throws → 500. Semaphore never releases → subsequent 429s.
+   - **Payment frontend**: Only backend API routes were created, no UI
+   - **Phase progression**: Downstream of broken analysis pipeline
+
+5. **Fixes applied**:
+
+   **Fix 1a**: Added `analysisRunnerFn` to Inngest serve route
+   
+   **Fix 1b**: Individual analysis GET endpoint already existed (no change needed)
+   
+   **Fix 1c**: Added inline fallback execution in `analyses/route.ts` - when Inngest isn't available, `executeAnalysis()` runs fire-and-forget with proper semaphore release
+   
+   **Fix 1d**: Fixed React `<select>` value warning - coerced `columnMapping[role]` to `String()`, sanitized `handleCustomiseRecommendation`
+   
+   **Fix 2**: Created `app/(dashboard)/checkout/page.tsx` with plan cards, currency toggle, Razorpay modal integration, Stripe redirect, Suspense boundary. Updated `licence-banner.tsx` link to point to `/checkout?attach=`
+   
+   **Fix 3**: Verified approve route and transition logic are correct for all phases 0-11
+
+6. **TypeScript check**: 0 errors. Tests: 195 passed, 5 failed (pre-existing: Playwright e2e, path aliases, missing BASE_URL)
+
+7. **User's second message**: "analyses are still failing, check" with two screenshots showing:
+   - Chi Square, Logistic, Descriptive marked as "failed"
+   - Multiple "pending" analyses
+   - Console showing 400 (Bad Request) errors from analysis-wizard.tsx:212
+   - "All analyses complete" shown (misleading - they all failed)
+
+8. **Server log analysis**: Read the dev server output file. Key findings:
+   - **Old code was still running** for initial requests (before hot reload): `Inngest API Error: 401 Event key not found` at line 127 (old code path)
+   - **After recompilation**: New inline fallback IS working (202 responses)
+   - **R Plumber not running**: `Failed to connect to R Plumber: fetch failed` - this is the real execution failure
+   - **Auto-detect returning 500**: AI wraps response in markdown fences and uses non-standard parameter formats (arrays instead of strings)
+   - **400 validation errors**: AI recommendations have `"outcome": ["col1", "col2"]` (array) instead of `"outcome": "col1"` (string). Zod schema rejects these.
+
+9. **Where work stopped**: The assistant was about to fix the parameter normalization in auto-detect route to convert arrays to single strings, when the summary was requested.
+
+Key issues still outstanding:
+- Auto-detect route needs to normalize parameters (arrays → first element string)
+- R Plumber isn't running locally (expected, but error messaging could be better)
+- The wizard sends raw AI recommendation parameters that may have arrays
+
+Summary:
+1. Primary Request and Intent:
+   The user reported three critical issues with the Apollo platform after a previous session implemented 16 work packages:
+   - **Payment frontend not created or wired** — only backend API routes (checkout, webhooks) were built, no UI
+   - **Data analysis still broken** — 500/400/429 errors when running statistical analyses
+   - **Cannot go beyond Results section** — phase progression past Phase 6 blocked
+   
+   The user's exact words (first message context): "The Payment frontend is not created or wired i think. Thw data analysis is still broken. and i cannot go beyond results section to check anything else"
+   
+   After initial fixes, user's second message: "analyses are still failing, check" with screenshots showing failed/pending analyses and 400 Bad Request console errors.
+
+2. Key Technical Concepts:
+   - Next.js 15 App Router with TypeScript strict mode
+   - Inngest for durable workflow orchestration (analysis dispatch)
+   - In-memory compute semaphore for admission control (3 units: compile=2, analysis=1)
+   - R Plumber for statistical analysis execution (Docker container, not running locally)
+   - Razorpay (INR) + Stripe (USD) payment processing
+   - Supabase PostgreSQL with RLS
+   - Zod validation schemas for API request bodies
+   - Claude Haiku 4.5 for AI auto-detect recommendations
+   - Fire-and-forget async pattern for inline analysis execution
+   - SSE streaming for AI generation
+
+3. Files and Code Sections:
+
+   - **`apps/web/app/api/inngest/route.ts`**
+     - Critical: Only registered `thesisPhaseWorkflow`, missing `analysisRunnerFn`
+     - Fixed by adding the import and registering the function:
+     ```typescript
+     import { analysisRunnerFn } from "@/lib/inngest/functions/analysis-runner";
+     export const { GET, POST, PUT } = serve({
+       client: inngest,
+       functions: [thesisPhaseWorkflow, analysisRunnerFn],
+     });
+     ```
+
+   - **`apps/web/app/api/projects/[id]/analyses/route.ts`**
+     - Critical: The POST handler threw 500 when `inngest.send()` failed (no INNGEST_EVENT_KEY)
+     - Added `release` import from semaphore and `executeAnalysis` import from analysis-runner
+     - Replaced direct `inngest.send()` with conditional: check `INNGEST_EVENT_KEY`, try Inngest, fallback to inline
+     - Added `runAnalysisInline` helper at bottom of file:
+     ```typescript
+     function runAnalysisInline(analysisId: string, jobId: string): void {
+       void (async () => {
+         try {
+           await executeAnalysis(analysisId);
+         } catch (err) {
+           console.error(`Inline analysis ${analysisId} failed:`, err);
+         } finally {
+           release(jobId);
+         }
+       })();
+     }
+     ```
+     - The inline fallback IS working (server logs show 202 responses after recompilation)
+
+   - **`apps/web/components/project/analysis-wizard.tsx`**
+     - Fixed React `<select>` value warning: `value={String(columnMapping[role] ?? "")}`
+     - Fixed `handleCustomiseRecommendation` to sanitize parameters:
+     ```typescript
+     const handleCustomiseRecommendation = useCallback(
+       (rec: AnalysisRecommendation) => {
+         setSelectedAnalysis(rec.analysis_type);
+         const mapping: Record<string, string> = {};
+         for (const [key, val] of Object.entries(rec.parameters)) {
+           if (typeof val === "string") mapping[key] = val;
+         }
+         setColumnMapping(mapping);
+         setStep("map-columns");
+       },
+       []
+     );
+     ```
+
+   - **`apps/web/app/(dashboard)/checkout/page.tsx`** (NEW)
+     - Full checkout page with 3 plan cards (Student ₹499, Professional ₹999, One-Time ₹1499)
+     - Currency toggle (INR/USD), Razorpay modal integration, Stripe redirect
+     - Wrapped with Suspense for `useSearchParams()` (Next.js 15 requirement)
+     - Handles `?attach=projectId` query param to auto-link licence to project
+     - Declares `window.Razorpay` global type for TypeScript
+
+   - **`apps/web/components/project/licence-banner.tsx`**
+     - Updated link from `/licences?attach=${projectId}` to `/checkout?attach=${projectId}`
+     - Changed button text from "Attach licence" to "Get licence"
+
+   - **`apps/web/lib/compute/semaphore.ts`** — Read-only. In-memory semaphore with 3 units, per-user fairness (MAX_PER_USER=2). The semaphore was never releasing jobs because the Inngest handler never ran, causing 429 cascades.
+
+   - **`apps/web/lib/phases/transitions.ts`** — Read-only. `canAdvancePhase()` checks: max phase, section approved status, licence requirement. Confirmed Phase 6→7 transition is correct.
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** — Read-only. Approve route passes `"approved"` as literal to `canAdvancePhase()`, which always passes the status check. Phase progression works for all phases 0-11.
+
+   - **`apps/web/lib/phases/constants.ts`** — Read-only. 12 phases (0-11), phases 2+ require licence.
+
+   - **`apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts`** — Read-only during this session. Has fence-stripping code but AI still returns non-standard parameters (arrays instead of strings).
+
+   - **`apps/web/lib/r-plumber/analysis-runner.ts`** — Read-only. `executeAnalysis()` fetches dataset `rows_json`, calls R Plumber. Falls back to empty array if `rows_json` is null.
+
+   - **`apps/web/lib/r-plumber/client.ts`** — Read-only. Connects to `R_PLUMBER_URL` (default `http://localhost:8787`). Throws `RPlumberError` on connection failure.
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** — Read-only. Phase 6 generation gathers completed analyses and figures context. Works with or without completed analyses.
+
+   - **`apps/web/lib/ai/prompts.ts`** — Read-only. Confirmed phases 0-8 all have system prompts and user messages. `getPhaseSystemPrompt()` returns non-null for cases 0-8.
+
+   - **`apps/web/lib/validation/analysis-schemas.ts`** — Read-only. `analysisCreateSchema` requires `parameters` with `outcome: z.string().optional()`, `predictor: z.string().optional()`, etc. This is the source of 400 errors when AI returns arrays.
+
+   - **`apps/web/app/api/projects/[id]/analyses/[analysisId]/route.ts`** — Read-only. Individual analysis GET endpoint exists and works (confirmed in server logs: 200 responses for polling).
+
+4. Errors and fixes:
+
+   - **Inngest 401 Event key not found → 500 on analysis POST**:
+     - Root cause: `INNGEST_EVENT_KEY` env var set but invalid/wrong, so `inngest.send()` threw `401 Event key not found`
+     - Fix: Added conditional check for `process.env.INNGEST_EVENT_KEY` and inline fallback execution
+     - User feedback: "analyses are still failing" — old code was still running before hot reload picked up changes
+
+   - **Semaphore never releasing → 429 cascade**:
+     - Root cause: Analysis jobs acquired semaphore slots but Inngest handler never ran to release them
+     - Fix: Inline `runAnalysisInline()` function with `release(jobId)` in `finally` block
+
+   - **React `<select>` value warning**:
+     - Root cause: `columnMapping[role]` could be non-scalar (array from AI parameters)
+     - Fix: `String(columnMapping[role] ?? "")` and sanitize in `handleCustomiseRecommendation`
+
+   - **AI auto-detect returning 500** (from server logs, pre-fix):
+     - Root cause: AI wrapped response in markdown fences, parsing failed
+     - This was already fixed in a previous session with fence-stripping code
+     - After hot reload, auto-detect returns 200 successfully
+
+   - **400 Bad Request on analysis POST** (CURRENT, UNFIXED):
+     - Root cause: AI recommendations have array parameters like `"outcome": ["col1", "col2"]` but Zod schema expects `z.string().optional()`
+     - Server log evidence: `POST /api/projects/.../analyses 400 in 1187ms` and `400 in 654ms`
+     - The auto-detect route casts results as `AnalysisRecommendation[]` without validating/normalizing the `parameters` field
+
+   - **R Plumber connection failure** (CURRENT, INFRASTRUCTURE):
+     - Error: `RPlumberError: Failed to connect to R Plumber: fetch failed`
+     - This is expected — R Plumber Docker container isn't running locally
+     - Analyses get created (202) but fail during execution
+     - `rows_json` is also null (migration 021 not applied to running DB)
+
+5. Problem Solving:
+   - **Solved**: Inngest not serving analysis handler → added to serve config
+   - **Solved**: Inngest unavailable causing 500 → inline fallback with semaphore release
+   - **Solved**: Payment frontend missing → created checkout page with Razorpay/Stripe
+   - **Solved**: Licence banner linking to wrong page → updated to /checkout
+   - **Solved**: React select warning → string coercion
+   - **Partially solved**: Analysis pipeline works end-to-end (202 response, inline execution, semaphore release) but R Plumber not available locally
+   - **Unsolved**: AI recommendation parameters have arrays instead of strings → 400 validation errors when wizard submits them
+
+6. All user messages:
+   - **Message 1** (from continuation context): "The Payment frontend is not created or wired i think. Thw data analysis is still broken. and i cannot go beyond results section to check anything else" — with 4 screenshots showing console errors
+   - **Message 2**: "analyses are still failing, check" — with 2 screenshots showing: Chi Square/Logistic/Descriptive failed, multiple pending, 400 Bad Request errors in console, "All analyses complete" (misleading since they failed)
+
+7. Pending Tasks:
+   - **Fix AI recommendation parameter normalization** — Auto-detect route needs to convert array parameters to single strings before returning recommendations to the frontend. The `handleRunRecommendation` function in the wizard spreads `rec.parameters` directly into the POST body, and Zod rejects arrays.
+   - **R Plumber not running** — Infrastructure issue. Analyses will always fail until R Plumber Docker container is started. Could improve error messaging to make this clearer to the user.
+   - Task list state: #17 completed, #18 completed, #19 completed
+
+8. Current Work:
+   I was actively working on fixing the **400 Bad Request errors** caused by AI recommendation parameters containing arrays instead of strings. I had just finished reading the auto-detect route's parameter handling code (lines 118-134) and was about to implement the fix when the summary was requested.
+
+   The server logs confirmed the exact issue:
+   ```json
+   "parameters": {
+     "outcome": ["Recurrence_at_12months", "Wound_Infection", "Mesh_Infection", "Seroma_Formation"],
+     "predictor": ["Hernia_Type", "Hernia_Location", "EHS_W_Classification", ...]
+   }
+   ```
+   
+   The Zod schema at `lib/validation/analysis-schemas.ts` expects `outcome: z.string().optional()` but receives arrays.
+
+9. Optional Next Step:
+   Fix the parameter normalization in `app/api/projects/[id]/analyses/auto-detect/route.ts` — after parsing AI recommendations (around line 120-127), normalize the `parameters` field to ensure all values are strings (take first element if array, ignore non-string/non-array values). This directly addresses the user's most recent complaint: "analyses are still failing, check".
+
+   Specifically, add normalization logic after the filter/slice on line 127:
+   ```typescript
+   // Normalize parameters: convert arrays to first element, ensure all values are strings
+   recommendations = recommendations.map(rec => ({
+     ...rec,
+     parameters: Object.fromEntries(
+       Object.entries(rec.parameters).map(([key, val]) => [
+         key,
+         Array.isArray(val) ? val[0] : val
+       ]).filter(([, val]) => typeof val === "string")
+     ) as AnalysisRecommendation["parameters"]
+   }));
+   ```
+
+   After this fix, also need to verify the `handleRunRecommendation` function in `analysis-wizard.tsx` properly handles the normalized parameters when constructing the POST body.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+so to fully check the production pipeline what to do?
+
+---
+
+I dont understand properly, properly tabulate the differnes between the production deployment and local dev which we shall using for e2e testing manual and automated both. Also the plan for the production deployment at low cost. also what is the actual planning for production claude api? current api key is from my personal account. Can i use it for production for a few days (i know traffic will be low), only for demo purposes
+
+---
+
+understood now. so is it better if we start with hetzner now? and then iterate the final production builds? Also whats the git diff currently must be huge?
+
+---
+
+create the commits now and sequentially push.
