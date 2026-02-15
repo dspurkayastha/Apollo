@@ -66,7 +66,8 @@
     pdfborder={0 0 0},
     bookmarks=true,
     bookmarksnumbered=true,
-    breaklinks=true
+    breaklinks=true,
+    hypertexnames=false
 ]{hyperref}
 
 % Caption formatting
@@ -340,34 +341,35 @@
 
 \newcommand{\maketitlepage}{%
     \thispagestyle{empty}
+    \begin{singlespace}
     \begin{center}
-        \vspace*{0.5cm}
+        \vspace*{0.3cm}
 
         % University logo (if defined and non-empty)
         \ifx\universitylogopath\empty\else
-            \includegraphics[width=4.5cm]{\universitylogopath}\\[0.5cm]
+            \includegraphics[width=4.5cm]{\universitylogopath}\\[0.4cm]
         \fi
 
         {\Large\bfseries\MakeUppercase{\thesistitletext}}
 
-        \vspace{1.5cm}
+        \vspace{0.8cm}
 
         {\large DISSERTATION SUBMITTED FOR THE DEGREE OF}
 
-        \vspace{0.5cm}
+        \vspace{0.4cm}
 
         {\large\bfseries \degreenametext\ (\degreebranchtext)}
 
-        \vspace{0.5cm}
+        \vspace{0.4cm}
 
         {\large TO}
 
-        \vspace{0.5cm}
+        \vspace{0.4cm}
 
         {\large\bfseries \universitynametext}\\
         {\large \universitylocationtext}
 
-        \vspace{1.5cm}
+        \vspace{0.8cm}
 
         % Candidate and Guide info in tabular layout
         \begin{tabular}{@{}p{0.45\textwidth}p{0.45\textwidth}@{}}
@@ -397,6 +399,7 @@
         {\large \submissionmonthtext\ \submissionyeartext}
 
     \end{center}
+    \end{singlespace}
     \clearpage
 }
 
@@ -407,6 +410,7 @@
 \newcommand{\makeguidecertificate}{%
     \clearpage
     \thispagestyle{empty}
+    \begin{singlespace}
     \begin{center}
         {\Large\bfseries CERTIFICATE FROM THE GUIDE}\\[1cm]
     \end{center}
@@ -420,7 +424,7 @@
     \vspace{0.5cm}
 
     \noindent I further certify that:
-    \begin{enumerate}[label=\arabic*.]
+    \begin{enumerate}[label=\arabic*.,itemsep=2pt,parsep=2pt]
         \item This dissertation or any part thereof has not been previously submitted to any university or institution for the award of any degree, diploma, or other similar title.
         \item The candidate has fulfilled all the requirements as per the university regulations.
         \item The work embodied in this dissertation is original.
@@ -441,6 +445,7 @@
         \institutenameshorttext\\
         \institutelocationtext
     \end{flushright}
+    \end{singlespace}
 }
 
 %% Alias
@@ -453,6 +458,7 @@
 \newcommand{\makecoguidecertificate}{%
     \clearpage
     \thispagestyle{empty}
+    \begin{singlespace}
     \begin{center}
         {\Large\bfseries CERTIFICATE FROM THE CO-GUIDE}\\[1cm]
     \end{center}
@@ -482,6 +488,7 @@
         \institutenameshorttext\\
         \institutelocationtext
     \end{flushright}
+    \end{singlespace}
 }
 
 %% Alias
@@ -494,6 +501,7 @@
 \newcommand{\makehodcertificate}{%
     \clearpage
     \thispagestyle{empty}
+    \begin{singlespace}
     \begin{center}
         {\Large\bfseries CERTIFICATE FROM THE HEAD OF DEPARTMENT}\\[1cm]
     \end{center}
@@ -523,6 +531,7 @@
         \institutenameshorttext\\
         \institutelocationtext
     \end{flushright}
+    \end{singlespace}
 }
 
 %% ============================================================
@@ -532,6 +541,7 @@
 \newcommand{\makedirectorcertificate}{%
     \clearpage
     \thispagestyle{empty}
+    \begin{singlespace}
     \begin{center}
         {\Large\bfseries ENDORSEMENT BY THE HEAD OF THE INSTITUTION}\\[1cm]
     \end{center}
@@ -560,6 +570,7 @@
         \institutenameshorttext\\
         \institutelocationtext
     \end{flushright}
+    \end{singlespace}
 }
 
 %% Aliases for institution head certificate
@@ -573,20 +584,21 @@
 \newcommand{\makedeclaration}{%
     \clearpage
     \thispagestyle{empty}
+    \begin{singlespace}
     \begin{center}
-        {\Large\bfseries DECLARATION BY THE CANDIDATE}\\[1cm]
+        {\Large\bfseries DECLARATION BY THE CANDIDATE}\\[0.8cm]
     \end{center}
 
     \noindent I, \textbf{\candidatenametext}, hereby declare that the dissertation entitled \textbf{``\thesistitletext''} submitted by me for the award of \textbf{\degreenametext\ (\degreebranchtext)} degree to \textbf{\universitynametext}, Kolkata is my original work.
 
-    \vspace{0.35cm}
+    \vspace{0.25cm}
 
     \noindent I declare that this work has been carried out by me at the \departmentnametext, \institutenametext, \institutelocationtext\ during the period of \studyperiodtext\ under the guidance of \textbf{\supervisornametext}, \supervisordesignationtext.
 
-    \vspace{0.35cm}
+    \vspace{0.25cm}
 
     \noindent I further declare that:
-    \begin{enumerate}[label=\arabic*.]
+    \begin{enumerate}[label=\arabic*.,itemsep=2pt,parsep=2pt]
         \item This dissertation or any part thereof has not been previously submitted to any university or institution for the award of any degree, diploma, or other similar title.
 
         \item The work presented in this dissertation is original and the results are based on my own research conducted during the prescribed period and wherever contributions of others are involved, every effort has been made to acknowledge them clearly with due references to the literature and acknowledgement of collaborative research and discussions.
@@ -601,7 +613,7 @@
     \noindent Place: \institutelocationtext \hfill \\[0.3cm]
     \noindent Date: \underline{\hspace{3cm}}
 
-    \vspace{1.5cm}
+    \vspace{1cm}
 
     \begin{flushright}
         \underline{\hspace{5cm}}\\[0.2cm]
@@ -611,6 +623,7 @@
         \institutenameshorttext\\
         \institutelocationtext
     \end{flushright}
+    \end{singlespace}
 }
 
 %% ============================================================

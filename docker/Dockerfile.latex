@@ -44,9 +44,10 @@ RUN tlmgr install \
     latex \
     && rm -rf /tmp/*
 
-# Install Ghostscript for watermarking
+# Install Ghostscript for watermarking and pandoc for DOCX export
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ghostscript \
+    pandoc \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy compilation script

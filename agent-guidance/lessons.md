@@ -135,3 +135,32 @@
 - Phase 1 → 2+: requires `licensed` or `completed` project status
 - Section must be in `review` status before approval
 - On Phase 0 approval, auto-create Phase 1 section
+
+## Sprint 3-4 Learnings
+
+### Rich text ↔ LaTeX dual storage
+- Sections store both `rich_content_json` (Tiptap JSON) and `latex_content` (derived LaTeX)
+- Rich text save: `tiptapToLatex()` converts JSON → LaTeX, stores both
+- Source view save: stores `latex_content` directly, sets `rich_content_json = null` (stale)
+- One-way flow for now: Rich → LaTeX is automatic, LaTeX → Rich is deferred (bidirectional parsing is complex)
+
+### Novel/Tiptap integration
+- Novel is ESM-only — use `dynamic()` import with `ssr: false`
+- Novel re-exports its own Editor type from `@tiptap/react` — don't import `Editor` from `@tiptap/core` separately in components using Novel
+- The `onUpdate` callback receives `{ editor, transaction }` — use structural typing (`{ getJSON: () => JSONContent }`) rather than importing the Editor type
+
+### Admission control pattern
+- In-memory semaphore with unit-based costing (compile = 2 units, analysis = 1 unit)
+- Always acquire before work, release in `finally` block
+- Return 429 with estimated wait time when queue has position, bare 429 when queue is full
+- `_resetForTesting()` export for test isolation
+
+### Inngest workflow integration
+- Non-blocking event emission: wrap `inngest.send()` in try/catch in the approve route
+- The `waitForEvent` API may have version-specific type constraints — check types before using `if` filter expressions
+- Events are best-effort: if Inngest is down, approval still succeeds; workflow catches up on next event
+
+### Word count targets
+- Target ranges defined per-phase, with `null` for phases without prose targets (orientation, front matter, references, appendices, final QC)
+- Status computation: under/on-target/over with inclusive boundaries
+- Progress bar colour-coded: green (on-target), amber (under), red (over)

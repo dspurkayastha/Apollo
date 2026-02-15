@@ -1,0 +1,30 @@
+FROM r-base:4.4.0
+
+# Install system dependencies for R packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libpng-dev \
+    libtiff5-dev \
+    libjpeg-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install R packages — core + statistical analysis + plotting
+RUN R -e "install.packages(c( \
+    'plumber', 'tidyverse', 'gtsummary', 'ggplot2', 'jsonlite', \
+    'survival', 'survminer', 'pROC', 'meta', 'broom', \
+    'readr', 'base64enc', 'gt' \
+  ), repos='https://cloud.r-project.org/')"
+
+WORKDIR /app
+COPY docker/plumber.R /app/plumber.R
+
+EXPOSE 8787
+
+CMD ["R", "-e", "plumber::pr_run(plumber::pr('/app/plumber.R'), host='0.0.0.0', port=8787)"]
