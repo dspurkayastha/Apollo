@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 63,
+  "checkpoints_count": 66,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -161,6 +161,7 @@
     "apps/web/lib/validation/dataset-schemas.ts",
     "apps/web/lib/validation/figure-schemas.ts",
     "apps/web/lib/validation/section-schemas.ts",
+    "apps/web/next.config.ts",
     "apps/web/package.json",
     "apps/web/remotion/ApolloHeroVideo.tsx",
     "apps/web/sentry.client.config.ts",
@@ -249,13 +250,20 @@
       "context": "/bd/84f5776d75/8/context.md",
       "content_hash": "/bd/84f5776d75/8/content_hash.txt",
       "prompt": "/bd/84f5776d75/8/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/9/metadata.json",
+      "transcript": "/bd/84f5776d75/9/full.jsonl",
+      "context": "/bd/84f5776d75/9/context.md",
+      "content_hash": "/bd/84f5776d75/9/content_hash.txt",
+      "prompt": "/bd/84f5776d75/9/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 40480,
-    "cache_creation_tokens": 1891488,
-    "cache_read_tokens": 75765803,
-    "output_tokens": 145873,
-    "api_call_count": 813
+    "input_tokens": 40798,
+    "cache_creation_tokens": 2298147,
+    "cache_read_tokens": 99608679,
+    "output_tokens": 200674,
+    "api_call_count": 1048
   }
 }
