@@ -1,0 +1,180 @@
+Implement the following plan:
+
+# Plan: Fix Shadow Dark Block + Expand Page Text
+
+## Context
+
+The hero 3D scene (`hero-3d-scene.tsx`) has two problems:
+
+1. **Shadow dark block**: `AccumulativeShadows` with `opacity={0.75}`, `alphaTest={0.3}`, `scale={18}` renders as a massive near-opaque dark rectangle covering the bottom third of the scene. The `alphaTest` is too low (includes faint shadow noise across the entire plane) and `opacity` too high (amplifies the noise into a solid dark block).
+
+2. **Insufficient page text**: All 3 `PAGE_CONTENT` variants have only 3 body paragraphs each. The user wants more text, especially on page 1 (Introduction / variant 0).
+
+**Console error**: `THREE.WebGLProgram: Shader Error 0 - VALIDATE_STATUS false — VERTEX shader uniforms count exceeds MAX_VERTEX_UNIFORM_VECTORS(1024)` on `MeshLambertMaterial` (used internally by AccumulativeShadows). The `amount={120}` + `amount={40}` = 160 randomized lights, each adding uniforms to the vertex shader, exceeding the GPU's 1024 uniform limit. The shader fails silently, producing a corrupted dark rectangle instead of shadows.
+
+Shadow approaches tried and failed across 10+ iterations:
+- ContactShadows → hard rectangular edges (scale was too small, blur not used)
+- DropShadow radial gradient meshes → not directional, hard plane edges
+- CSS mask to hide edges → user explicitly rejected
+- ShadowMaterial ground plane with single directional light → harsh sharp shadows
+- AccumulativeShadows → either invisible (high alphaTest) or dark block (low alphaTest)
+
+---
+
+## File: `apps/web/components/landing/hero-3d-scene.tsx`
+
+### Change 1: Replace AccumulativeShadows with ContactShadows
+
+**Why ContactShadows now works**: The previous attempt failed due to small `scale` (shadow plane boundary visible) and no `blur`. With `blur={2.5}` + `smooth` + `scale={20}`, the blur naturally softens edges, and at scale=20 the plane extends ±10 units from centre — far beyond the camera's ~5-unit visible width (FOV=38° at z=7). No edge artefacts possible.
+
+**Why not fix AccumulativeShadows**: The `alphaTest` parameter has a razor-thin sweet spot between "invisible" and "dark block." Every tuning attempt has produced one extreme or the other across 5+ iterations. ContactShadows is fundamentally more predictable — it blurs a rendered shadow map rather than accumulating samples.
+
+**Remove** (lines 489-512):
+```tsx
+<AccumulativeShadows
+  temporal
+  frames={120}
+  scale={18}
+  position={[0, -2.2, 0]}
+  opacity={0.75}
+  color="#2A2520"
+  alphaTest={0.3}
+>
+  <RandomizedLight amount={120} ... />
+  <RandomizedLight amount={40} ... />
+</AccumulativeShadows>
+```
+
+**Replace with**:
+```tsx
+<ContactShadows
+  position={[0, -2.0, 0]}
+  opacity={0.3}
+  scale={20}
+  blur={2.5}
+  smooth
+  far={5}
+  resolution={512}
+  color="#2A2520"
+/>
+```
+
+**Parameter rationale**:
+- `scale={20}` — plane extends ±10 units, well beyond visible camera frustum (~±2.5 units)
+- `blur={2.5}` — heavy Gaussian blur for soft, natural shadow edges
+- `smooth` — additional edge antialiasing pass
+- `opacity={0.3}` — subtle shadow, not overwhelming
+- `far={5}` — captures objects up to 5 units above the shadow plane (pages at y=0, scatter at y=-0.8, so objects span from ~-0.8 to +1.5 above the plane at y=-2.0)
+- `resolution={512}` — good quality without GPU waste
+
+**Import change** (line 5-13):
+```tsx
+// Remove: AccumulativeShadows, RandomizedLight
+// Add: ContactShadows
+import {
+  Float,
+  Line,
+  Environment,
+  ContactShadows,
+  MeshTransmissionMaterial,
+  RoundedBox,
+} from "@react-three/drei";
+```
+
+### Change 2: Expand PAGE_CONTENT with more text
+
+Expand all 3 variants from 3 paragraphs to 6-7 paragraphs each. This fills more of the visible page area and makes the pages look like real thesis content. All text is medically accurate, British English.
+
+**Variant 0 — Introduction** (3 → 7 paragraphs): Add paragraphs on epidemiology, pathophysiology rationale, existing screening limitations, and study justification.
+
+**Variant 1 — Materials and Methods** (3 → 6 paragraphs): Add paragraphs on inclusion/exclusion criteria, statistical analysis methodology, and sample size calculation.
+
+**Variant 2 — Review of Literature** (3 → 6 paragraphs): Add paragraphs on additional key studies, meta-analysis findings, and identified research gaps.
+
+---
+
+## What stays unchanged
+
+- All sphere materials, colours, positions, breathe animations
+- All page mesh structure (RoundedBox + front face plane)
+- Graph position, rotation (-45°), axes, arrowheads, ticks
+- Canvas config, camera, environment, lighting
+- `hero-section.tsx` — no changes
+- `createPageTexture()` function — no changes (it already renders all body paragraphs dynamically)
+
+---
+
+## Verification
+
+1. `pnpm tsc --noEmit` from `apps/web/` — zero errors (import change must compile)
+2. Dev server — check localhost:3000
+3. **Shadows**: soft ground shadows visible beneath pages and scatter plot, NO dark block, NO hard rectangular edges
+4. **Page text**: all 3 pages show 6-7 paragraphs of medical thesis content with word wrapping
+5. **Performance**: shadows render quickly (ContactShadows is lighter than AccumulativeShadows)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+reduce the 3d container height by 10 %
+
+---
+
+Now increase the copy subtext. Add a tagline beneath the Brand, and put the subtext beneath it, and then come the buttons. Maintain prper typoh=graophy
+
+---
+
+remove the tag, Increase the brand font size, rotate the Brand text about 8 - 10 degrees on the z axis (so that A is closest to camera and o is farthest, and the parallex effect in terms of size is maintained). Use a better font for the Brand
+
+---
+
+## Error Type
+Runtime Error
+
+## Error Message
+Cannot read properties of null (reading 'useContext')
+
+Next.js version: 15.5.12 (Turbopack)
+
+---
+
+Now reduce the white spaces between the sections of the landing between the elements by 15%
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 1.10.25 PM.png]
+
+---
+
+I meant all the elements, even above the CTA for the whitespace reduction. Also think of a better designed footer. Change the Brand font for the navbar and the footer.
+
+---
+
+service cards are good and minimal but, want a bit more premium feel
+
+---
+
+i dont like the icon container. cant see the sage tint
+
+---
+
+The cards do not change on hover !
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 1.30.14 PM.png]
+
+[Image: source: REDACTED 2026-02-15 at 1.30.24 PM.png]
+
+---
+
+Hover is there now, but the bento grid structure is broken. but still no tint, or graadient! also elevate on hover is done to death, and is considered AI design slop, not preimum anymore. THink ultra hard and make a plan
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 1.32.12 PM.png]
+
+---
+
+[Request interrupted by user for tool use]
