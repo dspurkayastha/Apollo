@@ -1,0 +1,156 @@
+Implement the following plan:
+
+# Fix Compile Pipeline: Section Assembly + BibTeX + Approve Flow
+
+## Context
+
+The compile pipeline is fundamentally broken — it only populates metadata into `main.tex` but **never injects section content**. The `%% [[PLACEHOLDER — Phase N]]` comments remain as-is, producing a PDF with empty chapters. Additionally:
+- `references.bib` is always created empty — BibTeX entries from AI's `---BIBTEX---` trailers are discarded
+- "Approve Anyway" in the ReviewDialog fails because the approve route rejects sections with status "draft" (line 72 of approve/route.ts requires `status === "review"`)
+- No mechanism assembles section LaTeX into the template or writes BibTeX
+
+## Root Cause Analysis
+
+**Compile route** (`compile/route.ts` line 97): calls `generateTex(template, project)` which only replaces metadata commands (`\thesistitle{}`, `\candidatename{}`, etc). It never reads sections from DB.
+
+**compile.ts** lines 138/251: writes `""` to `references.bib`. BibTeX entries from AI output (after `---BIBTEX---` marker) are never collected.
+
+**Template** (`main.tex`): has `\chapter{...}\label{chap:xxx}` followed by `%% [[PLACEHOLDER — Phase N]]` comment blocks. These are never replaced.
+
+---
+
+## Step 1: Create `assembleThesisContent()`
+
+**New file:** `apps/web/lib/latex/assemble.ts`
+
+Phase-to-label mapping (from `main.tex` structure):
+```
+Phase 2 → chap:introduction
+Phase 3 → chap:aims
+Phase 4 → chap:literature
+Phase 5 → chap:methodology
+Phase 6 → chap:results
+Phase 7 → chap:discussion
+Phase 8 → chap:conclusion
+```
+
+Three helper functions + one public function:
+
+### `splitBibtex(latexContent)`
+Split section `latex_content` at `---BIBTEX---` marker → `{ body, bib }`. Reuses same pattern as `latex-to-tiptap.ts` line 33.
+
+### `replacePlaceholder(tex, labelKey, content)`
+Regex replaces the placeholder comment block after `\label{chap:xxx}` with actual section body. Uses positive lookahead to stop before next structural delimiter (`\chapter{`, `\listof`, `%% ====`, `\backmatter`, `\annexurematter`).
+
+### `deduplicateBibEntries(bibContent)`
+Parse `@type{key,` entries, deduplicate by cite key (last-write-wins so citations table entries override AI-generated ones).
+
+### `assembleThesisContent(template, project, sections, citations)` → `{ tex, bib, warnings }`
+1. Call existing `generateTex(template, project)` for metadata population
+2. For each phase 2-8: find section with `approved`/`review` status, split body/bib, replace placeholder
+3. Collect BibTeX from section trailers + citations table `bibtex_entry` field
+4. Deduplicate BibTeX, return assembled `.tex` + `.bib` content
+
+---
+
+## Step 2: Update `compileTex()` to accept BibTeX
+
+**Modify:** `apps/web/lib/latex/compile.ts`
+
+- Add `bibContent?: string` to options type (line 33)
+- In `localCompile` (line 251): write `options.bibContent ?? ""` instead of `""`
+- In `dockerCompile` (line 138): same change
+- Pass `bibContent` through from `compileTex()` to both inner functions
+
+---
+
+## Step 3: Update compile route to assemble content
+
+**Modify:** `apps/web/app/api/projects/[id]/compile/route.ts`
+
+After reading template (line 87), before compilation:
+1. Fetch all sections: `supabase.from("sections").select("*").eq("project_id", id).in("status", ["approved", "review"])`
+2. Fetch all citations: `supabase.from("citations").select("*").eq("project_id", id)`
+3. Replace `generateTex()` call with `assembleThesisContent(template, project, sections, citations)`
+4. Pass `bib` to `compileTex()` via new `bibContent` option
+5. Add import for `assembleThesisContent` and `Section`/`Citation` types
+
+---
+
+## Step 4: Fix approve route for draft sections
+
+**Modify:** `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`
+
+Replace the status check at line 72. New logic:
+- `"review"` → proceed as before
+- `"draft"` with non-empty `latex_content` → auto-promote to `"review"`, then approve
+- `"draft"` with no content → reject with clear message
+- `"generating"` / `"approved"` → reject as before
+
+---
+
+## Step 5: Tests
+
+**New file:** `apps/web/lib/latex/assemble.test.ts`
+
+Key test cases:
+- `splitBibtex`: with/without `---BIBTEX---` marker
+- `replacePlaceholder`: each label key, verify lookahead stops at correct delimiter
+- `assembleThesisContent` end-to-end: single section, all sections, BibTeX collection, deduplication
+- Missing sections produce warnings but don't fail
+- Phase 0/1 (non-chapter phases) not injected as chapter content
+
+---
+
+## Files Summary
+
+| Action | File |
+|--------|------|
+| NEW | `apps/web/lib/latex/assemble.ts` |
+| NEW | `apps/web/lib/latex/assemble.test.ts` |
+| MOD | `apps/web/lib/latex/compile.ts` |
+| MOD | `apps/web/app/api/projects/[id]/compile/route.ts` |
+| MOD | `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts` |
+
+## Execution Order
+
+```
+Step 1 (assemble.ts) → Step 2 (compile.ts bibContent) → Step 3 (compile route) → Step 5 (tests)
+Step 4 (approve fix) — independent, can run in parallel
+```
+
+## Verification
+
+1. `pnpm test` — new assemble tests + all existing tests pass
+2. `pnpm type-check` — zero errors
+3. Manual: compile PDF → PDF now shows chapter content (Introduction text visible, not blank)
+4. Manual: approve Phase 2 → advances to Phase 3 (stepper updates)
+5. Manual: "Approve Anyway" from review dialog → actually advances phase
+6. Manual: compile after approval → PDF includes the approved section content with citations resolved
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+error are still persisting!!
+
+---
+
+[Image: source: REDACTED 2026-02-14 at 8.52.45 AM.png]
+
+[Image: source: REDACTED 2026-02-14 at 8.55.38 AM.png]
+
+[Image: source: REDACTED 2026-02-14 at 8.55.55 AM.png]
+
+---
+
+[Request interrupted by user]
+
+---
+
+The AI generated latex in my original implementation, which needs to be converted to tiptap for the rtf editor, which then should re convert back to latex (and lose # etc non latex stuff here) upon user edit and approval. Here an AI pass needs to happen to confirm content and formatting is proper for latex. and then the pipeine should work with intro.tex added to /include etc which we did last pass. Your replacePLaceholder bug that you caught is correct i feel, but it needs to be properly verified output from next time on.
+
+---
+
+[Request interrupted by user for tool use]
