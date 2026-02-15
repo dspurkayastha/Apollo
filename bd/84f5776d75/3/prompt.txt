@@ -1,0 +1,1049 @@
+Implement the following plan:
+
+# Sprint 2 Implementation Plan
+
+## Context
+
+Sprint 1 delivered the scaffolding: auth (Clerk), DB (15 migrations, 13 tables, RLS), project CRUD, licence management, 5-step setup wizard, R2 upload, landing page, and CI pipeline. Sprint 1-2 combined acceptance criteria require 4 remaining items that Sprint 2 must deliver:
+
+1. **AI synopsis parsing** — Claude API integration (regex parser exists, no AI)
+2. **Compiled title page PDF** — LaTeX compilation pipeline (React preview exists, no LaTeX)
+3. **Compile test** — `pnpm test:compile` for both CLS files
+4. **Schema migration test** — formal validation
+
+---
+
+## Work Packages (ordered by dependency)
+
+### WP1: AI Client Foundation
+**New files:**
+- `lib/ai/client.ts` — Anthropic SDK singleton (`@anthropic-ai/sdk`)
+- `lib/ai/redact.ts` + `redact.test.ts` — PII redaction (phone, Aadhaar, email, PAN)
+- `lib/ai/rate-limit.ts` + `rate-limit.test.ts` — In-memory rate limiter (10/hr student)
+- `lib/ai/prompts.ts` — Synopsis parse + front matter system prompts
+
+**Dependency:** `pnpm add @anthropic-ai/sdk`
+
+### WP2: Sections API (CRUD + Phase Transitions)
+**New files:**
+- `lib/phases/constants.ts` — Phase map (0-11 names/labels)
+- `lib/phases/transitions.ts` + `transitions.test.ts` — `canAdvancePhase()` logic
+- `lib/validation/section-schemas.ts` — Zod schemas for section ops
+- `app/api/projects/[id]/sections/route.ts` — GET list
+- `app/api/projects/[id]/sections/[phase]/route.ts` — GET/PUT single section
+- `app/api/projects/[id]/sections/[phase]/approve/route.ts` — POST approve (409 invalid transition, 402 licence required)
+
+### WP3: AI Synopsis Parsing (Phase 0 Generate)
+**New files:**
+- `app/api/projects/[id]/sections/[phase]/generate/route.ts` — POST SSE streaming endpoint
+- `lib/ai/parse-synopsis-response.ts` — Extract structured JSON from Claude output
+
+**Flow:** Auth → rate limit → PII redact synopsis → Claude Sonnet 4.5 stream → parse response → update project metadata + section → set section status to `review`
+
+**Depends on:** WP1, WP2
+
+### WP4: Docker LaTeX Service
+**New files:**
+- `docker/Dockerfile.latex` — TeX Live 2025 container
+- `docker/compile.sh` — Entrypoint (pdflatex → bibtex → pdflatex × 2)
+- `docker/docker-compose.yml` — Local dev compose (web + latex)
+- `docker/watermark.sh` — Ghostscript watermark overlay for sandbox
+
+**Isolation:** `--network=none`, `--read-only`, `--tmpfs /tmp`, `--memory=1g`, 120s timeout
+
+### WP5: Compile API Endpoint
+**New files:**
+- `lib/latex/escape.ts` + `escape.test.ts` — LaTeX special char escaping
+- `lib/latex/generate-tex.ts` + `generate-tex.test.ts` — Populate main.tex template with project metadata
+- `lib/latex/compile.ts` — Docker execution wrapper (`LATEX_COMPILE_MODE`: docker/local/mock)
+- `lib/latex/parse-log.ts` + `parse-log.test.ts` — Extract warnings/errors from .log
+- `app/api/projects/[id]/compile/route.ts` — POST trigger compilation
+- `app/api/projects/[id]/preview.pdf/route.ts` — GET signed URL to latest PDF
+
+**Depends on:** WP4, WP2
+
+### WP6: Front Matter Generation (Phase 1)
+**New files:**
+- `lib/latex/front-matter.ts` + `front-matter.test.ts` — Generate front matter LaTeX from metadata
+
+**On Phase 0 approval:** Auto-create Phase 1 section with front matter LaTeX, trigger compilation for preview
+
+**Depends on:** WP2, WP5
+
+### WP7: Phase Navigation UI
+**New files:**
+- `components/project/phase-stepper.tsx` — 12-phase visual stepper
+- `components/project/section-viewer.tsx` — Section content + status badge
+- `components/project/compile-button.tsx` — Trigger compilation
+- `components/project/licence-banner.tsx` — "Attach licence to continue" prompt
+- `components/project/ai-generate-button.tsx` — Trigger AI generation with SSE
+- `hooks/use-sse.ts` — Custom SSE streaming hook
+
+**Modify:** `app/(dashboard)/projects/[id]/page.tsx` — Replace placeholder with phase stepper + section viewer
+
+**Depends on:** WP2, WP5
+
+### WP8: Tests, CI, Cleanup
+**New files:**
+- `tests/compile.test.ts` — Compile both CLS files (0 errors, ≤20 warnings)
+
+**Modify:**
+- `.github/workflows/ci.yml` — Uncomment compile-test job (lines 134-173)
+- `.env.example` — Add `LATEX_COMPILE_MODE`
+- `package.json` — Add `test:compile` script
+- `agent-guidance/lessons.md` — Document Clerk deviation, SSE pattern, Docker workflow
+
+---
+
+## Execution Order
+
+```
+WP1 (AI Client) ──────────┐
+                           ├──→ WP3 (AI Parsing) ──→ WP6 (Front Matter)
+WP2 (Sections API) ───────┤                              │
+                           ├──→ WP7 (Phase UI) ←──────────┘
+WP4 (Docker LaTeX) ───────┤
+                           ├──→ WP5 (Compile API) ──→ WP8 (Tests/CI)
+```
+
+**Parallel tracks:** WP1+WP4 (no dependencies), then WP2, then WP3+WP5 (parallel), then WP6+WP7, finally WP8.
+
+---
+
+## Key Patterns to Follow
+
+- **API routes:** Follow existing pattern in `app/api/projects/[id]/route.ts` (auth → validate → query → standard error schema)
+- **Error responses:** Use builders from `lib/api/errors.ts` (`unauthorised()`, `conflict()`, `licenceRequired()`)
+- **Auth:** `getAuthenticatedUser()` from `lib/api/auth.ts` (Clerk + Supabase)
+- **Types:** Extend `lib/types/database.ts` for new interfaces
+- **Validation:** Zod schemas in `lib/validation/`
+- **Template:** `templates/main.tex` uses `\renewcommand` fields — `generate-tex.ts` populates these
+
+## Verification
+
+1. `pnpm lint && pnpm type-check` — zero errors
+2. `pnpm test` — unit tests pass (AI redaction, rate limit, LaTeX escape, log parser, phase transitions, front matter)
+3. `pnpm test:security` — RLS + licence gate tests still green
+4. `pnpm test:compile` — both CLS files compile with 0 errors, ≤20 warnings
+5. Manual: create project → upload synopsis → AI parses → review metadata → approve Phase 0 → front matter generated → compile → view watermarked PDF
+6. Manual: attach licence → approve Phase 1 → Phase 2 transition succeeds
+7. CI pipeline green on all jobs (lint, type-check, unit, security, compile)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.claude/projects/-Users-devs-Downloads-Apollo/3780ce70-8757-463e-8da8-0b8ebc50a437.jsonl
+
+---
+
+<task-notification>
+<task-id>a645061</task-id>
+<status>completed</status>
+<summary>Agent "Explore existing codebase patterns" completed</summary>
+<result>Perfect! Now let me compile a comprehensive summary of all the key patterns and files for Sprint 2 implementation.
+
+## Apollo Codebase Exploration - Complete Pattern Reference
+
+Based on my thorough exploration of the Apollo codebase, here's the comprehensive understanding of existing patterns for Sprint 2 implementation:
+
+---
+
+### 1. API ROUTE PATTERNS
+
+**Standard pattern location**: `/Users/devs/Downloads/Apollo/apps/web/app/api/`
+
+**Example: GET endpoint** (`/api/projects/route.ts` and `/api/projects/[id]/route.ts`):
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/api/auth";
+import { unauthorised, notFound, internalError } from "@/lib/api/errors";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authResult = await getAuthenticatedUser();
+  if (!authResult) return unauthorised();
+  
+  const { id } = await params;
+  const supabase = await createServerSupabaseClient();
+  
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", id)
+    .single();
+  
+  if (error || !project) {
+    return notFound("Project not found");
+  }
+  
+  return NextResponse.json({ data: project });
+}
+```
+
+**Standard pattern for POST** (create/update):
+- Validate with Zod schema via `.safeParse()`
+- Return validation errors with `validationError()` including field-level details
+- Check auth first, then validate input, then execute database operation
+- Return 201 for successful creates, 200 for updates
+
+**Standard pattern for DELETE**:
+- Don't physically delete; update `status` to "archived"
+- Return the updated resource
+
+**Existing endpoints**:
+- `GET /api/projects` — list all user projects
+- `POST /api/projects` — create new project (title, university_type required)
+- `GET /api/projects/[id]` — fetch one project
+- `PATCH /api/projects/[id]` — update project metadata
+- `DELETE /api/projects/[id]` — archive project
+- `GET /api/licenses` — list user's licenses
+- `POST /api/licenses/[lid]/attach/[pid]` — attach license to project (transitions sandbox→licensed)
+- `POST /api/upload/signed-url` — get R2 signed upload URL
+
+---
+
+### 2. AUTH PATTERN
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/api/auth.ts`
+
+```typescript
+import { auth } from "@clerk/nextjs/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import type { User } from "@/lib/types/database";
+
+export async function getAuthenticatedUser(): Promise<{
+  user: User;
+  clerkUserId: string;
+} | null> {
+  const { userId } = await auth();
+  if (!userId) return null;
+
+  const supabase = createAdminSupabaseClient();
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("clerk_user_id", userId)
+    .single();
+
+  if (error || !user) return null;
+
+  return { user: user as User, clerkUserId: userId };
+}
+```
+
+**Usage**: Call in every API route as first check. Uses Clerk for sign-in/sign-up flow, with user profile synced to Supabase via Clerk webhook.
+
+---
+
+### 3. ERROR RESPONSE BUILDERS
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/api/errors.ts`
+
+All return standardized error envelopes:
+```typescript
+{
+  error: {
+    code: string,
+    message: string,
+    details?: Record<string, unknown>
+  }
+}
+```
+
+**Available helpers** (all return NextResponse):
+- `unauthorised(message?)` → 401
+- `forbidden(message?)` → 403
+- `notFound(message?)` → 404
+- `licenceRequired(message?)` → 402
+- `validationError(message, details?)` → 400
+- `conflict(message)` → 409
+- `rateLimited(retryAfterSeconds)` → 429
+- `badRequest(message)` → 400
+- `internalError(message?)` → 500
+
+**Error codes** (in `lib/types/api.ts`):
+- UNAUTHORISED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, LICENCE_REQUIRED, RATE_LIMITED, CONFLICT, PAYMENT_REQUIRED, INTERNAL_ERROR, BAD_REQUEST, SERVICE_UNAVAILABLE
+
+---
+
+### 4. DATABASE TYPES
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/types/database.ts`
+
+**Core types**:
+- `Organisation` — university type, CLS config, logo URLs
+- `User` — clerk_user_id, email, name, role ("student"|"supervisor"|"admin"), organisation_id
+- `ThesisLicence` — plan_type, status, identity hashes, activation dates
+- `Project` — user_id, status ("sandbox"|"licensed"|"completed"|"archived"), license_id, title, synopsis_text, study_type, university_type, metadata_json, current_phase, phases_completed[]
+- `Section` — project_id, phase_number, phase_name, latex_content, word_count, citation_keys[], status, ai_conversation_id
+- `Citation` — project_id, cite_key, bibtex_entry, provenance_tier ("A"|"B"|"C"|"D"), evidence_type, source_doi, source_pmid, serial_number
+- `Dataset` — project_id, file_url, row_count, columns_json
+- `Analysis` — project_id, dataset_id, analysis_type, parameters_json, results_json, figures_urls, r_script, status
+- `Figure` — project_id, section_id, figure_type, source_tool ("ggplot2"|"mermaid"|"tikz"|"upload"), caption, label, width_pct, dpi, format
+- `ComplianceCheck` — project_id, guideline_type ("CONSORT"|"STROBE"|"PRISMA"|"STARD"|"CARE"), checklist_json
+- `Compilation` — project_id, status, pdf_url, log_text, warnings, errors, compile_time_ms
+- `AiConversation` — project_id, phase_number, messages_json, model_used, total_tokens
+- `AuditLog` — user_id, project_id, action, entity_type, entity_id, old_value_json, new_value_json, ip_address
+
+**ProjectMetadata** (JSON field):
+```typescript
+{
+  candidate_name?: string;
+  guide_name?: string;
+  hod_name?: string;
+  department?: string;
+  degree?: string;
+  speciality?: string;
+  registration_no?: string;
+  session?: string;
+  year?: string;
+  supervisor_user_id?: string;
+}
+```
+
+---
+
+### 5. VALIDATION SCHEMAS
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/validation/schemas.ts`
+
+```typescript
+export const projectCreateSchema = z.object({
+  title: z.string().min(1, "Title is required").max(500),
+  university_type: z.enum(["wbuhs", "ssuhs", "generic"]),
+});
+
+export const projectMetadataSchema = z.object({
+  candidate_name: z.string().max(200).optional(),
+  guide_name: z.string().max(200).optional(),
+  hod_name: z.string().max(200).optional(),
+  department: z.string().max(200).optional(),
+  degree: z.string().max(100).optional(),
+  speciality: z.string().max(200).optional(),
+  registration_no: z.string().max(50).optional(),
+  session: z.string().max(50).optional(),
+  year: z.string().max(10).optional(),
+});
+
+export const projectUpdateSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  synopsis_text: z.string().optional(),
+  study_type: z.string().max(100).optional(),
+  university_type: z.enum(["wbuhs", "ssuhs", "generic"]).optional(),
+  metadata_json: projectMetadataSchema.optional(),
+});
+```
+
+**Pattern**: Use `safeParse()` in API routes, return validation errors with Zod's `flatten().fieldErrors`.
+
+---
+
+### 6. SUPABASE CLIENT SETUP
+
+**Client-side** (`lib/supabase/client.ts`):
+```typescript
+import { createClient } from "@supabase/supabase-js";
+import { useSession } from "@clerk/nextjs";
+
+let clientInstance: ReturnType<typeof createClient> | null = null;
+
+export function useSupabaseClient() {
+  const { session } = useSession();
+  if (!clientInstance) {
+    clientInstance = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { async accessToken() { return (await session?.getToken()) ?? null; } }
+    );
+  }
+  return clientInstance;
+}
+```
+
+**Server-side** (`lib/supabase/server.ts`):
+```typescript
+import { createClient } from "@supabase/supabase-js";
+import { auth } from "@clerk/nextjs/server";
+
+export async function createServerSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  
+  if (!supabaseUrl || !supabaseKey) {
+    // Return dummy client for non-configured environments
+    return { ... } as unknown as ReturnType<typeof createClient>;
+  }
+
+  return createClient(supabaseUrl, supabaseKey, {
+    async accessToken() {
+      return (await auth()).getToken() ?? null;
+    },
+  });
+}
+```
+
+**Admin** (`lib/supabase/admin.ts`):
+```typescript
+export function createAdminSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
+```
+
+**Pattern**: Use server client in API routes, admin in webhooks/crons. Never use admin in client code.
+
+---
+
+### 7. PROJECT PAGE EXAMPLE
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/app/(dashboard)/projects/[id]/page.tsx`
+
+```typescript
+export const dynamic = "force-dynamic";
+
+export default async function ProjectDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) {
+    notFound();
+  }
+
+  const project = data as Project;
+  const metadata = project.metadata_json ?? {};
+  
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{project.title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={projectStatusClasses(project.status)}>
+              {project.status}
+            </span>
+            <span>Phase {project.current_phase}</span>
+            <span>Updated {relativeTime(project.updated_at)}</span>
+          </div>
+        </div>
+        {project.current_phase === 0 && (
+          <Link href={`/projects/${project.id}/setup`} className="...">
+            Continue Setup
+          </Link>
+        )}
+      </div>
+      
+      {/* Show metadata if available */}
+      {/* Show editor placeholder */}
+    </div>
+  );
+}
+```
+
+**Patterns**:
+- Server component by default (no "use client")
+- Use `params: Promise<{ id: string }>` (Next.js 15 pattern)
+- Set `export const dynamic = "force-dynamic"` for dynamic pages
+- Call `notFound()` on missing resource
+- Type cast data as `Project` after type guard
+
+---
+
+### 8. LATEX TEMPLATES
+
+**File**: `/Users/devs/Downloads/Apollo/templates/main.tex`
+
+**Structure**:
+- Metadata section (thesis title, candidate name, guide, HOD, department, etc.)
+- Front matter: title page, declaration, certificates, acknowledgements, TOC, abstract
+- Main matter: Chapters 1-7 (Introduction, Aims, Review of Literature, Materials & Methods, Results, Discussion, Conclusion)
+- Appendices: IEC approval, plagiarism, consent form, proforma, master chart
+- Bibliography: Vancouver style
+
+**University-specific classes**:
+- `sskm-thesis.cls` (WBUHS, Kolkata) — uses `\directorname` for institution head, bottom-centre page numbers
+- `ssuhs-thesis.cls` (SSUHS, Assam) — uses `\principalname`, bottom-right page numbers with dept footer
+
+**Harmonised 50+ command API**:
+- Metadata: `\thesistitle{}`, `\candidatename{}`, `\supervisorname{}`, `\hodname{}`, `\directorname{}` (SSKM) or `\principalname{}` (SSUHS)
+- Front matter: `\maketitlepage`, `\makedeclaration`, `\makeguidecertificate`, `\makehodcertificate`, `\makeinstitutionheadcertificate`
+- Main: `\chapter{...}` with LaTeX content
+- Back: `\bibliography{references}`
+
+**Critical lesson**: Use `\renewcommand{\variablenametext}{#1}` NOT `\def\@variable` (causes certificate truncation).
+
+---
+
+### 9. PACKAGE.JSON SCRIPTS AND DEPENDENCIES
+
+**Key scripts** (in `/Users/devs/Downloads/Apollo/apps/web/package.json`):
+```json
+{
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:security": "vitest run --config vitest.config.security.ts",
+    "test:rls": "vitest run --config vitest.config.security.ts tests/security/rls.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  }
+}
+```
+
+**Key dependencies**:
+- Next.js 15, React 19, TypeScript
+- @clerk/nextjs (auth)
+- @supabase/supabase-js (database)
+- Tailwind CSS + shadcn/ui components
+- React Hook Form + Zod (forms)
+- @aws-sdk/client-s3 + presigner (R2)
+- sonner (toast notifications)
+
+**Package manager**: pnpm (NOT npm, NOT yarn)
+
+---
+
+### 10. TEST PATTERNS
+
+**Test configuration** (`vitest.config.ts`):
+```typescript
+export default defineConfig({
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./tests/setup.ts"],
+    include: ["**/*.test.ts", "**/*.test.tsx"],
+    exclude: ["**/node_modules/**", "**/tests/security/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      thresholds: { statements: 60, branches: 60, functions: 60, lines: 60 },
+    },
+  },
+  resolve: { alias: { "@": path.resolve(__dirname, ".") } },
+});
+```
+
+**Unit test example** (`tests/example.test.ts`):
+```typescript
+import { describe, it, expect } from "vitest";
+
+describe("Apollo Web", () => {
+  it("should pass a smoke test", () => {
+    expect(true).toBe(true);
+  });
+  
+  it("should have required environment variables defined", () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    expect(typeof url).toBe("string");
+  });
+});
+```
+
+**RLS test pattern** (`tests/security/rls.test.ts`):
+- Uses admin Supabase client (service role key) to set up test data
+- Tests access control between users
+- Skips if SUPABASE_URL or SERVICE_ROLE_KEY not set
+- Runs against real Supabase instance (not mocked)
+
+**Auth test pattern** (`tests/security/auth.test.ts`):
+- Requires running dev server (BASE_URL env var)
+- Tests that unauthenticated requests return 401
+- Tests that webhook endpoint (Clerk) does not require auth
+
+---
+
+### 11. ENVIRONMENT VARIABLES
+
+**File**: `/Users/devs/Downloads/Apollo/.env.example`
+
+```bash
+# Clerk Auth
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
+CLERK_SECRET_KEY=sk_test_xxx
+CLERK_WEBHOOK_SECRET=whsec_xxx
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+REDACTED
+REDACTED
+
+# Cloudflare R2
+R2_ACCOUNT_ID=your-account-id
+R2_ACCESS_KEY_ID=your-access-key
+R2_SECRET_ACCESS_KEY=your-secret-key
+R2_BUCKET_NAME=apollo-files
+
+# Claude API
+REDACTED
+
+# Payments (Sprint 9-10)
+# RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, STRIPE_SECRET_KEY, etc.
+
+# Email (Sprint 9-10)
+# RESEND_API_KEY
+
+# Monitoring
+# NEXT_PUBLIC_SENTRY_DSN, NEXT_PUBLIC_POSTHOG_KEY
+```
+
+**For development**: Copy `.env.example` → `.env.local` (git-ignored), fill in real values. Never commit `.env.local`.
+
+---
+
+### 12. CI WORKFLOW
+
+**File**: `/Users/devs/Downloads/Apollo/.github/workflows/ci.yml`
+
+**Pipeline**:
+1. Lint & Type Check (ESLint, TypeScript)
+2. Unit Tests (Vitest with Supabase credentials)
+3. Security Tests (RLS + auth tests, if BASE_URL set)
+4. (Commented out) LaTeX compile test, E2E tests (for future sprints)
+
+**Requirements**:
+- All tests must pass before merge to main
+- CI runs on every PR and push to main
+- Secrets (SUPABASE_URL, SUPABASE_ANON_KEY, etc.) via GitHub Actions secrets
+
+---
+
+### 13. COMPONENTS ARCHITECTURE
+
+**Directory**: `/Users/devs/Downloads/Apollo/apps/web/components/`
+
+**Existing components**:
+- `wizard/setup-wizard.tsx` — multi-step form for project setup
+- `wizard/steps/*` — university, synopsis, metadata, title page preview
+- `upload/file-uploader.tsx` — CSV/Excel/PDF upload
+- `preview/title-page-preview.tsx` — HTML preview of title page
+- `licences/attach-dialog.tsx` — dialog to attach license to project
+- `layout/app-sidebar.tsx`, `dashboard-header.tsx` — dashboard layout
+- `ui/*` — shadcn/ui components (button, input, accordion, etc.)
+
+**Pattern**: Colocate components near usage. Only move to `components/` when shared across 3+ files.
+
+---
+
+### 14. AGENT GUIDANCE FILES
+
+All files in `/Users/devs/Downloads/Apollo/agent-guidance/`:
+
+**rules.md** — Non-negotiable rules:
+1. Read before writing
+2. Plan file is source of truth
+3. No secrets in code
+4. British English everywhere
+5. No over-engineering
+6. Security by default
+7. Code review checklist before every commit
+
+**code-standards.md** — TypeScript, React, API, testing standards:
+- Strict mode: no `any` types
+- Server Components by default
+- Tailwind CSS only, no inline styles
+- API routes: follow standard pattern with error schema
+- RLS does tenant isolation (no `WHERE user_id = ...` needed)
+- Vitest for unit tests, colocate test files
+
+**workflow.md** — Sprint cycle, branching, deployment:
+- Branch naming: `sprint-N/short-description`
+- Commit messages: imperative, reference sprint
+- Test commands: `pnpm test`, `pnpm test:security`, etc.
+- Deployment: git push → Coolify webhook → Docker build
+
+**lessons.md** — Known issues and patterns:
+- LaTeX: DOI underscores crash vancouver.bst (strip or escape)
+- LaTeX: Use `\renewcommand{\variablenametext}{}` not `\def\@variable` (scoping bug)
+- Citation: Bidirectional integrity (every cite key has bib entry, every bib entry cited)
+- Synopsis: Single source of truth for entire downstream pipeline
+- Docker: Isolation essential (no network, read-only FS except /tmp, memory/timeout limits)
+
+---
+
+### 15. DATABASE SCHEMA PATTERNS (from PLAN.md)
+
+**Multi-tenancy**:
+- `organisations` — university type, CLS config, logos
+- `users` — clerk_user_id foreign key, role, organisation_id
+
+**Thesis lifecycle**:
+- `projects`: status "sandbox" (no license) → "licensed" (license attached) → "completed" → "archived"
+- `thesis_licenses`: status "available" → "active" → "expired" | "transferred"
+  - Phase 1→2 requires license; sets `identity_locked_at` (prevents metadata changes)
+  - Identity fields: `candidate_name_hash`, `registration_no_hash`, `guide_name_hash` (SHA-256)
+
+**Phased content**:
+- `sections`: one per phase, stores LaTeX content + word count + citation keys
+- `ai_conversations`: tracks Claude messages per phase (for context + cost tracking)
+
+**Citation tiers**:
+- Tier A: DOI/PMID auto-resolved, `verified_at` set, `attested_by_user_id` null
+- Tier B: ISBN/URL, student confirms (`attested_by_user_id` + `attested_at` set)
+- Tier C: manual, student provides
+- Tier D: unresolvable, blocks Final QC only
+
+**File storage**:
+- `datasets`: CSV/Excel uploads to R2, tracked in DB
+- `figures`: ggplot2/mermaid/tikz output stored as PNG/PDF in R2
+- `compilations`: PDF outputs + LaTeX logs in R2
+
+---
+
+### KEY ARCHITECTURAL INSIGHTS FOR SPRINT 2
+
+1. **Auth flow**: Clerk (frontend sign-in) → Supabase webhook syncs user to DB → Clerk JWT used for Supabase RLS
+2. **Error handling**: All API routes return standardized `{ error: { code, message, details } }` envelope
+3. **Tenant isolation**: RLS policies on every table (not handled by application code)
+4. **Validation**: Zod schemas in `lib/validation/`, API routes use `.safeParse()` with field-level error flattening
+5. **File storage**: R2 via AWS SDK, signed URLs generated server-side (5-min write, 15-min read)
+6. **UI**: Tailwind + shadcn/ui components, server components by default
+7. **Testing**: Vitest for unit tests (colocated), separate security test config for RLS/auth tests
+8. **LaTeX**: Two CLS files with harmonised 50+ command API — switch via `\documentclass` only
+9. **Deployment**: Single Hetzner VPS (CX23, ~$4/mo) with docker-compose, Coolify for git-push deploys
+
+This comprehensive reference should enable efficient implementation of Sprint 2 features while adhering to all established patterns and security best practices.</result>
+<usage>total_tokens: 78888
+tool_uses: 61
+duration_ms: 92454</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a645061.output
+
+---
+
+do all tests
+
+---
+
+do a gap analysis with the PLAN for any pending features?
+
+---
+
+lets check this locallly
+
+---
+
+<task-notification>
+<task-id>b8f80c8</task-id>
+<output-file>REDACTED.output</output-file>
+<status>completed</status>
+<summary>Background command "Start Next.js dev server in background" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+so I can commit this
+
+---
+
+push it
+
+---
+
+check the CI
+
+---
+
+create a PR
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. User provided a detailed Sprint 2 implementation plan with 8 work packages (WP1-WP8) for the Apollo thesis generation platform.
+
+2. I explored the codebase extensively to understand existing patterns:
+   - Read API routes, auth, errors, types, validation schemas
+   - Read templates (main.tex, CLS files)
+   - Read existing tests, CI config, middleware
+   - Read component patterns (button, etc.)
+
+3. Created task tracking (8 tasks with dependencies)
+
+4. Implemented WP1 (AI Client Foundation):
+   - Created lib/ai/client.ts, redact.ts, rate-limit.ts, prompts.ts
+   - Created tests for redact and rate-limit
+   - Installed @anthropic-ai/sdk
+   - Fixed test: phone regex consumed +91 prefix, updated test expectation
+
+5. Implemented WP2 (Sections API) and WP4 (Docker LaTeX) in parallel:
+   - Created phases/constants.ts, transitions.ts + test
+   - Created section-schemas.ts
+   - Created API routes for sections CRUD + approve
+   - Created Docker files (Dockerfile.latex, compile.sh, watermark.sh, docker-compose.yml)
+
+6. Implemented WP3 (AI Synopsis Parsing) and WP5 (Compile API) in parallel:
+   - Created parse-synopsis-response.ts
+   - Created generate route with SSE streaming
+   - Created escape.ts + test, generate-tex.ts + test, compile.ts, parse-log.ts + test
+   - Created compile and preview.pdf API routes
+   - Fixed escape test: backslash replacement caused double-escaping of braces, rewrote to single-pass replacement
+
+7. Implemented WP6 (Front Matter) and WP7 (Phase UI):
+   - Created front-matter.ts + test
+   - Created all UI components (phase-stepper, section-viewer, compile-button, licence-banner, ai-generate-button)
+   - Created use-sse.ts hook
+   - Updated project detail page with new workspace component
+
+8. Implemented WP8 (Tests, CI, Cleanup):
+   - Created compile.test.ts
+   - Updated CI to uncomment compile-test job
+   - Added test:compile script to package.json
+   - Created .env.example
+   - Updated lessons.md
+
+9. Fixed lint warnings:
+   - Removed unused `start` variable in compile.ts
+   - Changed `_data: SSEMessage` to `()` in project-workspace.tsx callback
+   - Removed unused SSEMessage import
+
+10. User asked "do all tests" - ran all test suites (70 tests passing, lint clean, type-check clean)
+
+11. User asked for gap analysis - spawned explorer agent that found 3 gaps:
+    - Phase 0→1 approval creates empty section (generateFrontMatterLatex not called) - FIXED
+    - docker-compose.yml references non-existent Dockerfile.web - FIXED
+    - Phase 2+ AI generation not implemented (expected for Sprint 3+)
+
+12. User asked "lets check this locally":
+    - Ran pnpm build (success, all routes registered)
+    - Started dev server (port 3003)
+    - Tested homepage (200), sign-in (200), sign-up (200)
+    - Protected routes correctly blocked (404 from Clerk)
+    - Zero compilation errors in dev server logs
+    - Stopped dev server
+
+13. User asked to commit - staged 45 files, committed as 916e104
+
+14. User asked to push - pushed to origin/thesis-gen-saas
+
+15. User asked to check CI - CI only triggers on main/PR to main, not on feature branch pushes
+
+16. User asked to create a PR - I checked commits and diff stats, was about to create the PR
+
+The most recent state: I was about to create a PR with `gh pr create` when the summary was requested.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to implement a comprehensive Sprint 2 plan for the Apollo AI-powered thesis generation platform. The plan contained 8 work packages (WP1-WP8) covering: AI client foundation, sections API with phase transitions, AI synopsis parsing with SSE streaming, Docker LaTeX compilation service, compile API endpoint, front matter generation, phase navigation UI, and tests/CI cleanup. After implementation, the user sequentially asked to: run all tests, do a gap analysis, check locally, commit, push, check CI, and create a PR to main.
+
+2. Key Technical Concepts:
+   - Next.js 15 App Router with TypeScript strict mode
+   - Clerk authentication (not Supabase Auth) with middleware route protection
+   - Supabase PostgreSQL with RLS, admin client for API routes
+   - Anthropic SDK (`@anthropic-ai/sdk` v0.74.0) for Claude Sonnet 4.5 integration
+   - Server-Sent Events (SSE) streaming pattern with ReadableStream
+   - PII redaction (Aadhaar, PAN, email, Indian phone numbers) before AI calls
+   - In-memory rate limiting (10 requests/hour/user, sliding window)
+   - 12-phase GOLD Standard thesis pipeline with licence gates
+   - LaTeX compilation with 3 modes: docker, local, mock
+   - Docker container isolation (--network=none, --read-only, --tmpfs, --memory=1g)
+   - Ghostscript watermarking for sandbox PDFs
+   - LaTeX special character escaping (security against LaTeX injection)
+   - Zod validation schemas with safeParse and field-level error flattening
+   - Phase transitions: Phase 0→1 allowed in sandbox, Phase 1→2+ requires licence
+   - Vitest for unit testing with jsdom environment
+   - CI pipeline: lint → type-check → unit tests → security tests → compile tests
+
+3. Files and Code Sections:
+
+   **WP1 - AI Client Foundation:**
+   
+   - `apps/web/lib/ai/client.ts` - Anthropic SDK singleton
+     ```typescript
+     import Anthropic from "@anthropic-ai/sdk";
+     let _client: Anthropic | null = null;
+     export function getAnthropicClient(): Anthropic {
+       if (!_client) {
+         const apiKey = process.env.ANTHROPIC_API_KEY;
+         if (!apiKey) throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+         _client = new Anthropic({ apiKey });
+       }
+       return _client;
+     }
+     ```
+
+   - `apps/web/lib/ai/redact.ts` - PII redaction with 4 patterns (Aadhaar, PAN, email, phone)
+     - Order matters: Aadhaar regex before phone regex (both match digit sequences)
+     - Returns `{ redacted: string, redactedCount: number }`
+
+   - `apps/web/lib/ai/rate-limit.ts` - In-memory sliding window rate limiter
+     - 10 requests per hour per user, exports `checkRateLimit()`, `resetRateLimit()`, `clearAllRateLimits()`
+
+   - `apps/web/lib/ai/prompts.ts` - System prompts for synopsis parsing and front matter
+     - Exports `SYNOPSIS_PARSE_SYSTEM_PROMPT`, `FRONT_MATTER_SYSTEM_PROMPT`, `SynopsisParseResult` interface
+
+   - `apps/web/lib/ai/parse-synopsis-response.ts` - Extracts structured JSON from Claude output
+     - Handles markdown code fences, type-safe extraction with null defaults
+
+   - `apps/web/lib/ai/redact.test.ts` - 8 tests for PII redaction
+   - `apps/web/lib/ai/rate-limit.test.ts` - 6 tests for rate limiting
+
+   **WP2 - Sections API:**
+
+   - `apps/web/lib/phases/constants.ts` - 12-phase GOLD Standard pipeline
+     ```typescript
+     export interface PhaseDefinition {
+       number: number; name: string; label: string; requiresLicence: boolean;
+     }
+     export const PHASES: PhaseDefinition[] = [
+       { number: 0, name: "orientation", label: "Orientation", requiresLicence: false },
+       { number: 1, name: "front_matter", label: "Front Matter", requiresLicence: false },
+       // Phases 2-11 all have requiresLicence: true
+     ];
+     export const PHASE_MAP = new Map(PHASES.map((p) => [p.number, p]));
+     ```
+
+   - `apps/web/lib/phases/transitions.ts` - Phase advancement logic
+     - `canAdvancePhase(project, currentSectionStatus)` returns `{ allowed, reason?, code? }`
+     - Codes: `LICENCE_REQUIRED`, `INVALID_TRANSITION`, `SECTION_NOT_APPROVED`
+
+   - `apps/web/lib/validation/section-schemas.ts` - Zod schemas for section operations
+
+   - `apps/web/app/api/projects/[id]/sections/route.ts` - GET list sections
+   - `apps/web/app/api/projects/[id]/sections/[phase]/route.ts` - GET/PUT single section with word counting
+   - `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts` - POST approve with phase transition
+     - Key: On Phase 0 approval, auto-creates Phase 1 with `generateFrontMatterLatex()` content and status "review"
+
+   - `apps/web/lib/phases/transitions.test.ts` - 11 tests
+
+   **WP3 - AI Synopsis Parsing:**
+
+   - `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - SSE streaming endpoint
+     - Flow: auth → rate limit → PII redact → Claude stream → parse → update project metadata + section
+     - Uses `claude-sonnet-4-5-20250514` model
+     - SSE format: `data: ${JSON.stringify(payload)}\n\n`, terminal: `data: [DONE]\n\n`
+     - Resets section to "draft" on error
+
+   **WP4 - Docker LaTeX Service:**
+
+   - `docker/Dockerfile.latex` - TeX Live 2025 minimal + 40+ packages + Ghostscript
+   - `docker/compile.sh` - 4-pass compilation (pdflatex → bibtex → pdflatex × 2), 120s timeout
+   - `docker/watermark.sh` - Ghostscript "DRAFT - SANDBOX" watermark at 45° angle
+   - `docker/docker-compose.yml` - Only latex service (web runs on host via pnpm dev)
+
+   **WP5 - Compile API:**
+
+   - `apps/web/lib/latex/escape.ts` - Single-pass LaTeX special char escaping
+     ```typescript
+     const ALL_SPECIAL_REGEX = /[\\&%$#_{}~^]/g;
+     export function escapeLatex(text: string): string {
+       return text.replace(ALL_SPECIAL_REGEX, (char) => LATEX_SPECIAL_CHARS[char] ?? char);
+     }
+     ```
+
+   - `apps/web/lib/latex/generate-tex.ts` - Populates main.tex template with project metadata
+     - Maps 10 fields (thesistitle, candidatename, registrationno, etc.)
+     - Switches documentclass between sskm-thesis and ssuhs-thesis based on university_type
+
+   - `apps/web/lib/latex/compile.ts` - Docker/local/mock compilation wrapper
+     - `LATEX_COMPILE_MODE` env var controls mode, default "mock"
+     - Returns `CompileResult { success, pdfPath, log: ParsedLog, rawLog, compileTimeMs }`
+
+   - `apps/web/lib/latex/parse-log.ts` - Extracts errors/warnings from LaTeX .log files
+     - 6 blocking error patterns, 6 warning patterns, deduplication
+
+   - `apps/web/app/api/projects/[id]/compile/route.ts` - POST compilation trigger
+   - `apps/web/app/api/projects/[id]/preview.pdf/route.ts` - GET latest PDF URL
+
+   - Tests: escape.test.ts (14), generate-tex.test.ts (5), parse-log.test.ts (11)
+
+   **WP6 - Front Matter:**
+
+   - `apps/web/lib/latex/front-matter.ts` - Two functions:
+     - `generateFrontMatterLatex(project)` - Generates metadata LaTeX commands
+     - `generateAcknowledgements(meta)` - Standard acknowledgement order (guide → HOD → colleagues → patients → family)
+   - `apps/web/lib/latex/front-matter.test.ts` - 6 tests
+
+   **WP7 - Phase Navigation UI:**
+
+   - `apps/web/hooks/use-sse.ts` - Reusable SSE streaming hook with start/stop/isStreaming/streamedText/error
+   - `apps/web/components/project/phase-stepper.tsx` - 12-phase visual stepper with completed/current/locked states
+   - `apps/web/components/project/section-viewer.tsx` - Section content display with status badges
+   - `apps/web/components/project/compile-button.tsx` - Compilation trigger with result display
+   - `apps/web/components/project/licence-banner.tsx` - "Attach licence to continue" prompt
+   - `apps/web/components/project/ai-generate-button.tsx` - AI generation with SSE streaming display
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - Client workspace combining all components
+   - `apps/web/app/(dashboard)/projects/[id]/page.tsx` - Modified: replaced "Section editor coming in Sprint 3-4" placeholder with full phase navigation workspace
+
+   **WP8 - Tests, CI, Cleanup:**
+
+   - `apps/web/tests/compile.test.ts` - 7 tests for both CLS files
+   - `.github/workflows/ci.yml` - Modified: uncommented compile-test job, uses pnpm test:compile
+   - `apps/web/package.json` - Added `"test:compile"` script and `@anthropic-ai/sdk` dependency
+   - `apps/web/.env.example` - New file with all required env vars
+   - `.env.example` - Added LATEX_COMPILE_MODE and LATEX_CONTAINER_NAME
+   - `agent-guidance/lessons.md` - Added Sprint 2 learnings (Clerk auth, SSE pattern, compile modes, PII redaction, phase transitions)
+
+4. Errors and Fixes:
+   - **Phone regex test failure**: Test expected `"+91 [PHONE_REDACTED]"` but regex consumed the `+91` prefix. Fixed by updating test expectation to `"[PHONE_REDACTED]"` since `+91` is part of the phone pattern match.
+   - **LaTeX backslash escaping double-escape**: `escapeLatex("path\\to")` produced `"path\textbackslash\{\}to"` because the `{}` in `\textbackslash{}` got re-escaped by the braces pattern. Fixed by rewriting to single-pass replacement using one regex `ALL_SPECIAL_REGEX = /[\\&%$#_{}~^]/g` instead of two-step (backslash first, then others).
+   - **Lint warning - unused variable**: `const start = Date.now()` in compile.ts was unused (only used inside mode branches). Fixed by removing it from the top-level function.
+   - **Lint warning - unused parameter**: `_data: SSEMessage` in project-workspace.tsx callback. Fixed by changing to `()` and removing the `SSEMessage` import.
+   - **Gap: Phase 0→1 empty section**: `generateFrontMatterLatex()` existed but wasn't called in the approve handler. Fixed by importing and calling it in the approve route, setting Phase 1 content and status to "review".
+   - **Gap: docker-compose.yml phantom Dockerfile.web**: Referenced non-existent `Dockerfile.web`. Fixed by removing the web service entirely, keeping only the latex service with a comment to use `pnpm dev` on the host.
+
+5. Problem Solving:
+   - Resolved all 70 unit tests passing across 9 test files
+   - Achieved zero lint warnings and zero type-check errors
+   - Build succeeds with all Sprint 2 routes registered
+   - Dev server starts cleanly with zero compilation errors
+   - All protected routes correctly blocked by Clerk middleware for unauthenticated requests
+   - CI only triggers on main/PR-to-main (by design in workflow config)
+
+6. All User Messages:
+   - "Implement the following plan: [Sprint 2 Implementation Plan with 8 WPs]"
+   - "do all tests"
+   - "do a gap analysis with the PLAN for any pending features?"
+   - "lets check this locally"
+   - "so I can commit this"
+   - "push it"
+   - "check the CI"
+   - "create a PR"
+
+7. Pending Tasks:
+   - Create a PR from `thesis-gen-saas` to `main` using `gh pr create`
+
+8. Current Work:
+   The user asked "create a PR". I had already checked the commits (`git log main..HEAD --oneline` showing 1 commit: `916e104`) and the diff stats (`git diff main...HEAD --stat` showing 45 files, +3340/-63 lines). I was about to run `gh pr create` when the summary was requested.
+
+9. Optional Next Step:
+   Create the PR using `gh pr create` targeting `main` from `thesis-gen-saas`. The user's last message was exactly: "create a PR". I had completed the prerequisite checks (commit log, diff stats) and was ready to execute the `gh pr create` command with a title like "Sprint 2: AI synopsis parsing, LaTeX compilation pipeline, phase navigation UI" and a body summarizing the 8 work packages.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+merge the PR
+
+---
+
+now lets start sprint 3
+
+---
+
+[Request interrupted by user for tool use]
