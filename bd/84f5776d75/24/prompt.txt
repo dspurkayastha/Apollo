@@ -255,3 +255,266 @@ I need you to create a file in /docs/ called Mitigation_implementation which wil
 ---
 
 CI failed
+
+---
+
+ok, now again align to Review, Decisions, Mitigation_plan files and lets start phase 3
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me go through the conversation chronologically:
+
+1. **First user message**: "Implement the following plan: Phase 2: Infrastructure Foundation — Implementation Plan" — A detailed 8-step plan covering singleton admin client, env validation, health check, stale compile recovery, Redis semaphore/rate-limiter, R2 storage, Inngest stale cleanup, and middleware coverage.
+
+2. **My implementation**: I read all relevant files, then implemented all 8 steps:
+   - Step 1: Singleton Supabase admin client
+   - Step 2: Env validation with Zod
+   - Step 3: Health check endpoint
+   - Step 4: Stale compilation recovery (5-min window)
+   - Step 5: Redis semaphore + rate limiter (with in-memory fallback)
+   - Step 6: R2 storage for PDFs and figures
+   - Step 7: Inngest stale cleanup cron
+   - Step 8: Middleware route coverage
+   
+   Tests: 343 passing, 0 TS errors, 0 new lint errors.
+
+3. **Second user message**: "now recheck the entire phase 2 changes against the review, Decisions and the mitigation plan, and apply your own logic. Think ultra hard, and make sure any mistakes werent made."
+
+4. **My audit**: I read all source documents (REVIEW.md, DECISIONS.md, Mitigation_plan.md) and cross-referenced against implementation. Found 4 bugs:
+   - Bug A (LOW): Semaphore TOCTOU race - documented with comment
+   - Bug B (MEDIUM): Rate limiter ZREMRANGEBYSCORE rollback could delete other users' entries - FIXED with ZREM
+   - Bug C (MEDIUM): Redis semaphore hash entries never GC'd - FIXED by adding sweep-redis-semaphore to stale-cleanup
+   - Bug D (HIGH): R2 figure key mismatch between upload and download paths - FIXED
+
+5. **Third user message**: "now recheck... create a file in /docs/ called Mitigation_implementation... Then commit and push the changes"
+
+6. **My action**: Created `docs/Mitigation_implementation.md` with Phase 1 and Phase 2 completion notes, committed and pushed.
+
+7. **Fourth user message**: "CI failed"
+
+8. **My fix**: CI failed because `next lint` loads `next.config.ts` → imports `lib/env.ts` → throws because CI has no env vars. Fixed by adding `process.env.CI` to the skip condition. Committed, pushed, CI passed.
+
+9. **Fifth user message**: "ok, now again align to Review, Decisions, Mitigation_plan files and lets start phase 3"
+
+10. **My action**: Launched two explore agents to:
+    - Read Phase 3 section from Mitigation_plan.md, pricing sections from DECISIONS.md, and payment/licence findings from REVIEW.md
+    - Explore the current codebase state of pricing, licensing, checkout, and payment systems
+
+Both agents returned comprehensive results. The conversation was then interrupted for this summary request.
+
+Key findings from the Phase 3 research:
+- Phase 3 has 8 items (3.1-3.8): new pricing structure, licence expiry enforcement, licence gates, plan-based features, atomic licence attachment, velocity rules, watermark system, free reset
+- Current code prices are drastically wrong vs DECISIONS.md (e.g., Student is ₹499 in code vs ₹14,999 in decisions)
+- No licence expiry enforcement exists
+- No licence gates on AI/compute routes
+- Professional plan has no feature differentiation from Student
+- Hidden addon at ₹299 exists
+- Monthly plans are one-time purchases (no subscriptions)
+- Non-atomic licence attachment
+- No velocity rules
+
+Current files discovered:
+- `lib/validation/payment-schemas.ts` — PLAN_PRICES config (wrong prices)
+- `app/api/checkout/route.ts` — checkout flow
+- `lib/payments/provision-licence.ts` — licence provisioning
+- `app/api/webhooks/razorpay/route.ts` and `stripe/route.ts` — webhook handlers
+- `app/api/licenses/route.ts`, `[lid]/attach/[pid]/route.ts`, `[lid]/transfer/route.ts` — licence routes
+- `lib/types/database.ts` — ThesisLicence type
+- `app/(dashboard)/checkout/page.tsx` — checkout UI
+- `components/landing/pricing-section.tsx` — landing page pricing (LOCKED)
+- `lib/phases/transitions.ts` — phase transition with licence checks
+
+The user's intent is clear: plan and implement Phase 3 of the mitigation plan.
+
+Summary:
+1. Primary Request and Intent:
+   The user requested implementation of the Apollo project's mitigation plan in phases. Phase 1 was already committed (`b852cec`). The conversation covered:
+   - **Implementing Phase 2** (8 infrastructure items): singleton admin client, env validation, health check, stale compile recovery, Redis semaphore/rate-limiter, R2 storage, Inngest stale cleanup cron, middleware coverage
+   - **Deep audit of Phase 2** against REVIEW.md, DECISIONS.md, and Mitigation_plan.md — finding and fixing 4 bugs
+   - **Creating `docs/Mitigation_implementation.md`** as an auditable traceability document covering Phase 1 and Phase 2 completion notes
+   - **Fixing CI failure** caused by env validation throwing in CI environment
+   - **Starting Phase 3**: "Pricing and Licence System Overhaul" — research phase completed, implementation not yet started
+
+2. Key Technical Concepts:
+   - **Upstash Redis** (`@upstash/redis`): Used for durable semaphore and rate limiter with in-memory fallback
+   - **Redis sorted sets**: Sliding window rate limiting with ZADD/ZREM/ZCARD
+   - **Redis HASH**: Semaphore active jobs tracked in `apollo:semaphore:active` with per-job TTL keys
+   - **TOCTOU race condition**: HGETALL + conditional HSET is not atomic; documented as acceptable for single-VPS
+   - **R2 storage**: `uploadToR2`/`downloadFromR2` for persistent PDF and figure storage via `@aws-sdk/client-s3`
+   - **Signed URL redirect**: `preview.pdf` route redirects to R2 signed URLs for R2-stored PDFs
+   - **Zod env validation**: Build-time validation imported in `next.config.ts`, skipped in test/CI
+   - **Inngest cron**: `*/5 * * * *` sweep for stale compilations (5min), analyses (10min), and orphaned Redis hash entries
+   - **Clerk middleware**: `createRouteMatcher` for protected route patterns
+   - **Atomic webhook idempotency**: `claimWebhookEvent()` runs BEFORE `provisionLicence()` to prevent duplicates
+   - **Phase 3 pricing system**: Razorpay (INR) + Stripe (USD), subscription API for monthly plans, licence expiry enforcement, plan-based feature differentiation
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/supabase/admin.ts`** — Singleton admin client (Step 1)
+     - Changed from per-call factory to module-level cached singleton
+     ```typescript
+     let adminClient: SupabaseClient | null = null;
+     export function createAdminSupabaseClient(): SupabaseClient {
+       if (!adminClient) {
+         adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { autoRefreshToken: false, persistSession: false } });
+       }
+       return adminClient;
+     }
+     ```
+
+   - **`apps/web/lib/env.ts`** — NEW: Zod env validation (Step 2)
+     - Required vars (fail-fast): SUPABASE, CLERK, ANTHROPIC, R2 vars
+     - Optional vars (warn): SENTRY, POSTHOG, INNGEST, RAZORPAY, STRIPE, PUBMED, CROSSREF, UPSTASH
+     - Skips in test (`NODE_ENV === "test"`) and CI (`process.env.CI`)
+     ```typescript
+     function validateEnv() {
+       if (process.env.NODE_ENV === "test" || process.env.CI) return;
+       const result = requiredSchema.safeParse(process.env);
+       if (!result.success) { throw new Error(`Missing or invalid environment variables:\n${missing}\n\n...`); }
+     }
+     validateEnv();
+     ```
+
+   - **`apps/web/next.config.ts`** — Added `import "./lib/env"` for build-time validation
+
+   - **`apps/web/.env.example`** — Added `R2_ACCOUNT_ID`, removed stale `R2_ENDPOINT`
+
+   - **`apps/web/app/api/health/route.ts`** — NEW: Health check endpoint (Step 3)
+     ```typescript
+     export async function GET() {
+       return NextResponse.json({ status: "ok", timestamp: new Date().toISOString(), version: process.env.npm_package_version ?? "0.1.0" });
+     }
+     ```
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** — Multiple changes (Steps 4, 5, 6)
+     - Stale compilation recovery: 5-min window, marks as failed
+     - `await tryAcquire()` / `await release()` for async Redis semaphore
+     - R2 figure download: `downloadFromR2(r2Key)` with local disk fallback
+     - R2 PDF upload after successful compile: `uploadToR2(r2Key, pdfBytes, "application/pdf")`
+     - **Bug D fix**: Figure R2 key changed from `fig.file_url.replace(/^figures\//, "")` to `fig.file_url.replace(\`figures/${id}/\`, "")` to avoid double project ID
+
+   - **`apps/web/lib/redis/client.ts`** — NEW: Redis client singleton (Step 5c)
+     ```typescript
+     export function getRedis(): Redis | null {
+       if (redis) return redis;
+       const url = process.env.UPSTASH_REDIS_REST_URL;
+       const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+       if (!url || !token) return null;
+       redis = new Redis({ url, token });
+       return redis;
+     }
+     ```
+
+   - **`apps/web/lib/compute/semaphore.ts`** — Full rewrite (Step 5d)
+     - Redis-backed with in-memory fallback; HASH `apollo:semaphore:active` + per-job TTL keys
+     - Queue elimination: returns `{acquired: false}` for callers to retry (fixes D7 no-op resolve bug)
+     - TOCTOU race documented in comment
+     - Public API returns `AcquireResult | Promise<AcquireResult>` union type
+
+   - **`apps/web/lib/ai/rate-limit.ts`** — Full rewrite (Step 5e)
+     - Redis sorted set `apollo:ratelimit:{userId}` with sliding window
+     - **Bug B fix**: Changed rollback from `ZREMRANGEBYSCORE(key, now, now+1)` to `ZREM(key, member)` to avoid deleting other users' entries with same timestamp
+     - In-memory fallback preserves original logic
+
+   - **Rate limiting added to 4 additional AI routes** (Step 5f):
+     - `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`
+     - `apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts`
+     - `apps/web/app/api/projects/[id]/datasets/generate/route.ts`
+     - `apps/web/app/api/synopsis/parse/route.ts`
+     - Pattern: `const rateCheck = await checkRateLimit(authResult.user.id); if (!rateCheck.allowed) return rateLimited(rateCheck.retryAfterSeconds);`
+
+   - **`apps/web/lib/r2/client.ts`** — Added `uploadToR2` and `downloadFromR2` (Step 6a)
+
+   - **`apps/web/app/api/projects/[id]/preview.pdf/route.ts`** — Rewritten (Step 6c)
+     - R2 path detection: `if (compilation.pdf_url.startsWith("projects/"))` → signed URL redirect
+     - Local disk fallback for dev/legacy
+
+   - **`apps/web/lib/r-plumber/analysis-runner.ts`** — Added R2 figure upload (Step 6d)
+     - Uploads to `projects/{projectId}/figures/{analysisId}/{filename}`
+     - Also writes to local disk as fallback
+
+   - **`apps/web/lib/inngest/functions/stale-cleanup.ts`** — NEW (Step 7)
+     - Cron `*/5 * * * *`: sweeps stale compilations (5min), analyses (10min)
+     - **Bug C fix**: Added `sweep-redis-semaphore` step that iterates Redis hash entries and removes any whose TTL key has expired
+
+   - **`apps/web/app/api/inngest/route.ts`** — Registered `staleCleanupFn`
+
+   - **`apps/web/middleware.ts`** — Added protected routes (Step 8)
+     ```typescript
+     "/api/checkout(.*)",
+     "/api/synopsis(.*)",
+     "/api/citations(.*)",
+     ```
+
+   - **`apps/web/lib/compute/semaphore.test.ts`** — Rewritten for async API (`await` all calls)
+   - **`apps/web/lib/ai/rate-limit.test.ts`** — Rewritten for async API
+   - **`apps/web/app/api/projects/[id]/analyses/route.ts`** — Updated `tryAcquire`/`release` to `await`
+   - **`apps/web/lib/inngest/functions/analysis-runner.ts`** — Updated `release` to `await`
+
+   - **`docs/Mitigation_implementation.md`** — NEW: Traceability doc with Phase 1 + Phase 2 completion notes, deviations, bugs found, lessons learned, review ID cross-reference
+
+   **Phase 3 research — files read (not yet modified):**
+   - `apps/web/lib/validation/payment-schemas.ts` — Current PLAN_PRICES (wrong: ₹499/₹999/₹299/₹1499)
+   - `apps/web/app/api/checkout/route.ts` — Checkout flow (INR→Razorpay, USD→Stripe)
+   - `apps/web/lib/payments/provision-licence.ts` — provisionLicence + claimWebhookEvent
+   - `apps/web/app/api/webhooks/razorpay/route.ts` — Razorpay webhook handler
+   - `apps/web/app/api/webhooks/stripe/route.ts` — Stripe webhook handler
+   - `apps/web/app/api/licenses/route.ts` — GET licences
+   - `apps/web/app/api/licenses/[lid]/attach/[pid]/route.ts` — Attach licence to project
+   - `apps/web/app/api/licenses/[lid]/transfer/route.ts` — Transfer licence
+   - `apps/web/lib/types/database.ts` — ThesisLicence type
+   - `apps/web/app/(dashboard)/checkout/page.tsx` — Checkout UI (LOCKED)
+   - `apps/web/components/landing/pricing-section.tsx` — Landing pricing (LOCKED)
+   - `apps/web/lib/phases/transitions.ts` — Phase transition licence checks
+
+4. Errors and Fixes:
+   - **TypeScript errors from union return types**: `tryAcquire()` and `checkRateLimit()` returning `T | Promise<T>` caused TS errors in tests and callers that accessed properties without awaiting. Fixed by adding `await` to all callers and making tests `async`.
+   - **Lint error `prefer-const`**: `let analysisQueue` in `memGetStatus()` never reassigned. Fixed by inlining `0` directly.
+   - **Bug D: R2 figure key mismatch (HIGH)**: Upload key `projects/P/figures/A/file` vs download key `projects/P/figures/P/A/file`. Fixed by changing download key construction to `fig.file_url.replace(\`figures/${id}/\`, "")`.
+   - **Bug B: Rate limiter rollback (MEDIUM)**: `ZREMRANGEBYSCORE(key, now, now+1)` could delete concurrent requests' entries with same timestamp. Fixed by using `ZREM(key, member)`.
+   - **Bug C: Redis hash orphan leak (MEDIUM)**: Hash entries persisted after TTL key expiry. Fixed by adding `sweep-redis-semaphore` step to stale-cleanup cron.
+   - **CI failure**: `next lint` loads `next.config.ts` → imports `lib/env.ts` → throws because CI has no env vars. `NODE_ENV` is not "test" in CI. Fixed by adding `process.env.CI` to skip condition.
+
+5. Problem Solving:
+   - **Semaphore queue elimination**: Original in-memory queues used `resolve()` callbacks (bug D7 — they were no-ops). Redis-backed queues would require complex LIST management. Solved by eliminating queues entirely — return `{acquired: false}` and let callers retry. This is the correct model for stateless HTTP.
+   - **R2 key convention**: Figure upload/download had inconsistent R2 key construction across files. The root cause was constructing keys independently in different files. Documented as a lesson: define R2 key conventions in one place.
+   - **Env validation in CI**: The eager `validateEnv()` call at module import time was too aggressive for CI where env vars don't exist. Solved by checking `process.env.CI` alongside `NODE_ENV === "test"`.
+
+6. All User Messages:
+   - "Implement the following plan: Phase 2: Infrastructure Foundation — Implementation Plan" (with full 8-step plan)
+   - "now recheck the entire phase 2 changes against the review, Decisions and the mitigation plan, and apply your own logic. Think ultra hard, and make sure any mistakes werent made. Do not take the mitigation plan as gospel, if any logical errors are there, think about them, and show me."
+   - "I need you to create a file in /docs/ called Mitigation_implementation which will note all phase completion notes and serve as future auditable and traceable doc and lessons. Fill it with Phase 1, and phase 2 completion notes. Then commit and push the changes"
+   - "CI failed"
+   - "ok, now again align to Review, Decisions, Mitigation_plan files and lets start phase 3"
+
+7. Pending Tasks:
+   - **Phase 3: Pricing and Licence System Overhaul** — Research complete, implementation not started. Requires entering plan mode to design implementation approach for 8 items (3.1–3.8).
+   - Note: Landing page and dashboard components are **LOCKED** — pricing-section.tsx and checkout/page.tsx require explicit user approval to modify.
+
+8. Current Work:
+   The user said: "ok, now again align to Review, Decisions, Mitigation_plan files and lets start phase 3". Two research agents were launched and completed:
+   - Agent 1 returned full text of Phase 3 from Mitigation_plan.md (items 3.1–3.8), DECISIONS.md sections 1.1–1.9, and REVIEW.md findings IV-B1 through IV-B12
+   - Agent 2 returned full current codebase state: all pricing configs, checkout route, webhook handlers, licence routes, types, UI components, and transition logic
+   
+   Key findings for Phase 3 planning:
+   - **Prices completely wrong**: Code has ₹499/₹999/₹299/₹1499 vs DECISIONS.md ₹14,999/₹39,999/₹3,999 and Stripe $179/$449/$65/$49
+   - **No licence expiry enforcement** (IV-B3): `expires_at` set but never checked
+   - **No licence gates on AI routes** (IV-B4): Generate/refine/compile/auto-detect ungated
+   - **No plan differentiation** (IV-B5): Professional === Student in features
+   - **Monthly plans are one-time** (IV-B7): No subscription API integration
+   - **Non-atomic licence attachment** (IV-B9): Two separate DB calls
+   - **No velocity rules** (I-9): Unlimited licence purchases
+   - **Checkout page and landing pricing are LOCKED** — need explicit approval to modify
+
+9. Optional Next Step:
+   Enter plan mode to design the Phase 3 implementation. The user's most recent request was: "ok, now again align to Review, Decisions, Mitigation_plan files and lets start phase 3". Research is complete; the next step is to create a detailed implementation plan for Phase 3's 8 items (3.1–3.8), considering which LOCKED files need modification approval, sequencing dependencies, and reconciling the price discrepancies between code and DECISIONS.md.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]
