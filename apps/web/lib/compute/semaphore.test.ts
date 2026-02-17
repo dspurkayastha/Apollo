@@ -11,196 +11,141 @@ describe("compute semaphore", () => {
     _resetForTesting();
   });
 
-  it("can acquire a compile job (2 units)", () => {
-    const result = tryAcquire("compile", "project-1", "user-1");
+  it("can acquire a compile job (2 units)", async () => {
+    const result = await tryAcquire("compile", "project-1", "user-1");
     expect(result.acquired).toBe(true);
     expect(result.jobId).toBeDefined();
-    expect(getStatus().usedUnits).toBe(2);
+    const status = await getStatus();
+    expect(status.usedUnits).toBe(2);
   });
 
-  it("can acquire an analysis job (1 unit)", () => {
-    const result = tryAcquire("analysis", "project-1", "user-1");
+  it("can acquire an analysis job (1 unit)", async () => {
+    const result = await tryAcquire("analysis", "project-1", "user-1");
     expect(result.acquired).toBe(true);
     expect(result.jobId).toBeDefined();
-    expect(getStatus().usedUnits).toBe(1);
+    const status = await getStatus();
+    expect(status.usedUnits).toBe(1);
   });
 
-  it("cannot exceed 3 units (compile + compile should fail on second)", () => {
-    const first = tryAcquire("compile", "project-1", "user-1");
+  it("cannot exceed 3 units (compile + compile should fail on second)", async () => {
+    const first = await tryAcquire("compile", "project-1", "user-1");
     expect(first.acquired).toBe(true);
-    expect(getStatus().usedUnits).toBe(2);
+    expect((await getStatus()).usedUnits).toBe(2);
 
-    const second = tryAcquire("compile", "project-2", "user-2");
+    const second = await tryAcquire("compile", "project-2", "user-2");
     expect(second.acquired).toBe(false);
-    expect(second.position).toBe(1);
   });
 
-  it("release frees units", () => {
-    const first = tryAcquire("compile", "project-1", "user-1");
+  it("release frees units", async () => {
+    const first = await tryAcquire("compile", "project-1", "user-1");
     expect(first.acquired).toBe(true);
-    expect(getStatus().usedUnits).toBe(2);
+    expect((await getStatus()).usedUnits).toBe(2);
 
-    release(first.jobId!);
-    expect(getStatus().usedUnits).toBe(0);
+    await release(first.jobId!);
+    expect((await getStatus()).usedUnits).toBe(0);
   });
 
-  it("queue works: acquire compile, try second compile -> queued at position 1", () => {
-    const first = tryAcquire("compile", "project-1", "user-1");
+  it("rejects when capacity full", async () => {
+    const first = await tryAcquire("compile", "project-1", "user-1");
     expect(first.acquired).toBe(true);
 
-    const second = tryAcquire("compile", "project-2", "user-2");
+    const second = await tryAcquire("compile", "project-2", "user-2");
     expect(second.acquired).toBe(false);
-    expect(second.position).toBe(1);
-    expect(second.estimatedWaitMs).toBe(30_000);
+    expect(second.estimatedWaitMs).toBeDefined();
   });
 
-  it("queue depth limit: fill queue to 5, next attempt has no position", () => {
-    const first = tryAcquire("compile", "project-0", "user-0");
-    expect(first.acquired).toBe(true);
-
-    for (let i = 1; i <= 5; i++) {
-      const queued = tryAcquire("compile", `project-${i}`, `user-${i}`);
-      expect(queued.acquired).toBe(false);
-      expect(queued.position).toBe(i);
-    }
-
-    const overflow = tryAcquire("compile", "project-overflow", "user-overflow");
-    expect(overflow.acquired).toBe(false);
-    expect(overflow.position).toBeUndefined();
-    expect(overflow.estimatedWaitMs).toBeUndefined();
-  });
-
-  it("getStatus returns correct state", () => {
-    expect(getStatus()).toEqual({
+  it("getStatus returns correct state", async () => {
+    expect(await getStatus()).toEqual({
       usedUnits: 0,
       maxUnits: 3,
       queueDepth: { compile: 0, analysis: 0 },
     });
 
-    tryAcquire("compile", "project-1", "user-1");
-    expect(getStatus()).toEqual({
+    await tryAcquire("compile", "project-1", "user-1");
+    expect(await getStatus()).toEqual({
       usedUnits: 2,
       maxUnits: 3,
       queueDepth: { compile: 0, analysis: 0 },
     });
 
-    tryAcquire("analysis", "project-2", "user-2");
-    expect(getStatus()).toEqual({
+    await tryAcquire("analysis", "project-2", "user-2");
+    expect(await getStatus()).toEqual({
       usedUnits: 3,
       maxUnits: 3,
       queueDepth: { compile: 0, analysis: 0 },
     });
-
-    tryAcquire("compile", "project-3", "user-3");
-    expect(getStatus()).toEqual({
-      usedUnits: 3,
-      maxUnits: 3,
-      queueDepth: { compile: 1, analysis: 0 },
-    });
   });
 
-  it("release promotes queued jobs", () => {
-    const compile1 = tryAcquire("compile", "project-1", "user-1");
-    const analysis1 = tryAcquire("analysis", "project-2", "user-2");
+  it("release allows new acquisition", async () => {
+    const compile1 = await tryAcquire("compile", "project-1", "user-1");
+    const analysis1 = await tryAcquire("analysis", "project-2", "user-2");
     expect(compile1.acquired).toBe(true);
     expect(analysis1.acquired).toBe(true);
-    expect(getStatus().usedUnits).toBe(3);
+    expect((await getStatus()).usedUnits).toBe(3);
 
-    const queued = tryAcquire("analysis", "project-3", "user-3");
-    expect(queued.acquired).toBe(false);
-    expect(queued.position).toBe(1);
+    // Can't acquire another
+    const blocked = await tryAcquire("analysis", "project-3", "user-3");
+    expect(blocked.acquired).toBe(false);
 
-    release(analysis1.jobId!);
-    expect(getStatus().usedUnits).toBe(3);
-    expect(getStatus().queueDepth.analysis).toBe(0);
+    // Release analysis → free 1 unit
+    await release(analysis1.jobId!);
+    expect((await getStatus()).usedUnits).toBe(2);
+
+    // Now can acquire
+    const newJob = await tryAcquire("analysis", "project-3", "user-3");
+    expect(newJob.acquired).toBe(true);
+    expect((await getStatus()).usedUnits).toBe(3);
   });
 
   // Per-user fairness tests
-  it("enforces per-user limit: same user cannot hold >2 concurrent slots", () => {
-    const a1 = tryAcquire("analysis", "project-1", "user-1");
-    const a2 = tryAcquire("analysis", "project-2", "user-1");
+  it("enforces per-user limit: same user cannot hold >2 concurrent slots", async () => {
+    const a1 = await tryAcquire("analysis", "project-1", "user-1");
+    const a2 = await tryAcquire("analysis", "project-2", "user-1");
     expect(a1.acquired).toBe(true);
     expect(a2.acquired).toBe(true);
 
-    // Third slot for same user should be queued
-    const a3 = tryAcquire("analysis", "project-3", "user-1");
+    // Third slot for same user should be rejected
+    const a3 = await tryAcquire("analysis", "project-3", "user-1");
     expect(a3.acquired).toBe(false);
     expect(a3.reason).toContain("Per-user");
-    expect(a3.position).toBe(1);
   });
 
-  it("different users can acquire slots independently up to analysis limit", () => {
-    const a1 = tryAcquire("analysis", "project-1", "user-1");
-    const a2 = tryAcquire("analysis", "project-2", "user-2");
+  it("different users can acquire slots independently up to analysis limit", async () => {
+    const a1 = await tryAcquire("analysis", "project-1", "user-1");
+    const a2 = await tryAcquire("analysis", "project-2", "user-2");
     expect(a1.acquired).toBe(true);
     expect(a2.acquired).toBe(true);
-    expect(getStatus().usedUnits).toBe(2);
+    expect((await getStatus()).usedUnits).toBe(2);
 
-    // 3rd analysis queued — R Plumber can only handle 2 concurrent
-    const a3 = tryAcquire("analysis", "project-3", "user-3");
+    // 3rd analysis rejected — R Plumber can only handle 2 concurrent
+    const a3 = await tryAcquire("analysis", "project-3", "user-3");
     expect(a3.acquired).toBe(false);
     expect(a3.reason).toContain("Analysis concurrency limit");
-    expect(a3.position).toBe(1);
   });
 
-  it("enforces max 2 concurrent analyses across all users", () => {
-    // 2 analyses from different users — both succeed
-    const a1 = tryAcquire("analysis", "p1", "user-1");
-    const a2 = tryAcquire("analysis", "p2", "user-2");
+  it("enforces max 2 concurrent analyses across all users", async () => {
+    const a1 = await tryAcquire("analysis", "p1", "user-1");
+    const a2 = await tryAcquire("analysis", "p2", "user-2");
     expect(a1.acquired).toBe(true);
     expect(a2.acquired).toBe(true);
 
-    // 3rd analysis queued even though global capacity has 1 unit left
-    const a3 = tryAcquire("analysis", "p3", "user-3");
+    // 3rd analysis rejected
+    const a3 = await tryAcquire("analysis", "p3", "user-3");
     expect(a3.acquired).toBe(false);
-    expect(a3.position).toBe(1);
 
-    // But a compile job can still use the remaining unit — no, it needs 2 units
-    // and only 1 is available, so it should also be queued
-    const c1 = tryAcquire("compile", "p4", "user-4");
+    // Compile needs 2 units, only 1 available
+    const c1 = await tryAcquire("compile", "p4", "user-4");
     expect(c1.acquired).toBe(false);
 
-    // Release one analysis → compile c1 promoted first (cost 2, 1+2=3 ≤ MAX)
-    // a3 stays queued (capacity full)
-    release(a1.jobId!);
-    expect(getStatus().usedUnits).toBe(3); // a2(1) + promoted c1(2)
-    expect(getStatus().queueDepth.compile).toBe(0);
-    expect(getStatus().queueDepth.analysis).toBe(1); // a3 still waiting
-
-    // Release a2 → a3 can finally promote
-    release(a2.jobId!);
-    // usedUnits was 3, released 1 → 2 (c1). Analysis queue: a3 cost 1, 2+1=3 ≤ 3, analysis count=0 < 2
-    expect(getStatus().usedUnits).toBe(3); // c1(2) + promoted a3(1)
-    expect(getStatus().queueDepth.analysis).toBe(0);
+    // Release one analysis → now compile can fit (2 units free)
+    await release(a1.jobId!);
+    const c2 = await tryAcquire("compile", "p4", "user-4");
+    expect(c2.acquired).toBe(true);
+    expect((await getStatus()).usedUnits).toBe(3); // a2(1) + c2(2)
   });
 
-  it("promotes different user from queue when per-user limit blocks first entry", () => {
-    // Fill capacity: compile (2 units) + user-1 analysis (1 unit) = 3 units
-    const c1 = tryAcquire("compile", "p0", "user-0");
-    const a1 = tryAcquire("analysis", "p1", "user-1");
-    expect(c1.acquired).toBe(true);
-    expect(a1.acquired).toBe(true);
-    expect(getStatus().usedUnits).toBe(3);
-
-    // Queue user-1 again (both per-user OK since they have 1, but global full)
-    const a2 = tryAcquire("analysis", "p2", "user-1");
-    expect(a2.acquired).toBe(false);
-    expect(a2.position).toBe(1);
-
-    // Queue user-2
-    const a3 = tryAcquire("analysis", "p3", "user-2");
-    expect(a3.acquired).toBe(false);
-    expect(a3.position).toBe(2);
-
-    // Release user-1's analysis → frees 1 unit → first in queue is user-1
-    // user-1 is eligible (only had 1 slot, now 0), so they get promoted
-    release(a1.jobId!);
-    expect(getStatus().usedUnits).toBe(3); // compile(2) + promoted user-1(1)
-    expect(getStatus().queueDepth.analysis).toBe(1); // user-2 still waiting
-  });
-
-  it("defaults userId to anonymous when not provided", () => {
-    const result = tryAcquire("analysis", "project-1");
+  it("defaults userId to anonymous when not provided", async () => {
+    const result = await tryAcquire("analysis", "project-1");
     expect(result.acquired).toBe(true);
   });
 });

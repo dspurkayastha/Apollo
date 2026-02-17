@@ -5,7 +5,9 @@ import {
   notFound,
   badRequest,
   internalError,
+  rateLimited,
 } from "@/lib/api/errors";
+import { checkRateLimit } from "@/lib/ai/rate-limit";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidPhase } from "@/lib/phases/transitions";
 import { getAnthropicClient } from "@/lib/ai/client";
@@ -21,6 +23,12 @@ export async function POST(
   try {
     const authResult = await getAuthenticatedUser();
     if (!authResult) return unauthorised();
+
+    // Rate limit check
+    const rateCheck = await checkRateLimit(authResult.user.id);
+    if (!rateCheck.allowed) {
+      return rateLimited(rateCheck.retryAfterSeconds);
+    }
 
     const { id, phase } = await params;
     const phaseNumber = parseInt(phase, 10);

@@ -32,7 +32,7 @@ export const analysisRunnerFn = inngest.createFunction(
       };
     } finally {
       // Always release the semaphore
-      release(jobId);
+      await release(jobId);
     }
   }
 );

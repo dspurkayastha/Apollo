@@ -5,6 +5,7 @@ import os from "os";
 import { getAuthenticatedUser } from "@/lib/api/auth";
 import { unauthorised, notFound, internalError } from "@/lib/api/errors";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { generateDownloadUrl } from "@/lib/r2/client";
 
 export async function GET(
   request: NextRequest,
@@ -40,7 +41,7 @@ export async function GET(
       .single();
 
     if (error || !compilation?.pdf_url) {
-      return notFound("No compiled PDF available — trigger a compilation first");
+      return notFound("No compiled PDF available --- trigger a compilation first");
     }
 
     const download = request.nextUrl.searchParams.get("download") === "1";
@@ -48,9 +49,17 @@ export async function GET(
       ? `attachment; filename="thesis.pdf"`
       : "inline";
 
-    // In production, this would generate a signed R2 URL and redirect.
-    // For local dev, read the PDF file from disk and stream it.
-    // Try the stored path first, then deterministic fallback path.
+    // If pdf_url is an R2 key (starts with "projects/"), redirect to signed URL
+    if (compilation.pdf_url.startsWith("projects/")) {
+      try {
+        const signedUrl = await generateDownloadUrl(compilation.pdf_url);
+        return Response.redirect(signedUrl, 302);
+      } catch {
+        return notFound("PDF file not found in storage --- recompile to regenerate");
+      }
+    }
+
+    // Fallback: local disk path (dev/test or legacy compilations)
     let pdfBytes: Uint8Array | null = null;
     for (const candidate of [
       compilation.pdf_url,
@@ -65,7 +74,7 @@ export async function GET(
     }
 
     if (!pdfBytes) {
-      return notFound("PDF file not found on disk — recompile to regenerate");
+      return notFound("PDF file not found on disk --- recompile to regenerate");
     }
 
     return new Response(pdfBytes as unknown as BodyInit, {

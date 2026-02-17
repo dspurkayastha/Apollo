@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { readFile, stat } from "fs/promises";
+import { readFile, writeFile, mkdir, stat } from "fs/promises";
 import path from "path";
 import os from "os";
 import { getAuthenticatedUser } from "@/lib/api/auth";
@@ -16,10 +16,11 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { assembleThesisContent } from "@/lib/latex/assemble";
 import { compileTex } from "@/lib/latex/compile";
 import { preflightChapter, aiValidateChapters } from "@/lib/latex/validate";
+import { uploadToR2, downloadFromR2 } from "@/lib/r2/client";
 import type { Project, Section, Citation, Figure, Compilation } from "@/lib/types/database";
 
-/** Must match FIGURES_BASE_DIR in analysis-runner.ts */
-const FIGURES_BASE_DIR = path.join(os.tmpdir(), "apollo-figures");
+/** Tmpdir location for figure downloads during compilation */
+const FIGURES_TMP_DIR = path.join(os.tmpdir(), "apollo-figures");
 
 export async function POST(
   _request: NextRequest,
@@ -46,20 +47,35 @@ export async function POST(
 
     const typedProject = project as Project;
 
-    // Check for existing running compilation
+    // Check for existing running compilation (with stale recovery)
     const { data: runningCompilation } = await supabase
       .from("compilations")
-      .select("id")
+      .select("id, created_at")
       .eq("project_id", id)
       .eq("status", "running")
       .single();
 
     if (runningCompilation) {
-      return conflict("A compilation is already in progress");
+      const STALE_COMPILE_MS = 5 * 60 * 1000; // 5 minutes
+      const createdAt = new Date(runningCompilation.created_at).getTime();
+      const age = Date.now() - createdAt;
+
+      if (age < STALE_COMPILE_MS) {
+        return conflict("A compilation is already in progress");
+      }
+
+      // Stale compilation — mark as failed and allow a new one
+      await supabase
+        .from("compilations")
+        .update({
+          status: "failed",
+          errors: ["Compilation timed out after 5 minutes"],
+        })
+        .eq("id", runningCompilation.id);
     }
 
     // Admission control — acquire compute slot
-    const slot = tryAcquire("compile", id, authResult.user.id);
+    const slot = await tryAcquire("compile", id, authResult.user.id);
     if (!slot.acquired) {
       if (slot.position !== undefined) {
         return queueFull(Math.ceil((slot.estimatedWaitMs ?? 30000) / 1000));
@@ -120,19 +136,31 @@ export async function POST(
       const citations = (citationsResult.data ?? []) as Citation[];
       const figures = (figuresResult.data ?? []) as Figure[];
 
-      // Resolve figure files: map relative path → absolute disk path (only if file exists)
+      // Resolve figure files: download from R2 to tmpdir, fall back to local disk
       const figureFiles: Record<string, string> = {};
       for (const fig of figures) {
         if (!fig.file_url) continue;
-        // file_url is "figures/{project_id}/{analysis_id}/{filename}"
-        // Disk path is FIGURES_BASE_DIR/{project_id}/{analysis_id}/{filename}
+        // file_url is "figures/{projectId}/{analysisId}/{filename}"
+        // R2 key is "projects/{projectId}/figures/{analysisId}/{filename}" (no double projectId)
+        const afterProjectId = fig.file_url.replace(`figures/${id}/`, "");
+        const r2Key = `projects/${id}/figures/${afterProjectId}`;
         const relAfterFigures = fig.file_url.replace(/^figures\//, "");
-        const diskPath = path.join(FIGURES_BASE_DIR, relAfterFigures);
+        const diskPath = path.join(FIGURES_TMP_DIR, relAfterFigures);
+
         try {
-          await stat(diskPath);
+          // Try R2 first
+          const buffer = await downloadFromR2(r2Key);
+          await mkdir(path.dirname(diskPath), { recursive: true });
+          await writeFile(diskPath, buffer);
           figureFiles[fig.file_url] = diskPath;
         } catch {
-          // File doesn't exist on disk — will cause a non-fatal warning during compile
+          // Fall back to local disk (dev/test)
+          try {
+            await stat(diskPath);
+            figureFiles[fig.file_url] = diskPath;
+          } catch {
+            // File unavailable — will cause a non-fatal warning during compile
+          }
         }
       }
 
@@ -216,11 +244,23 @@ export async function POST(
       ];
 
       if (result.success && result.pdfPath) {
+        // Upload compiled PDF to R2
+        let pdfUrl = result.pdfPath;
+        try {
+          const pdfBytes = await readFile(result.pdfPath);
+          const r2Key = `projects/${id}/compilations/${compilation.id}.pdf`;
+          await uploadToR2(r2Key, pdfBytes, "application/pdf");
+          pdfUrl = r2Key;
+        } catch (r2Err) {
+          console.warn("Failed to upload PDF to R2, storing local path:", r2Err);
+          // Keep the local path as fallback
+        }
+
         await updateCompilation(supabase, compilation.id, {
           status: "completed",
           warnings: allWarnings,
           errors: [],
-          pdf_url: result.pdfPath,
+          pdf_url: pdfUrl,
           log_text: result.rawLog.slice(0, 50000),
           compile_time_ms: result.compileTimeMs,
         });
@@ -258,7 +298,7 @@ export async function POST(
         { status: 422 }
       );
     } finally {
-      release(slot.jobId!);
+      await release(slot.jobId!);
     }
   } catch (err) {
     console.error("Unexpected error in POST /api/projects/[id]/compile:", err);

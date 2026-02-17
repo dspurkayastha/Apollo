@@ -122,7 +122,7 @@ export async function POST(
     }
 
     // Try to acquire compute semaphore
-    const semResult = tryAcquire("analysis", id, authResult.user.id);
+    const semResult = await tryAcquire("analysis", id, authResult.user.id);
     if (!semResult.acquired) {
       return queueFull(
         semResult.estimatedWaitMs
@@ -195,7 +195,7 @@ function runAnalysisInline(analysisId: string, jobId: string): void {
     } catch (err) {
       console.error(`Inline analysis ${analysisId} failed:`, err);
     } finally {
-      release(jobId);
+      await release(jobId);
     }
   })();
 }

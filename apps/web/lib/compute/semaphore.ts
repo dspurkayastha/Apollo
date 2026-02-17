@@ -1,17 +1,18 @@
 /**
- * Global in-memory semaphore for compute resource admission control.
+ * Compute resource admission control with Redis-backed state.
  *
  * Total capacity: 3 units
  *   - compile job = 2 units
  *   - analysis job = 1 unit
  *
- * Each job type has an independent queue with a max depth of 5.
- *
  * Per-user fairness: no single user can hold more than MAX_PER_USER
- * concurrent analysis slots. This ensures round-robin fairness.
+ * concurrent slots. R Plumber capped at MAX_ANALYSIS_CONCURRENT.
+ *
+ * Falls back to in-memory maps when Redis is unavailable (dev/test).
  */
 
 import { randomUUID } from "crypto";
+import { getRedis } from "@/lib/redis/client";
 
 export type JobType = "compile" | "analysis";
 
@@ -31,206 +32,189 @@ interface ActiveJob {
   userId: string;
 }
 
-interface QueueEntry {
-  type: JobType;
-  projectId: string;
-  userId: string;
-  resolve: (jobId: string) => void;
-}
-
 const MAX_UNITS = 3;
-const MAX_QUEUE_DEPTH = 5;
-const MAX_PER_USER = 2; // No single user can hold >2 concurrent slots
-const MAX_ANALYSIS_CONCURRENT = 2; // R Plumber container limit
+const MAX_PER_USER = 2;
+const MAX_ANALYSIS_CONCURRENT = 2;
 const ESTIMATED_WAIT_PER_POSITION_MS = 30_000;
+const REDIS_JOB_TTL_S = 600; // 10-min TTL per job (auto-expire safety)
 
 const UNIT_COST: Record<JobType, number> = {
   compile: 2,
   analysis: 1,
 };
 
-const activeJobs = new Map<string, ActiveJob>();
-const queues: Record<JobType, QueueEntry[]> = {
-  compile: [],
-  analysis: [],
-};
+const REDIS_HASH_KEY = "apollo:semaphore:active";
 
-function usedUnits(): number {
+// ── In-memory fallback (dev/test without Redis) ─────────────────────────────
+
+const memoryJobs = new Map<string, ActiveJob>();
+
+function memUsedUnits(): number {
   let total = 0;
-  for (const job of activeJobs.values()) {
-    total += job.units;
-  }
+  for (const job of memoryJobs.values()) total += job.units;
   return total;
 }
 
-/** Count active jobs for a specific user */
-function userActiveCount(userId: string): number {
+function memUserCount(userId: string): number {
   let count = 0;
-  for (const job of activeJobs.values()) {
+  for (const job of memoryJobs.values()) {
     if (job.userId === userId) count++;
   }
   return count;
 }
 
-/** Count active analysis jobs across all users */
-function activeAnalysisCount(): number {
+function memAnalysisCount(): number {
   let count = 0;
-  for (const job of activeJobs.values()) {
+  for (const job of memoryJobs.values()) {
     if (job.type === "analysis") count++;
   }
   return count;
 }
 
+function memTryAcquire(type: JobType, projectId: string, userId: string): AcquireResult {
+  const cost = UNIT_COST[type];
+
+  if (memUserCount(userId) >= MAX_PER_USER) {
+    return { acquired: false, reason: "Per-user concurrency limit reached" };
+  }
+  if (type === "analysis" && memAnalysisCount() >= MAX_ANALYSIS_CONCURRENT) {
+    return { acquired: false, reason: "Analysis concurrency limit reached" };
+  }
+  if (memUsedUnits() + cost > MAX_UNITS) {
+    return { acquired: false, estimatedWaitMs: ESTIMATED_WAIT_PER_POSITION_MS };
+  }
+
+  const jobId = randomUUID();
+  memoryJobs.set(jobId, { type, units: cost, projectId, userId });
+  return { acquired: true, jobId };
+}
+
+function memRelease(jobId: string): void {
+  memoryJobs.delete(jobId);
+}
+
+function memGetStatus() {
+  return {
+    usedUnits: memUsedUnits(),
+    maxUnits: MAX_UNITS,
+    queueDepth: { compile: 0, analysis: 0 },
+  };
+}
+
+// ── Redis-backed implementation ─────────────────────────────────────────────
+
+async function redisTryAcquire(type: JobType, projectId: string, userId: string): Promise<AcquireResult> {
+  const redis = getRedis()!;
+  const cost = UNIT_COST[type];
+  const jobId = randomUUID();
+
+  // NOTE: HGETALL + conditional HSET is not fully atomic (TOCTOU). Under
+  // concurrent load, two requests could both read "capacity available" and
+  // both acquire, briefly exceeding MAX_UNITS. Acceptable for single-VPS
+  // deployment (Hetzner CX23). For multi-instance, replace with a Lua script
+  // via redis.eval() for true atomicity.
+  const allJobs = await redis.hgetall(REDIS_HASH_KEY) as Record<string, string> | null;
+  const jobs: Record<string, ActiveJob> = {};
+
+  if (allJobs) {
+    for (const [k, v] of Object.entries(allJobs)) {
+      if (typeof v === "string") {
+        try { jobs[k] = JSON.parse(v); } catch { /* skip corrupt entries */ }
+      } else {
+        // Upstash may auto-deserialise to object
+        jobs[k] = v as unknown as ActiveJob;
+      }
+    }
+  }
+
+  // Check constraints
+  let usedUnits = 0;
+  let userCount = 0;
+  let analysisCount = 0;
+
+  for (const job of Object.values(jobs)) {
+    usedUnits += job.units;
+    if (job.userId === userId) userCount++;
+    if (job.type === "analysis") analysisCount++;
+  }
+
+  if (userCount >= MAX_PER_USER) {
+    return { acquired: false, reason: "Per-user concurrency limit reached" };
+  }
+  if (type === "analysis" && analysisCount >= MAX_ANALYSIS_CONCURRENT) {
+    return { acquired: false, reason: "Analysis concurrency limit reached" };
+  }
+  if (usedUnits + cost > MAX_UNITS) {
+    return { acquired: false, estimatedWaitMs: ESTIMATED_WAIT_PER_POSITION_MS };
+  }
+
+  // Acquire: set job in hash + per-job TTL key
+  const jobData: ActiveJob = { type, units: cost, projectId, userId };
+  const pipeline = redis.pipeline();
+  pipeline.hset(REDIS_HASH_KEY, { [jobId]: JSON.stringify(jobData) });
+  // Per-job TTL key: when it expires, a stale-cleanup cron can GC the hash entry
+  pipeline.set(`apollo:semaphore:job:${jobId}`, "1", { ex: REDIS_JOB_TTL_S });
+  await pipeline.exec();
+
+  return { acquired: true, jobId };
+}
+
+async function redisRelease(jobId: string): Promise<void> {
+  const redis = getRedis()!;
+  const pipeline = redis.pipeline();
+  pipeline.hdel(REDIS_HASH_KEY, jobId);
+  pipeline.del(`apollo:semaphore:job:${jobId}`);
+  await pipeline.exec();
+}
+
+async function redisGetStatus() {
+  const redis = getRedis()!;
+  const allJobs = await redis.hgetall(REDIS_HASH_KEY) as Record<string, string> | null;
+
+  let usedUnits = 0;
+  if (allJobs) {
+    for (const v of Object.values(allJobs)) {
+      try {
+        const job: ActiveJob = typeof v === "string" ? JSON.parse(v) : v as unknown as ActiveJob;
+        usedUnits += job.units;
+      } catch { /* skip */ }
+    }
+  }
+
+  return {
+    usedUnits,
+    maxUnits: MAX_UNITS,
+    queueDepth: { compile: 0, analysis: 0 },
+  };
+}
+
+// ── Public API (same interface — callers unchanged) ─────────────────────────
+
 export function tryAcquire(
   type: JobType,
   projectId: string,
   userId: string = "anonymous"
-): AcquireResult {
-  const cost = UNIT_COST[type];
-
-  // Per-user fairness: reject if user already at limit
-  if (userActiveCount(userId) >= MAX_PER_USER) {
-    // Try to queue instead of hard-rejecting
-    const queue = queues[type];
-    if (queue.length >= MAX_QUEUE_DEPTH) {
-      return {
-        acquired: false,
-        reason: "Per-user concurrency limit reached and queue full",
-      };
-    }
-
-    const position = queue.length + 1;
-    queue.push({ type, projectId, userId, resolve: () => {} });
-
-    return {
-      acquired: false,
-      position,
-      estimatedWaitMs: position * ESTIMATED_WAIT_PER_POSITION_MS,
-      reason: "Per-user concurrency limit reached — queued",
-    };
-  }
-
-  // Analysis concurrency limit: R Plumber can only handle 2 concurrent requests
-  if (type === "analysis" && activeAnalysisCount() >= MAX_ANALYSIS_CONCURRENT) {
-    const queue = queues[type];
-    if (queue.length >= MAX_QUEUE_DEPTH) {
-      return {
-        acquired: false,
-        reason: "Analysis concurrency limit reached and queue full",
-      };
-    }
-    const position = queue.length + 1;
-    queue.push({ type, projectId, userId, resolve: () => {} });
-    return {
-      acquired: false,
-      position,
-      estimatedWaitMs: position * ESTIMATED_WAIT_PER_POSITION_MS,
-      reason: "Analysis concurrency limit reached — queued",
-    };
-  }
-
-  if (usedUnits() + cost <= MAX_UNITS) {
-    const jobId = randomUUID();
-    activeJobs.set(jobId, { type, units: cost, projectId, userId });
-    return { acquired: true, jobId };
-  }
-
-  // Not enough capacity — try to queue
-  const queue = queues[type];
-  if (queue.length >= MAX_QUEUE_DEPTH) {
-    return { acquired: false };
-  }
-
-  const position = queue.length + 1;
-  queue.push({ type, projectId, userId, resolve: () => {} });
-
-  return {
-    acquired: false,
-    position,
-    estimatedWaitMs: position * ESTIMATED_WAIT_PER_POSITION_MS,
-  };
+): AcquireResult | Promise<AcquireResult> {
+  const redis = getRedis();
+  if (!redis) return memTryAcquire(type, projectId, userId);
+  return redisTryAcquire(type, projectId, userId);
 }
 
-export function release(jobId: string): void {
-  const job = activeJobs.get(jobId);
-  if (!job) return;
-
-  activeJobs.delete(jobId);
-
-  // Try to promote queued jobs, checking both queues
-  for (const type of ["compile", "analysis"] as const) {
-    const queue = queues[type];
-    const cost = UNIT_COST[type];
-
-    while (queue.length > 0 && usedUnits() + cost <= MAX_UNITS) {
-      // Respect R Plumber concurrency limit during promotion
-      if (type === "analysis" && activeAnalysisCount() >= MAX_ANALYSIS_CONCURRENT) {
-        break;
-      }
-
-      const entry = queue[0]!;
-
-      // Check per-user limit before promoting
-      if (userActiveCount(entry.userId) >= MAX_PER_USER) {
-        // Skip this entry, try the next one with a different user
-        const skippedIndex = findNextEligibleInQueue(queue);
-        if (skippedIndex === -1) break; // No eligible entries
-
-        const eligible = queue.splice(skippedIndex, 1)[0]!;
-        const newJobId = randomUUID();
-        activeJobs.set(newJobId, {
-          type,
-          units: cost,
-          projectId: eligible.projectId,
-          userId: eligible.userId,
-        });
-        eligible.resolve(newJobId);
-        continue;
-      }
-
-      queue.shift();
-      const newJobId = randomUUID();
-      activeJobs.set(newJobId, {
-        type,
-        units: cost,
-        projectId: entry.projectId,
-        userId: entry.userId,
-      });
-      entry.resolve(newJobId);
-    }
-  }
+export function release(jobId: string): void | Promise<void> {
+  const redis = getRedis();
+  if (!redis) return memRelease(jobId);
+  return redisRelease(jobId);
 }
 
-/** Find the first queue entry whose user is below the per-user limit */
-function findNextEligibleInQueue(queue: QueueEntry[]): number {
-  for (let i = 0; i < queue.length; i++) {
-    if (userActiveCount(queue[i]!.userId) < MAX_PER_USER) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-export function getStatus(): {
-  usedUnits: number;
-  maxUnits: number;
-  queueDepth: Record<JobType, number>;
-} {
-  return {
-    usedUnits: usedUnits(),
-    maxUnits: MAX_UNITS,
-    queueDepth: {
-      compile: queues.compile.length,
-      analysis: queues.analysis.length,
-    },
-  };
+export function getStatus(): { usedUnits: number; maxUnits: number; queueDepth: Record<JobType, number> } | Promise<{ usedUnits: number; maxUnits: number; queueDepth: Record<JobType, number> }> {
+  const redis = getRedis();
+  if (!redis) return memGetStatus();
+  return redisGetStatus();
 }
 
 /**
  * Reset all state. Only for use in tests.
  */
 export function _resetForTesting(): void {
-  activeJobs.clear();
-  queues.compile.length = 0;
-  queues.analysis.length = 0;
+  memoryJobs.clear();
 }

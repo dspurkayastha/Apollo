@@ -4,6 +4,7 @@ import path from "path";
 import os from "os";
 import { callRPlumber, RPlumberError } from "./client";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { uploadToR2 } from "@/lib/r2/client";
 import {
   ANALYSIS_TIMEOUTS,
   REQUIRED_PARAMS,
@@ -11,7 +12,7 @@ import {
 } from "@/lib/validation/analysis-schemas";
 import type { Analysis } from "@/lib/types/database";
 
-/** Base directory for figure file storage (dev: tmpdir, prod: R2) */
+/** Base directory for local figure file storage (fallback) */
 const FIGURES_BASE_DIR = path.join(os.tmpdir(), "apollo-figures");
 
 /** R Plumber response shape (consistent across all endpoints) */
@@ -145,7 +146,20 @@ export async function runAnalysis(
     const figureUrl = `figures/${analysis.project_id}/${analysis.id}/${fig.filename}`;
     figureUrls.push(figureUrl);
 
-    // Write decoded figure file to disk so LaTeX compile can find it
+    const buffer = Buffer.from(fig.base64, "base64");
+
+    // Upload to R2 for persistent storage
+    try {
+      const r2Key = `projects/${analysis.project_id}/figures/${analysis.id}/${fig.filename}`;
+      const contentType = fig.filename.endsWith(".pdf")
+        ? "application/pdf"
+        : "image/png";
+      await uploadToR2(r2Key, buffer, contentType);
+    } catch (err) {
+      console.warn(`Failed to upload figure to R2 ${figureUrl}:`, err);
+    }
+
+    // Also write to local disk as fallback for dev/immediate compile
     try {
       const figDir = path.join(
         FIGURES_BASE_DIR,
@@ -153,9 +167,7 @@ export async function runAnalysis(
         analysis.id
       );
       await mkdir(figDir, { recursive: true });
-      const figPath = path.join(figDir, fig.filename);
-      const buffer = Buffer.from(fig.base64, "base64");
-      await writeFile(figPath, buffer);
+      await writeFile(path.join(figDir, fig.filename), buffer);
     } catch (err) {
       console.warn(`Failed to write figure file ${figureUrl}:`, err);
     }
@@ -167,7 +179,7 @@ export async function runAnalysis(
       source_tool: "ggplot2",
       source_code: rResult.r_script,
       file_url: figureUrl,
-      caption: `${analysisType} analysis — ${fig.filename}`,
+      caption: `${analysisType} analysis --- ${fig.filename}`,
       label: `fig:${analysisType}-${fig.filename.replace(/\.[^.]+$/, "").replace(/[^a-z0-9-]/g, "-")}`,
       width_pct: 100,
       dpi: 300,

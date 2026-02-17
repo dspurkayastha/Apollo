@@ -44,6 +44,7 @@
     "@tiptap/core": "^3.19.0",
     "@tiptap/pm": "^3.19.0",
     "@uiw/react-codemirror": "^4.25.4",
+    "@upstash/redis": "^1.36.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",

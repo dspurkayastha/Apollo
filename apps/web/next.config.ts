@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+// Validate env vars at build time — fails fast on missing required vars
+import "./lib/env";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",

@@ -46,7 +46,7 @@ export async function POST(
     }
 
     // Rate limit check
-    const rateCheck = checkRateLimit(authResult.user.id);
+    const rateCheck = await checkRateLimit(authResult.user.id);
     if (!rateCheck.allowed) {
       return rateLimited(rateCheck.retryAfterSeconds);
     }

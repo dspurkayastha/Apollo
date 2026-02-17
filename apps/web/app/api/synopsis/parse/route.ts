@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/api/auth";
-import { unauthorised, validationError, internalError } from "@/lib/api/errors";
+import { unauthorised, validationError, internalError, rateLimited } from "@/lib/api/errors";
+import { checkRateLimit } from "@/lib/ai/rate-limit";
 import { getAnthropicClient } from "@/lib/ai/client";
 import { redactPII } from "@/lib/ai/redact";
 import { z } from "zod";
@@ -34,6 +35,12 @@ export async function POST(request: NextRequest) {
   try {
     const authResult = await getAuthenticatedUser();
     if (!authResult) return unauthorised();
+
+    // Rate limit check
+    const rateCheck = await checkRateLimit(authResult.user.id);
+    if (!rateCheck.allowed) {
+      return rateLimited(rateCheck.retryAfterSeconds);
+    }
 
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);

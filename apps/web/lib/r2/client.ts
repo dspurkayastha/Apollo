@@ -56,4 +56,47 @@ export async function generateDownloadUrl(key: string): Promise<string> {
   return getSignedUrl(s3Client, command, { expiresIn: 900 }); // 15 min
 }
 
+/**
+ * Upload a Buffer directly to R2. Used for compiled PDFs and analysis figures.
+ */
+export async function uploadToR2(
+  key: string,
+  body: Buffer | Uint8Array,
+  contentType: string
+): Promise<void> {
+  if (key.includes("..") || key.includes("//")) {
+    throw new Error("Invalid file key");
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME!,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  });
+
+  await s3Client.send(command);
+}
+
+/**
+ * Download a file from R2 as a Buffer.
+ */
+export async function downloadFromR2(key: string): Promise<Buffer> {
+  const command = new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME!,
+    Key: key,
+  });
+
+  const response = await s3Client.send(command);
+  const stream = response.Body;
+  if (!stream) throw new Error(`Empty response for R2 key: ${key}`);
+
+  // Convert readable stream to buffer
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of stream as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 export { ALLOWED_UPLOAD_TYPES, MAX_FILE_SIZE };
