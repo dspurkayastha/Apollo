@@ -1,0 +1,135 @@
+Implement the following plan:
+
+# Thesis Completion UI
+
+## Context
+
+After Phase 11 (Final QC) approval, `project.status` is set to `"completed"` and `current_phase` advances to 12. The workspace then refreshes via `router.refresh()`, but currently shows nothing special — the student sees Phase 11 content as approved with no celebration, no clear download path, and no disclaimers. The user wants a warm, zen completion view matching the existing aesthetic.
+
+## Changes
+
+### 1. NEW: `apps/web/components/project/thesis-completion.tsx`
+
+A `"use client"` component that replaces the editor/PDF workspace when `project.status === "completed"`.
+
+**Props**: `project`, `sections`, `datasets`, `citations` (all already available in `ProjectWorkspace`).
+
+**Layout** (stacked vertically, `space-y-8`):
+
+1. **Success Header** — Decorative sage circle with `CheckCircle2` icon, Playfair Display heading "Thesis Complete", Source Serif subtitle with thesis title, completion date
+2. **Download Cards** — Two-column grid (`sm:grid-cols-2`), each card with cursor-tracking sage glow (reuse exact pattern from `project-card.tsx`:ref + `onMouseMove` setting `--mouse-x`/`--mouse-y`, `radial-gradient(600px circle...)`, `landing-card-elevated` shadow):
+   - **PDF card**: `FileText` icon, "Download Thesis PDF", download button calls `/api/projects/:id/preview.pdf?download=1` via fetch→blob→a.click()
+   - **Dataset card**: `Table2` icon, "Download Dataset", row/column count, disabled if no dataset, calls new CSV download route
+3. **Statistics Grid** — 4-column grid (`sm:grid-cols-2 lg:grid-cols-4`), each stat in a `landing-card` with Playfair number + Inter label:
+   - Total words (~N pages)
+   - Phases completed (12/12)
+   - Citations (N verified Tier A)
+   - Dataset rows
+4. **Disclaimers** — Amber-tinted card (`border-[#D4A373]/20 bg-[#D4A373]/5`) with `AlertTriangle` icon:
+   - AI-assisted generation notice
+   - Student responsibility for content/citations/data accuracy
+   - Thesis guide review before institutional submission
+5. **Actions Footer** — "Back to Dashboard" pill button + existing `ExportMenu` component
+
+**Animations**: `motion/react` (already a dep), staggered fade-in+translateY with `ease: [0.16, 1, 0.3, 1]`, delays 0→0.5s.
+
+### 2. NEW: `apps/web/app/api/projects/[id]/datasets/[datasetId]/download/route.ts`
+
+GET endpoint that reconstructs CSV from `columns_json` + `rows_json` in the datasets table.
+
+- Auth + ownership verification (same pattern as preview.pdf route)
+- Fetch dataset by ID, verify it belongs to the project
+- Build CSV: header row from `columns_json[].name`, data rows from `rows_json`
+- Escape fields containing commas/quotes/newlines (simple `escapeCsvField()` function)
+- Return `Content-Type: text/csv`, `Content-Disposition: attachment; filename="...csv"`
+
+### 3. MODIFY: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+Minimal change — add conditional early return after hooks but before derived state:
+
+```typescript
+import { ThesisCompletion } from "@/components/project/thesis-completion";
+
+// After the existing useEffect for sidebar collapse, before currentSection:
+if (project.status === "completed") {
+  return (
+    <div className="space-y-4">
+      <PipelineTimeline
+        currentPhase={project.current_phase}
+        phasesCompleted={project.phases_completed}
+        projectStatus={project.status}
+        devLicenceBypass={devLicenceBypass}
+      />
+      <ThesisCompletion
+        project={project}
+        sections={sections}
+        datasets={datasets}
+        citations={citations}
+      />
+    </div>
+  );
+}
+```
+
+Pipeline timeline stays visible above (all 12 phases sage green = satisfying completion visual). The early return avoids all editor/PDF panel rendering.
+
+## Design Patterns (reused from codebase)
+
+| Pattern | Source | Usage |
+|---------|--------|-------|
+| Cursor-tracking glow | `project-card.tsx:22-43` | Download cards |
+| `landing-card-elevated` | `globals.css` | Download card shadows |
+| `landing-card` | `globals.css` | Stat card shadows |
+| Font classes | `layout.tsx` | `--font-brand` (Playfair), `--font-heading` (Source Serif), `--font-body` (Inter) |
+| Sage `#8B9D77` | Throughout | Success accent colour |
+| Amber `#D4A373` | `licence-banner.tsx` | Disclaimer notice colour |
+| Download handler | `export-menu.tsx:53-71` | fetch→blob→createObjectURL→a.click() |
+| ExportMenu component | `export-menu.tsx` | Reused in actions footer |
+
+## Files
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `apps/web/components/project/thesis-completion.tsx` | NEW | Completion celebration view |
+| `apps/web/app/api/projects/[id]/datasets/[datasetId]/download/route.ts` | NEW | CSV download endpoint |
+| `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` | MODIFY | Conditional completion render |
+
+## Verification
+
+1. Set a test project's status to `"completed"` and `current_phase` to 12
+2. Navigate to `/projects/:id` — completion view should render with all 12 phases sage-green in timeline
+3. Click "Download PDF" — PDF file downloads
+4. Click "Download Dataset" — CSV file downloads with correct headers and data
+5. Verify disclaimers show correctly
+6. Verify responsive layout on mobile (stacked cards)
+7. Verify "Back to Dashboard" navigates correctly
+8. Verify ExportMenu dropdown works
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+i think the final qc never really completes
+
+---
+
+## Error Type
+Runtime Error
+
+## Error Message
+Rendered fewer hooks than expected. This may be caused by an accidental early return statement.
+
+
+    at ProjectDetailPage (app/(dashboard)/projects/[id]/page.tsx:179:7)
+
+## Code Frame
+  177 |
+  178 |       {/* Phase Navigation + Section Viewer */}
+> 179 |       <ProjectWorkspace
+      |       ^
+  180 |         project={project}
+  181 |         sections={sections}
+  182 |         citations={citations}
+
+Next.js version: 15.5.12 (Turbopack)
