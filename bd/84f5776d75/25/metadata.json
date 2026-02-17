@@ -3,10 +3,11 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "17d109c2-1190-49e3-a12c-4f0fcbaa0a28",
   "strategy": "manual-commit",
-  "created_at": "2026-02-17T18:27:17.674172Z",
+  "created_at": "2026-02-17T19:37:54.13439Z",
   "branch": "main",
-  "checkpoints_count": 3,
+  "checkpoints_count": 1,
   "files_touched": [
+    ".mcp.json",
     "apps/web/.env.example",
     "apps/web/app/(dashboard)/checkout/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/page.tsx",
@@ -43,7 +44,6 @@
     "apps/web/lib/pricing/config.ts",
     "apps/web/lib/types/database.ts",
     "apps/web/lib/validation/payment-schemas.ts",
-    "apps/web/supabase/.temp/cli-latest",
     "apps/web/supabase/migrations/025_pricing_licence_overhaul.sql",
     "apps/web/tests/pricing/config.test.ts",
     "apps/web/tests/pricing/velocity.test.ts",
@@ -51,21 +51,24 @@
     "docs/Mitigation_implementation.md"
   ],
   "agent": "Claude Code",
+  "transcript_identifier_at_start": "a5d78213-d8e5-4220-9713-cac34a9cf668",
+  "checkpoint_transcript_start": 1083,
+  "transcript_lines_at_start": 1083,
   "token_usage": {
-    "input_tokens": 15569,
-    "cache_creation_tokens": 406132,
-    "cache_read_tokens": 21042406,
-    "output_tokens": 26412,
-    "api_call_count": 182
+    "input_tokens": 6229,
+    "cache_creation_tokens": 225125,
+    "cache_read_tokens": 4250081,
+    "output_tokens": 1303,
+    "api_call_count": 47
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-17T18:27:14.879204Z",
-    "agent_lines": 1996,
-    "human_added": 0,
-    "human_modified": 0,
-    "human_removed": 1,
-    "total_committed": 1996,
-    "agent_percentage": 100
+    "calculated_at": "2026-02-17T19:37:50.662039Z",
+    "agent_lines": 131,
+    "human_added": 672,
+    "human_modified": 34,
+    "human_removed": 0,
+    "total_committed": 837,
+    "agent_percentage": 15.651135005973716
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/17d109c2-1190-49e3-a12c-4f0fcbaa0a28.jsonl"
 }
