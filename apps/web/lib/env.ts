@@ -40,8 +40,8 @@ const optionalKeys = [
 ] as const;
 
 function validateEnv() {
-  // Skip validation during build/test when env may be incomplete
-  if (process.env.NODE_ENV === "test") return;
+  // Skip validation in test/CI — env vars are not available
+  if (process.env.NODE_ENV === "test" || process.env.CI) return;
 
   const result = requiredSchema.safeParse(process.env);
 
