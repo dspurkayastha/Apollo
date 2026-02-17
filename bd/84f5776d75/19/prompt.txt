@@ -1,0 +1,937 @@
+check the codebase, and the docker and dev servers. If they are not running start them
+
+---
+
+<task-notification>
+<task-id>b26cd50</task-id>
+<output-file>/private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b26cd50.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for Docker daemon with periodic checks" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b26cd50.output
+
+---
+
+<task-notification>
+<task-id>b4200ea</task-id>
+<output-file>/private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b4200ea.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for Docker daemon to respond" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b4200ea.output
+
+---
+
+<task-notification>
+<task-id>b1222fa</task-id>
+<output-file>/private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b1222fa.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for Docker daemon after fresh launch" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b1222fa.output
+
+---
+
+<task-notification>
+<task-id>b123c10</task-id>
+<output-file>REDACTED.output</output-file>
+<status>completed</status>
+<summary>Background command "Start Docker compose services (latex + r-plumber)" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+<task-notification>
+<task-id>b1a6bdc</task-id>
+<output-file>/private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b1a6bdc.output</output-file>
+<status>completed</status>
+<summary>Background command "Check R-Plumber health endpoint after startup" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b1a6bdc.output
+
+---
+
+keep an eye on the logs, i am going through the entire data gen phase 6 pipeline
+
+---
+
+keep watching the logs, i'll trigger the analyses next
+
+---
+
+check whats the status of the pipeilibe now> dataset which was newly generated is named what? which analyses completed>
+
+---
+
+yes check the database for the dataset name and analysis results
+
+---
+
+check the logs currently, and also this error
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 6.00.08 PM.png]
+
+---
+
+<task-notification>
+<task-id>bf431eb</task-id>
+<output-file>REDACTED.output</output-file>
+<status>completed</status>
+<summary>Background command "Check what psnfss provides" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+<task-notification>
+<task-id>b696e7f</task-id>
+<output-file>REDACTED.output</output-file>
+<status>failed</status>
+<summary>Background command "Rebuild and restart latex container" failed with exit code 1</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+<task-notification>
+<task-id>b3f883a</task-id>
+<output-file>REDACTED.output</output-file>
+<status>completed</status>
+<summary>Background command "Rebuild latex container from project root" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+tried
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 7.46.54 PM.png]
+
+---
+
+check
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 7.49.21 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Request**: User asked to check the codebase, Docker, and dev servers, and start them if not running.
+
+2. **Docker Desktop Issues**: Docker daemon was unresponsive despite Docker Desktop processes existing. Multiple attempts to restart Docker Desktop failed. Eventually, force-killing the stale backend process (PID 93546) and relaunching Docker Desktop fresh resolved it.
+
+3. **Dev Server Start**: Started Next.js dev server with `pnpm dev` (Turbopack). Server started on port 3000 but returned 500 error on landing page.
+
+4. **Landing Page 500 Error**: The error was `TypeError: Cannot read properties of null (reading 'useContext')` from `framer-motion`'s `MotionDOMComponent`. Root cause: `serverExternalPackages: ["motion"]` in `next.config.ts` caused `motion` package to resolve to a different React instance during SSR. Fix: Removed `motion` from `serverExternalPackages`.
+
+5. **Docker Compose Services**: Built and started `apollo-latex` and `apollo-r-plumber` containers successfully.
+
+6. **User Testing Phase 6 Pipeline**: User went through dataset generation and analyses. I monitored logs.
+
+7. **Dataset and Analysis Results**: Queried Supabase to find:
+   - Dataset: 59 rows, 30 columns about ventral hernia repair
+   - Two analyses completed: descriptive (Table 1) and chi-square (Fisher's Exact Test, p=0.006)
+   - One analysis failed: ROC analysis with "y values must be 0 <= y <= 1"
+
+8. **Compilation Error - pdflatex not found**: The compile used `docker run ... apollo-latex` but the image `apollo-latex` was stale/old (different ID from `docker-latex` which was the freshly built image). Fix: Tagged `docker-latex` as `apollo-latex`, added `image: apollo-latex` to docker-compose.yml.
+
+9. **Compilation Error - Read-only filesystem**: Font `ptmr8t.tfm` (Times Roman) wasn't installed, and TeX Live tried to write font cache to read-only `/root/.texlive2025`. Fix: Added font packages (`times`, `symbol`, `zapfding`, `tex-gyre`, `tex-gyre-math`, `cm-super`) to Dockerfile and set `TEXMFVAR=/tmp/texmf-var` and `HOME=/tmp`.
+
+10. **Compilation Error - No error details shown**: The catch block in `compile.ts` only used `err.message` which didn't include stdout/stderr from `execFileAsync`. Fix: Updated catch block to extract `err.stderr` and `err.stdout`.
+
+11. **Compilation Error - subfig.sty not found**: After fixing error reporting, the real error was visible. Missing TeX packages needed by the CLS files. Grep'd CLS files for all `\RequirePackage` and `\usepackage` declarations. Added: `subfig`, `hyphenat`, `datetime`, `fmtcount`, `emptypage`, `lettrine`, `nomencl`, `ragged2e`, `threeparttable`.
+
+12. **Build failure**: Three packages (`afterpage`, `fontenc`, `inputenc`) not in TeX Live repository (they're part of base `latex`). Removed them from Dockerfile. Need to rebuild.
+
+Current state: Dockerfile.latex has been updated but the rebuild hasn't been attempted yet after removing the three invalid package names.
+
+Summary:
+1. Primary Request and Intent:
+   - User initially asked to check the codebase, Docker, and dev servers, and start them if not running.
+   - User then tested the Phase 6 data generation pipeline and asked to monitor logs throughout.
+   - User asked to check the database for dataset name and analysis results.
+   - User reported compilation failures and asked to investigate/fix them.
+   - User is actively testing the full thesis generation pipeline end-to-end.
+
+2. Key Technical Concepts:
+   - **Next.js 15 App Router** with Turbopack dev server
+   - **Docker compose** with two services: `apollo-latex` (TeX Live compilation) and `apollo-r-plumber` (R statistical analysis)
+   - **`serverExternalPackages`** in Next.js config — causes packages to be loaded from node_modules during SSR instead of bundled, which can cause React instance mismatches
+   - **TeX Live minimal** Docker image with incremental `tlmgr install` for packages
+   - **Read-only Docker containers** with tmpfs at `/tmp` — requires `TEXMFVAR` to point to tmpfs
+   - **`docker run` vs `docker exec`** — compile.ts uses `docker run` to create ephemeral containers from the `apollo-latex` image (not exec into the running one)
+   - **Supabase** as the database (PostgreSQL) with service role key for queries
+   - **R Plumber** for statistical analysis (descriptive stats, chi-square/Fisher's exact test)
+   - **GOLD Standard 12-phase pipeline**: User progressed from Phase 6 (Results) through Phase 9 (References)
+   - **`ai_generated_latex` column** missing from `sections` table — fallback path handles this gracefully
+
+3. Files and Code Sections:
+
+   - **`apps/web/next.config.ts`** — Removed `serverExternalPackages: ["motion"]` to fix React hooks SSR error
+     ```typescript
+     const nextConfig: NextConfig = {
+       reactStrictMode: true,
+       output: "standalone",
+       // serverExternalPackages: ["motion"],  ← REMOVED
+       images: { ... },
+     };
+     ```
+
+   - **`docker/docker-compose.yml`** — Added `image:` keys so docker-compose builds produce the correct image names
+     ```yaml
+     latex:
+       build:
+         context: ..
+         dockerfile: docker/Dockerfile.latex
+       image: apollo-latex          # ← ADDED
+       container_name: apollo-latex
+       # ... rest unchanged
+     
+     r-plumber:
+       build:
+         context: ..
+         dockerfile: docker/Dockerfile.r-plumber
+       image: apollo-r-plumber     # ← ADDED
+       container_name: apollo-r-plumber
+       # ... rest unchanged
+     ```
+
+   - **`docker/Dockerfile.latex`** — Added missing TeX Live packages and environment variables for read-only filesystem. Current state after last edit (removing invalid packages):
+     ```dockerfile
+     FROM texlive/texlive:latest-minimal
+     
+     RUN tlmgr install \
+         latexmk \
+         bibtex \
+         fancyhdr \
+         geometry \
+         graphics \
+         hyperref \
+         xcolor \
+         setspace \
+         titlesec \
+         tocloft \
+         caption \
+         booktabs \
+         multirow \
+         pdfpages \
+         amsmath \
+         amsfonts \
+         natbib \
+         etoolbox \
+         babel \
+         psnfss \
+         times \
+         symbol \
+         zapfding \
+         tex-gyre \
+         tex-gyre-math \
+         cm-super \
+         bookmark \
+         xstring \
+         pdflscape \
+         float \
+         enumitem \
+         parskip \
+         url \
+         doi \
+         draftwatermark \
+         needspace \
+         lastpage \
+         tools \
+         latex \
+         latex-bin \
+         subfig \
+         hyphenat \
+         datetime \
+         fmtcount \
+         emptypage \
+         lettrine \
+         nomencl \
+         ragged2e \
+         threeparttable \
+         && rm -rf /tmp/*
+     
+     RUN for f in /usr/local/texlive/2025/bin/*/*; do ln -sf "$f" /usr/local/bin/; done
+     
+     RUN apt-get update && apt-get install -y --no-install-recommends \
+         ghostscript \
+         pandoc \
+         && rm -rf /var/lib/apt/lists/*
+     
+     COPY docker/compile.sh /usr/local/bin/compile.sh
+     RUN chmod +x /usr/local/bin/compile.sh
+     
+     COPY docker/watermark.sh /usr/local/bin/watermark.sh
+     RUN chmod +x /usr/local/bin/watermark.sh
+     
+     ENV TEXMFVAR=/tmp/texmf-var
+     ENV HOME=/tmp
+     
+     WORKDIR /thesis
+     
+     ENTRYPOINT ["/usr/local/bin/compile.sh"]
+     ```
+
+   - **`apps/web/lib/latex/compile.ts`** — Improved error handling in the `dockerCompile` catch block to capture stderr/stdout from execFileAsync:
+     ```typescript
+     } catch (err: unknown) {
+       // execFileAsync includes stdout/stderr on the error object
+       const execErr = err as { message?: string; stdout?: string; stderr?: string };
+       const fullOutput = [execErr.stderr, execErr.stdout, execErr.message]
+         .filter(Boolean)
+         .join("\n");
+       const log = parseLatexLog(fullOutput);
+     
+       // If parseLatexLog found no errors, use the raw error message
+       if (log.errorCount === 0) {
+         log.errors.push(execErr.message ?? "Docker compilation failed");
+         log.errorCount = 1;
+       }
+     
+       return {
+         success: false,
+         pdfPath: null,
+         log,
+         rawLog: fullOutput,
+         compileTimeMs: Date.now() - start,
+       };
+     } finally {
+     ```
+
+   - **Key files read but NOT modified** (soft-locked):
+     - `apps/web/app/page.tsx` — Landing page (server component)
+     - `apps/web/app/layout.tsx` — Root layout with ClerkProvider, ThemeProvider, PostHogProvider, PWAProvider
+     - `apps/web/components/layout/navbar.tsx` — "use client", uses Clerk components
+     - `apps/web/components/landing/hero-section.tsx` — "use client", uses motion/react
+     - `apps/web/components/landing/pricing-section.tsx` — "use client", pricing cards
+     - `apps/web/components/theme-provider.tsx` — "use client" wrapper for next-themes
+     - `apps/web/components/providers/posthog-provider.tsx` — "use client" PostHog init
+     - `apps/web/components/providers/pwa-provider.tsx` — "use client" SW registration
+     - `apps/web/app/api/projects/[id]/compile/route.ts` — Compile API route with pre-flight validation
+     - `docker/compile.sh` — Shell script for LaTeX compilation (4-pass: pdflatex, bibtex, pdflatex, pdflatex)
+     - `apps/web/package.json` — Project dependencies (motion ^12.34.0, pnpm)
+
+4. Errors and Fixes:
+   - **Docker Desktop daemon unresponsive**: Force-killed stale `com.docker.backend` process (PID 93546) and relaunched Docker Desktop fresh.
+   - **Landing page 500 (useContext null)**: `serverExternalPackages: ["motion"]` in `next.config.ts` caused `motion` to use a different React instance during SSR. Removed the config line.
+   - **`pdflatex: No such file or directory`**: Stale `apollo-latex` Docker image (ID `10ad6ff2e715`) used by compile.ts while docker-compose built as `docker-latex` (ID `5d3a9170e9ca`). Fixed by tagging `docker-latex` as `apollo-latex` and adding `image: apollo-latex` to docker-compose.yml.
+   - **Read-only filesystem font error** (`mkdir: cannot create directory '././root/.texlive2025': Read-only file system`): Missing Times font packages (`ptmr8t.tfm`) and TeX Live trying to write font cache to read-only rootfs. Added `times`, `symbol`, `zapfding`, `tex-gyre`, `tex-gyre-math`, `cm-super` packages and set `ENV TEXMFVAR=/tmp/texmf-var` and `ENV HOME=/tmp`.
+   - **No compilation error details shown**: `compile.ts` catch block only used `err.message` from `execFileAsync`, losing `stderr`/`stdout`. Updated to capture full output from the error object.
+   - **`subfig.sty` not found**: Missing TeX package. Added `subfig` plus all other packages required by the CLS files (`hyphenat`, `datetime`, `fmtcount`, `emptypage`, `lettrine`, `nomencl`, `ragged2e`, `threeparttable`).
+   - **Docker build failure**: `afterpage`, `fontenc`, `inputenc` packages not in TeX Live repository (they're part of base `latex`). Removed them from Dockerfile.
+
+5. Problem Solving:
+   - Resolved Docker Desktop startup by force-killing stale backend process
+   - Resolved React SSR hooks error by identifying `serverExternalPackages` config conflict
+   - Resolved Docker image naming mismatch between docker-compose and compile code
+   - Resolved TeX Live read-only filesystem issues with `TEXMFVAR` environment variable
+   - Improved compile error reporting to show actual TeX errors instead of generic "Command failed"
+   - Systematically identified all missing TeX packages by grepping CLS files for `\RequirePackage` declarations
+   - Ongoing: Docker image rebuild needed after removing three invalid package names
+
+6. All User Messages:
+   - "check the codebase, and the docker and dev servers. If they are not running start them"
+   - "keep an eye on the logs, i am going through the entire data gen phase 6 pipeline"
+   - "keep watching the logs, i'll trigger the analyses next"
+   - "check whats the status of the pipeilibe now> dataset which was newly generated is named what? which analyses completed>"
+   - "yes check the database for the dataset name and analysis results"
+   - "check the logs currently, and also this error [screenshot of compilation failed - pdflatex not found]"
+   - "tried [screenshot of compilation failed - still just command string error]"
+   - "check [screenshot of compilation failed - subfig.sty not found]"
+   - "tried [screenshot of compilation failed - same command string error, now at REFS phase]"
+
+7. Pending Tasks:
+   - Rebuild the `apollo-latex` Docker image after removing the three invalid package names (`afterpage`, `fontenc`, `inputenc`) from the Dockerfile
+   - Verify compilation succeeds with the rebuilt image
+   - The Next.js dev server is still running in background (task `b270521`)
+   - The `b5f00fd` tail task is still running monitoring logs
+
+8. Current Work:
+   The Dockerfile.latex was just edited to remove three invalid TeX Live package names (`afterpage`, `fontenc`, `inputenc`) that caused the Docker build to fail. The previous build attempt (`b2dcab9`) failed because `tlmgr install` errored on those packages not being in the repository. The Dockerfile now has the corrected package list. The next step is to rebuild the Docker image.
+
+9. Optional Next Step:
+   Rebuild the `apollo-latex` Docker image and verify compilation works. The exact command needed:
+   ```
+   cd /Users/devs/Downloads/Apollo && docker compose -f docker/docker-compose.yml up -d --build latex
+   ```
+   Then have the user try "Compile PDF" again. This directly continues the work from the user's last request showing the compilation failure screenshot.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+<task-notification>
+<task-id>b2dcab9</task-id>
+<output-file>/private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b2dcab9.output</output-file>
+<status>failed</status>
+<summary>Background command "Rebuild latex container with all missing packages" failed with exit code 1</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/b2dcab9.output
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 7.59.34 PM.png]
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 8.03.16 PM.png]
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 8.11.52 PM.png]
+
+---
+
+plan properly. reearch , think ultra hard on ho w to fix this pestering issue. create a perfect fix plan, and then execute
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 8.15.42 PM.png]
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 8.31.10 PM.png]
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 8.35.08 PM.png]
+
+---
+
+yes
+
+---
+
+## Error Type
+Console Error
+
+## Error Message
+Warning: ResponseException: Unexpected server response (404) while retrieving PDF "http://localhost:REDACTED.pdf".
+
+
+    at PdfViewer (components/viewer/pdf-viewer.tsx:162:11)
+    at ProjectWorkspace (app/(dashboard)/projects/[id]/project-workspace.tsx:568:15)
+    at ProjectDetailPage (app/(dashboard)/projects/[id]/page.tsx:179:7)
+
+## Code Frame
+  160 |           style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(0,0,0,0.1) transparent" }}
+  161 |         >
+> 162 |           <Document
+      |           ^
+  163 |             file={url}
+  164 |             onLoadSuccess={onDocumentLoadSuccess}
+  165 |             loading={
+
+Next.js version: 15.5.12 (Turbopack)
+## Error Type
+Console Error
+
+## Error Message
+Warning: ResponseException: Unexpected server response (404) while retrieving PDF "http://localhost:REDACTED.pdf?t=1771254261402".
+
+
+    at PdfViewer (components/viewer/pdf-viewer.tsx:162:11)
+    at ProjectWorkspace (app/(dashboard)/projects/[id]/project-workspace.tsx:584:11)
+    at ProjectDetailPage (app/(dashboard)/projects/[id]/page.tsx:179:7)
+
+## Code Frame
+  160 |           style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(0,0,0,0.1) transparent" }}
+  161 |         >
+> 162 |           <Document
+      |           ^
+  163 |             file={url}
+  164 |             onLoadSuccess={onDocumentLoadSuccess}
+  165 |             loading={
+
+Next.js version: 15.5.12 (Turbopack)
+## Error Type
+Console Error
+
+## Error Message
+Warning: ResponseException: Unexpected server response (404) while retrieving PDF "http://localhost:REDACTED.pdf?t=1771254261402".
+
+
+    at PdfViewer (components/viewer/pdf-viewer.tsx:162:11)
+    at ProjectWorkspace (app/(dashboard)/projects/[id]/project-workspace.tsx:568:15)
+    at ProjectDetailPage (app/(dashboard)/projects/[id]/page.tsx:179:7)
+
+## Code Frame
+  160 |           style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(0,0,0,0.1) transparent" }}
+  161 |         >
+> 162 |           <Document
+      |           ^
+  163 |             file={url}
+  164 |             onLoadSuccess={onDocumentLoadSuccess}
+  165 |             loading={
+
+Next.js version: 15.5.12 (Turbopack)
+no way to go beyond this step, no way to download the pdf, no way to finish the pipeline, the pdf has many mistakes, especially the citstion and figures and data analysis pipeline. hink ultra harf, and plan to fix all these issues
+
+---
+
+[Image: source: REDACTED 2026-02-16 at 8.42.47 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start (Context Recovery)**: This is a continuation session. The previous conversation dealt with:
+   - Starting Docker Desktop and dev servers
+   - Fixing Next.js SSR error (removed `motion` from `serverExternalPackages`)
+   - Fixing Docker image naming mismatch
+   - Fixing read-only filesystem font issues
+   - Improving compile error reporting in compile.ts
+   - Adding missing TeX packages (subfig, hyphenat, datetime, etc.)
+   - Removing invalid package names (afterpage, fontenc, inputenc)
+
+2. **Docker Image Rebuild**: The session picks up needing to rebuild the Docker image after removing 3 invalid package names. The rebuild succeeded with 85 packages.
+
+3. **Smoke Test**: Tested compilation with a simple article - initially failed due to control characters from echo command. Fixed by writing the test file properly with the Write tool. Second test succeeded.
+
+4. **Missing Package: xkeyval + babel-english**: User reported compilation failed with `Unknown option 'UKenglish'` and `xkeyval.sty not found`. Added `xkeyval`, `babel-english`, `hyphen-english` to Dockerfile. Rebuild succeeded.
+
+5. **Missing Package: tocbasic**: User reported `tocbasic.sty not found`. This is part of `koma-script`. Added `koma-script` to Dockerfile. Also tried adding `longtable`, `array`, `tabularx`, `amssymb`, `xfp`, `mathptmx` but those are bundled in existing packages. Removed the 6 invalid ones, kept `koma-script`. Rebuild succeeded.
+
+6. **Missing Package: xfp.sty**: User reported `xfp.sty not found`. Found it's in `l3packages` via `tlmgr search`. Added `l3packages`. Rebuild succeeded.
+
+7. **Missing Package: epstopdf-base.sty**: User said "plan properly, research, think ultra hard on how to fix this pestering issue." This prompted a complete rethink of the approach.
+
+8. **scheme-small Solution**: Instead of individual packages, switched to `scheme-small` (307 packages covering all transitive dependencies) + targeted extras for thesis-specific packages. This was the proper fix to stop the whack-a-mole package hunting. Rebuild succeeded.
+
+9. **Missing chapters/introduction.tex**: The error shifted from packages to `File 'chapters/introduction.tex' not found`. Root cause: `compile.sh` line 24 copies `*.tex`, `*.cls`, `*.bst` from `/thesis/` to `/tmp/` but does NOT copy the `chapters/` subdirectory. Compilation runs in `/tmp` (line 32: `cd /tmp`). Fixed by adding `cp -r /thesis/chapters /tmp/chapters` and `cp /thesis/*.bib /tmp/` to compile.sh. Fast rebuild (only compile.sh layer changed).
+
+10. **Compilation Success!**: "Compiled successfully in 6029ms (179 warnings)" - first successful compilation of the actual thesis.
+
+11. **PDF Not Loading**: PDF viewer showed "Failed to load PDF" with "1 / 0" pages. Root cause traced: compile.ts `dockerCompile` persists PDF to temp workDir, stores the path in DB as `pdf_url`, then the `finally` block deletes the workDir. Preview route tries to read the deleted file. Fixed by persisting PDF to `/tmp/apollo-pdfs/{projectId}.pdf` before cleanup. Applied same pattern to mock and local compile modes.
+
+12. **PDF 404 Error + Comprehensive Issues**: After fix, user recompiled and PDF loaded (55/55 pages visible with watermark). But user reported multiple issues: can't download PDF, 49/50 citations unverified, pipeline stuck at Phase 9. User asked to "think ultra hard, and plan to fix all these issues."
+
+13. **Plan Mode**: Entered plan mode. Launched 3 parallel explore agents to investigate PDF download/preview, citation/figure pipeline, and compile route state. Then launched a Plan agent to design the implementation.
+
+14. **PLAN.md Alignment Check**: User asked if the plan aligns with docs/PLAN.md. Launched explore agent to check. Found alignment on all points: export gating, phase 9-11 descriptions, citation tiers, R2 for production. Updated plan file with alignment notes.
+
+Key files modified during this session:
+- `docker/Dockerfile.latex` - Multiple iterations, final version uses `scheme-small` + extras
+- `docker/compile.sh` - Added chapters/ and *.bib copying to /tmp
+- `apps/web/lib/latex/compile.ts` - Persist PDF to stable path before cleanup
+
+Plan file created:
+- `/Users/devs/.claude/plans/gentle-booping-zebra.md` - Comprehensive fix plan for PDF download, preview reliability, pipeline progression, citation guidance
+
+Current state: Plan mode is still active. Plan has been written and verified against PLAN.md. Ready for ExitPlanMode to get user approval.
+
+Summary:
+1. Primary Request and Intent:
+   - **Initial request**: Continue from previous session — rebuild the `apollo-latex` Docker image after removing 3 invalid TeX Live package names (`afterpage`, `fontenc`, `inputenc`)
+   - **Ongoing**: Fix all compilation errors as they surfaced (missing packages, missing chapter files, PDF serving)
+   - **Final comprehensive request**: "think ultra hard, and plan to fix all these issues" — the user wants a comprehensive fix for: (a) PDF download not working for sandbox projects, (b) PDF 404 on page reload, (c) pipeline stuck at Phase 9 (References), (d) 49/50 citations are Tier D unverified, (e) figures and data analysis pipeline issues
+   - **PLAN.md alignment**: User asked to verify the fix plan aligns with the frozen architecture document at `docs/PLAN.md`
+
+2. Key Technical Concepts:
+   - **TeX Live package management**: `tlmgr install` for individual packages vs `scheme-small` for collections; packages like `amssymb`, `array`, `tabularx` are bundled inside `amsfonts`, `tools` etc.
+   - **Docker read-only filesystem**: `TEXMFVAR=/tmp/texmf-var` and `HOME=/tmp` for font cache on tmpfs
+   - **compile.sh pipeline**: Copies files from `/thesis/` (mounted volume) to `/tmp/` (writable tmpfs), then runs `pdflatex → bibtex → pdflatex × 2` in `/tmp`
+   - **PDF persistence**: PDFs must be persisted to `/tmp/apollo-pdfs/{projectId}.pdf` before temp workDir cleanup
+   - **Thesis assembly**: `PHASE_CHAPTER_MAP` maps phase numbers (2-8) to chapter file paths; `assembleThesisContent()` produces `chapterFiles` dict
+   - **Citation tiers**: A (DOI/PMID verified), B (ISBN/URL + user attest), C (manual attest), D (unresolved) — Tier D blocks Final QC only
+   - **Pipeline phases 0-11**: Phases 9-11 are "structural" (auto/manual, no AI generation), but no auto-creation logic exists yet
+   - **Export gating**: PLAN.md §856-858 says sandbox = watermarked PDF, export blocked (402). Preview route is separate from export route.
+
+3. Files and Code Sections:
+
+   - **`docker/Dockerfile.latex`** — LaTeX compilation Docker image
+     - Went through ~6 iterations adding missing packages
+     - Final version uses `scheme-small` (307 packages) + targeted extras
+     - This eliminates the whack-a-mole missing package problem
+     ```dockerfile
+     FROM texlive/texlive:latest-minimal
+     RUN tlmgr install scheme-small && rm -rf /tmp/*
+     RUN tlmgr install \
+         natbib titlesec tocloft enumitem doi draftwatermark \
+         needspace lastpage hyphenat datetime fmtcount emptypage \
+         lettrine nomencl threeparttable multirow bookmark xstring \
+         babel-english && rm -rf /tmp/*
+     RUN for f in /usr/local/texlive/2025/bin/*/*; do ln -sf "$f" /usr/local/bin/; done
+     RUN apt-get update && apt-get install -y --no-install-recommends ghostscript pandoc && rm -rf /var/lib/apt/lists/*
+     COPY docker/compile.sh /usr/local/bin/compile.sh
+     RUN chmod +x /usr/local/bin/compile.sh
+     COPY docker/watermark.sh /usr/local/bin/watermark.sh
+     RUN chmod +x /usr/local/bin/watermark.sh
+     ENV TEXMFVAR=/tmp/texmf-var
+     ENV HOME=/tmp
+     WORKDIR /thesis
+     ENTRYPOINT ["/usr/local/bin/compile.sh"]
+     ```
+
+   - **`docker/compile.sh`** — Shell script for LaTeX compilation inside Docker
+     - Root cause of `chapters/introduction.tex not found`: script copied `*.tex`, `*.cls`, `*.bst` to `/tmp` but NOT the `chapters/` subdirectory or `*.bib` files
+     - Fix: Added `cp /thesis/*.bib /tmp/` and `cp -r /thesis/chapters /tmp/chapters`
+     ```sh
+     # Copy source files to /tmp for read-only filesystem compatibility
+     cp /thesis/*.tex /thesis/*.cls /thesis/*.bst /tmp/ 2>/dev/null || true
+     cp /thesis/*.bib /tmp/ 2>/dev/null || true
+     cp -r /thesis/logo /tmp/logo 2>/dev/null || true
+     cp -r /thesis/chapters /tmp/chapters 2>/dev/null || true
+     ```
+
+   - **`apps/web/lib/latex/compile.ts`** — PDF compilation and persistence
+     - Root cause of "Failed to load PDF": `dockerCompile` stored temp workDir path as `pdf_url`, then `finally` block deleted the workDir
+     - Fix: Persist PDF to `/tmp/apollo-pdfs/{projectId}.pdf` before cleanup
+     - Applied to all three compile modes (docker, local, mock)
+     ```typescript
+     // dockerCompile — persist PDF before cleanup
+     let pdfPath: string | null = null;
+     try {
+       const pdfData = await readFile(path.join(outputDir, "main.pdf"));
+       const persistDir = path.join(os.tmpdir(), "apollo-pdfs");
+       await mkdir(persistDir, { recursive: true });
+       pdfPath = path.join(persistDir, `${options.projectId}.pdf`);
+       await writeFile(pdfPath, pdfData);
+     } catch {
+       // PDF may not have been generated
+     }
+     ```
+     - localCompile also updated with same persist pattern + added `finally` cleanup block
+     - mockCompile updated to use `apollo-pdfs/mock.pdf` instead of `apollo-mock-pdf/main.pdf`
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** — Compile API route (read, not modified this session)
+     - Line 170: calls `compileTex(tex, { projectId, watermark, bibContent, chapterFiles })`
+     - Line 197: stores `pdf_url: result.pdfPath` in DB
+
+   - **`apps/web/app/api/projects/[id]/preview.pdf/route.ts`** — PDF serving route (read, not modified this session)
+     - Line 47: `const pdfBytes = await readFile(compilation.pdf_url)` — reads from stored DB path
+     - Currently fails if the stored path is stale (plan addresses this)
+
+   - **`apps/web/lib/latex/assemble.ts`** — Thesis assembly (read, not modified)
+     - `PHASE_CHAPTER_MAP`: phases 2-8 → chapter file paths
+     - `assembleThesisContent()`: produces `chapterFiles` dict, `tex`, `bib`
+     - `stripTierDCitations()`: replaces Tier D `\cite{key}` with `% UNRESOLVED` comments
+
+   - **`docker/docker-compose.yml`** — Docker compose (read, modified in previous session to add `image:` keys)
+
+   - **`templates/main.tex`** — LaTeX template (read, not modified)
+     - Uses `\input{chapters/introduction}` (no .tex extension — LaTeX auto-appends)
+
+   - **`apps/web/components/viewer/pdf-viewer.tsx`** — PDF viewer (read during planning)
+     - Uses react-pdf, has page nav/zoom/thumbnails but NO download button
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** — Workspace (read during planning)
+     - `compileAndRefreshPdf()` updates PDF URL after compile
+     - `AI_GENERATABLE_PHASES` = Set([0,1,2,3,4,5,6,7,8]) — Phase 9+ excluded
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** — Phase approval (read during planning)
+     - Auto-creates Phase 1 section when Phase 0 approved, but no auto-creation for phases 9-11
+
+   - **Plan file: `/Users/devs/.claude/plans/gentle-booping-zebra.md`** — Comprehensive fix plan created
+
+4. Errors and Fixes:
+   - **`afterpage`, `fontenc`, `inputenc` not in TeX Live repo** (from previous session): Removed — they're part of base `latex` package
+   - **Docker image rebuild succeeded** after removing invalid packages (85 packages installed)
+   - **Smoke test control characters**: `echo` command injected `^^H` (backspace) and `^^[` (escape) into test .tex file. Fixed by using Write tool instead of echo.
+   - **`xkeyval.sty` not found + babel `UKenglish` unknown option**: Added `xkeyval`, `babel-english`, `hyphen-english` to Dockerfile
+   - **`tocbasic.sty` not found**: Part of `koma-script`. Added `koma-script`. Also tried adding `longtable`, `array`, `tabularx`, `amssymb`, `xfp`, `mathptmx` — all "not present in repository" because they're bundled in `tools`, `amsfonts`, `psnfss`, `l3kernel`. Removed the 6 invalid ones.
+   - **`xfp.sty` not found**: Assumed it was in `l3kernel` but it wasn't. Found via `tlmgr search --global --file xfp.sty` → it's in `l3packages`. Added `l3packages`.
+   - **`epstopdf-base.sty` not found**: User frustrated with whack-a-mole. Complete rethink: replaced all individual package installs with `scheme-small` (307 packages) + targeted extras. This solved all transitive dependency issues permanently.
+   - **`chapters/introduction.tex` not found**: `compile.sh` only copied `*.tex` from `/thesis/` root to `/tmp/` — didn't copy the `chapters/` subdirectory. Fixed by adding `cp -r /thesis/chapters /tmp/chapters` and `cp /thesis/*.bib /tmp/`.
+   - **PDF "Failed to load"**: `dockerCompile` stored temp workDir path in DB, then deleted the workDir in `finally` block. Fixed by persisting PDF to `/tmp/apollo-pdfs/{projectId}.pdf` before cleanup.
+   - **PDF 404 on console**: Old compilation records still had stale paths. New compilations work. Plan addresses fallback for stale paths.
+
+5. Problem Solving:
+   - **Solved**: All TeX Live package dependency issues by switching from individual packages to `scheme-small` collection
+   - **Solved**: Chapter files not found in Docker by fixing `compile.sh` to copy `chapters/` directory and `*.bib` files
+   - **Solved**: PDF persistence by moving PDF to stable location before temp dir cleanup
+   - **Solved**: Compilation now works end-to-end (55 pages, ~6s, with watermark for sandbox)
+   - **In Planning**: PDF download button, preview reliability fallback, pipeline progression for phases 9-11, citation guidance
+
+6. All User Messages:
+   - (Screenshot) Compilation failed: `Unknown option 'UKenglish'` + `xkeyval.sty not found`
+   - (Screenshot) Compilation failed: `tocbasic.sty not found`
+   - (Screenshot) Compilation failed: `xfp.sty not found`
+   - "plan properly. research, think ultra hard on how to fix this pestering issue. create a perfect fix plan, and then execute" (Screenshot: `epstopdf-base.sty not found`)
+   - (Screenshot) Compilation failed: `chapters/introduction.tex not found`
+   - (Screenshot) Compiled successfully in 6181ms (180 warnings) + PDF viewer showing 55/55 pages with watermark + Citations (50) A:1 D:49 + Console errors: 404 for preview.pdf
+   - "no way to go beyond this step, no way to download the pdf, no way to finish the pipeline, the pdf has many mistakes, especially the citation and figures and data analysis pipeline. think ultra hard, and plan to fix all these issues"
+   - "Does this plan align with the main plan in /docs/PLAN.md?"
+
+7. Pending Tasks:
+   - **Plan approval pending**: The plan at `/Users/devs/.claude/plans/gentle-booping-zebra.md` is written and verified against PLAN.md, but plan mode is still active waiting for ExitPlanMode → user approval
+   - **Implementation pending** (after plan approval):
+     1. P0: Add PDF download button to viewer + `?download=1` support in preview route
+     2. P1: Add deterministic path fallback in preview route
+     3. P3: Auto-create sections for phases 9-11 in approve route + workspace UI for structural phases
+     4. P2: Citation guidance text (optional)
+
+8. Current Work:
+   In **plan mode** — the plan has been written to `/Users/devs/.claude/plans/gentle-booping-zebra.md` and verified against `docs/PLAN.md`. The plan covers 4 priorities:
+   - P0: PDF download button in viewer (blocker)
+   - P1: PDF preview reliability with deterministic path fallback
+   - P3: Pipeline progression for phases 9-11 via auto-created sections
+   - P2: Citation guidance text
+
+   The PLAN.md alignment was confirmed:
+   - Export gating: sandbox = watermarked PDF, export blocked (402) — download via preview route is OK
+   - Phase 9: "Auto: bidirectional audit + provenance check"
+   - Phase 11: Tier D citations block Final QC
+   - R2 for production (out of scope for now)
+
+   Plan file was updated with alignment notes. Next step was to call `ExitPlanMode` for user approval.
+
+9. Optional Next Step:
+   Call `ExitPlanMode` to present the plan for user approval, then implement the 4 fixes in order (P0 → P1 → P3 → P2). The user's most recent explicit request was: "Does this plan align with the main plan in /docs/PLAN.md?" — which has been addressed by exploring PLAN.md and updating the plan with alignment notes. The plan is ready for approval.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation session from a previous conversation that dealt with Docker image rebuilding, TeX package issues, compile.sh fixes, and PDF persistence. The previous session ended with a plan being created at `/Users/devs/.claude/plans/gentle-booping-zebra.md`.
+
+2. **Plan Mode Active**: The conversation starts in plan mode. The plan was about fixing PDF download, preview reliability, and pipeline progression.
+
+3. **ExitPlanMode attempted** → User rejected, asking "what about citation control since introduction chapter?"
+
+4. **Citation exploration**: Two explore agents launched to investigate the citation generation pipeline and citation resolution flow. Found comprehensive details about:
+   - AI generates `\cite{key}` + BibTeX trailer after `---BIBTEX---`
+   - `resolveSectionCitations()` runs fire-and-forget
+   - 4-tier system (A/B/C/D)
+   - Resolution algorithm: DOI → PMID → title search → Tier D
+
+5. **Read key files**: prompts.ts, auto-resolve.ts, resolve.ts, crossref.ts, pubmed.ts, citation-list-panel.tsx, project-workspace.tsx, generate route
+
+6. **Initial diagnosis**: 49/50 Tier D because AI fabricates citations and resolution fails. Plan updated with pre-seed real references strategy.
+
+7. **ExitPlanMode attempted** → User rejected, saying: "I think your diagnosis on the citation aspect is wrong. Although some of the changes you planned are welcome, but I have noticed a fundamental change in the AI generation pipeline from my local CLI based project to Apollo. Initially AI was generating citations attached to the end of each generated chapter, which were supposed to be verified and appended to a .bib file at each approve and advance step, but this behaviour changed somewhere, and now AI generated sections don't have that appended citations at the end (although consistently using \cite{key} commands). I feel the system prompts need to be looked into as well as fixing the handling of the .bib file"
+
+8. **Corrected investigation**: Found the REAL root cause:
+   - In template literals, `\\n\\n---BIBTEX---\\n` produces literal `\n` text, NOT actual newlines
+   - AI sees confusing instruction and doesn't output the separator
+   - All cite keys become orphan Tier D with empty bibtex_entry
+   - Assembly excludes Tier D from .bib → empty .bib → all [?] in PDF
+
+9. **Plan updated** with corrected diagnosis and three-pronged fix.
+
+10. **ExitPlanMode attempted** → User rejected, saying: "The premise of this error symptom 'References/Appendices/Final QC phases have no AI generation and no auto-created sections, so the Approve button never appears' is wrong. All these steps DO have automation. References and citations are dealt with above. Appendices are to be filled in with appropriate placeholders and from synopsis (patient info sheet and consent etc etc, as per the NBE and ICMR guidelines) and Final QC is a fully automated step for the AI to check all steps and phases till now. There also needs to be pipelines in built to mitigate errors found in QC. only diagnosis and no treatment options is stupid."
+
+11. **Phase 9-11 deep dive**: Two explore agents investigated PLAN.md and existing code for phases 9-11. Found:
+   - Phase 9: bidirectional audit + provenance check (existing audit.ts can be used)
+   - Phase 10: Auto-generate annexures (PIS, ICF, master chart, abbreviations, ethics)
+   - Phase 11: 7-point QC rubric with fix pipelines
+   - No code exists for phases 9-11 (only skeleton definitions in constants.ts)
+
+12. **Plan updated** with proper Phase 9-11 automation including fix pipelines.
+
+13. **ExitPlanMode attempted** → User rejected with additional issues:
+   - "NBEMS 80 page rule is only for Introduction to Conclusion, excluding the frontmatter and backmatter"
+   - "Tables are not being created (latex commands maybe read as plaintext)"
+   - "Data analysis pipeline allows for >2 simultaneous R calculations to start, then fails on those"
+   - "No way to choose or mandate or ask for specific figures/auto recommend and generate figures"
+   - "No way to ask for betterment or changing parts of a section, its either regen full or nothing (brainstorm this)"
+
+14. **Three parallel explore agents** investigated:
+   - **Tables**: Found `tiptap-to-latex.ts` has NO `case "codeBlock"` handler. Tables are converted to codeBlock nodes in forward direction but lost (empty string) in reverse. The longtable in Phase 4 (ROL) is silently dropped.
+   - **R concurrency**: Semaphore allows MAX_UNITS=3, each analysis=1 unit, so 3 concurrent analyses (not 2). In-memory only, lost on restart. Single R Plumber container with no request-level concurrency control.
+   - **Figures**: No auto-recommendation of figure types. Analysis auto-generates 1:1 figures. No wizard for choosing visualisations.
+   - **Partial editing**: Only full regen supported. `ai_conversation_id` field exists but unused. `instructions` field in schema but unused in API.
+
+15. **Plan context updated** with all new issues, but the detailed sections for these 4 new items haven't been written yet to the plan file - only the Context section was updated.
+
+The conversation ends with the plan file partially updated - the Context section lists all issues, but the detailed implementation sections for the 4 new issues (tables, R concurrency, figures, partial editing) have NOT been added yet.
+
+Summary:
+1. Primary Request and Intent:
+   The user wants a comprehensive fix plan for ALL blocking issues in their Apollo thesis platform. The plan has been iteratively refined through multiple rounds of user feedback. The full list of issues to address:
+   
+   - **PDF download**: Can't download PDF from viewer (export gated behind licence)
+   - **PDF preview reliability**: 404 on page reload due to stale temp paths
+   - **BibTeX trailer missing**: AI prompts use `\\n\\n---BIBTEX---\\n` (literal `\n` text in JS template literals), causing AI to NOT output BibTeX entries → all citations become Tier D with empty bibtex_entry → empty .bib file → all `[?]` in PDF
+   - **Citation pipeline**: Pre-seed real PubMed references, fallback BibTeX extraction, citation quality gates, panel enhancements
+   - **Phase 9 (References)**: Automated bidirectional citation audit with fix pipelines (not just a placeholder)
+   - **Phase 10 (Appendices)**: AI-generated annexures — PIS, ICF, master chart, abbreviations, ethics approval per NBEMS/ICMR guidelines
+   - **Phase 11 (Final QC)**: Fully automated 7-point QC check WITH fix pipelines for each error found ("only diagnosis and no treatment options is stupid")
+   - **Tables broken**: `tiptap-to-latex.ts` missing `codeBlock` handler — longtables silently disappear in round-trip
+   - **R analysis concurrency**: Semaphore allows 3 concurrent analyses but spec says 2; >2 fail
+   - **No figure recommendation**: No way to choose, mandate, or auto-recommend specific figures
+   - **No partial section editing**: Full regen or nothing; no way to refine parts of a section
+   - **NBEMS 80-page rule**: Only applies Introduction to Conclusion (phases 2-8), excluding front/back matter
+
+2. Key Technical Concepts:
+   - **BibTeX trailer system**: AI output contains body + `---BIBTEX---` separator + BibTeX entries. `splitBibtex()` in `assemble.ts` splits at this marker.
+   - **Template literal escaping bug**: `\\n` in JS template literals produces literal `\n` text, not actual newlines. The AI sees confusing instruction and doesn't output the separator.
+   - **Citation 4-tier system**: A (DOI/PMID verified), B (ISBN/URL + student attest), C (manual attest), D (unresolvable — blocks Final QC)
+   - **Tiptap round-trip**: `latexToTiptap()` → rich editor → `tiptapToLatex()`. Tables are converted to `codeBlock` nodes but NOT serialized back (missing handler).
+   - **Assembly pipeline**: `assembleThesisContent()` in `assemble.ts` produces `chapterFiles` dict. `PHASE_CHAPTER_MAP` maps phases 2-8 to chapter files. Phase 9-11 not mapped.
+   - **R Plumber concurrency**: In-memory semaphore (`semaphore.ts`), MAX_UNITS=3, analysis=1 unit. Lost on server restart. Single R container.
+   - **Fire-and-forget citation resolution**: `resolveSectionCitations()` called with `void` (line 409 of generate route), errors silently swallowed
+   - **Pre-seed references**: Search PubMed for topic-relevant papers before AI generation, inject real BibTeX into prompt
+   - **QC fix pipelines**: Not just flagging errors but providing automated fixes (re-resolve citations, auto-fix spelling, expand sections)
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/ai/prompts.ts`** — System prompts for each phase
+     - CRITICAL BUG: Line 66 uses `\\n\\n---BIBTEX---\\n` which produces literal `\n` text
+     - `COMMON_RULES` (lines 6-16): shared rules for all phases
+     - `INTRODUCTION_SYSTEM_PROMPT` (line 47-66): 10-15 references, 500-750 words
+     - `ROL_SYSTEM_PROMPT` (line 97-133): 25-35 references, mandatory longtable
+     - `MATERIALS_METHODS_SYSTEM_PROMPT` (line 135-161): 12 NBEMS sections
+     - `DISCUSSION_SYSTEM_PROMPT` (line 184-206): compare with literature
+     - `getPhaseSystemPrompt()` (lines 243-256): returns null for phases 9-11
+     - Needs: fix BibTeX instruction in 4 prompts, add rule 9 to COMMON_RULES, add APPENDICES_SYSTEM_PROMPT for Phase 10
+
+   - **`apps/web/lib/latex/assemble.ts`** — Thesis assembly
+     - `PHASE_CHAPTER_MAP` (lines 8-16): maps phases 2-8 only (9-11 missing)
+     - `splitBibtex()` (lines 31-40): splits at `---BIBTEX---` marker, returns `{ body, bib }`
+     - `deduplicateBibEntries()` (lines 48-79): last-write-wins by cite key
+     - `stripTierDCitations()` (lines 89-130): replaces Tier D `\cite{key}` with `% UNRESOLVED` comments
+     - `assembleThesisContent()` (lines 155-261): main assembly. Line 239-246: reads BibTeX from `ai_generated_latex`. Line 251: excludes Tier D from `.bib`
+     - Needs: add Phase 10 to `PHASE_CHAPTER_MAP`
+
+   - **`apps/web/lib/latex/latex-to-tiptap.ts`** — LaTeX to Tiptap converter
+     - `preprocess()` (lines 31-49): strips `---BIBTEX---` trailer, `\label{}`, `\needspace{}`, converts markdown headings
+     - Lines 408-418: table environments → `codeBlock` nodes (this part works)
+
+   - **`apps/web/lib/latex/tiptap-to-latex.ts`** — Tiptap to LaTeX serializer
+     - `serializeNode()` switch statement (lines 84-154): handles doc, paragraph, heading, bulletList, orderedList, listItem, blockquote, text, hardBreak
+     - **BUG**: NO `case "codeBlock"` — falls to default which returns empty string. Tables silently lost.
+     - Needs: add `case "codeBlock"` that outputs `node.content[0].text` (the raw LaTeX)
+
+   - **`apps/web/lib/citations/auto-resolve.ts`** — Background citation resolution
+     - `resolveSectionCitations()` (lines 20-151): splits BibTeX, resolves entries, upserts to DB
+     - Lines 32-87: if `bib.trim()` → resolve trailer entries
+     - Lines 89-151: extract orphan `\cite{}` keys → create Tier D placeholders with **empty** `bibtex_entry`
+     - Lines 136-148: orphans get `bibtex_entry: ""` — this is useless for compilation
+     - Needs: fallback BibTeX scan for `@article{` patterns, return `CitationResolutionSummary`, fix empty orphan BibTeX
+
+   - **`apps/web/lib/citations/resolve.ts`** — Citation resolution algorithm
+     - `resolveEntry()` (lines 136-230): DOI lookup → PMID lookup → title search (0.85 threshold) → Tier D
+     - `resolveAllEntries()` (lines 239-271): batch with CONCURRENCY=3
+     - `parseBibtexEntries()` (lines 30-56): parses raw BibTeX into Map<key, entry>
+
+   - **`apps/web/lib/citations/crossref.ts`** — CrossRef API
+     - `lookupDOI()` (lines 78-142): content negotiation + structured metadata
+     - `searchCrossRef()` (lines 147-186): query-based search
+     - `stripDoiField()` (line 68-70): removes DOI field (underscores crash vancouver.bst)
+
+   - **`apps/web/lib/citations/pubmed.ts`** — PubMed API
+     - `lookupPMID()` (lines 69-99): esummary endpoint
+     - `searchPubMed()` (lines 105-162): two-step esearch → esummary
+     - `pubmedArticleToBibtex()` (lines 168-214): cascades to CrossRef if DOI available
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** — AI generation
+     - `handleSectionGenerate()` (lines 149-461): main generation handler
+     - Line 257-259: model routing (Sonnet 4.5 for all; TODO for Opus on phases 2, 7)
+     - Lines 326-328: `latexToTiptap(fullResponse)` extracts citation keys
+     - Lines 344-404: 3-tier DB fallback for saving (ai_generated_latex → rich_content_json → core-only)
+     - Line 409: **fire-and-forget** `void resolveSectionCitations(project.id, fullResponse)`
+     - Needs: pre-seed logic for phases 2,4,5,7; await resolution; include summary in SSE; Phase 10 support
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** — Phase approval
+     - Lines 110-127: approves section + advances phase
+     - Lines 134-152: Phase 0 → auto-creates Phase 1 (front matter)
+     - NO logic for phases 8→9, 9→10, 10→11
+     - Needs: Phase 8→9 audit auto-trigger, Phase 9→10 appendices, Phase 10→11 QC, Phase 11 blocking gate
+
+   - **`apps/web/components/project/citation-list-panel.tsx`** — Citation UI
+     - Collapsible panel, tier badges (A=sage, B=blue, C=amber, D=red)
+     - Actions: Add Citation, Run Audit, Attest (Tier D→C), Delete
+     - `isOpen` default: `false` (should auto-expand when Tier D exists)
+     - Needs: auto-expand, help text, re-resolve button
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** — Main workspace (LOCKED file)
+     - `AI_GENERATABLE_PHASES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8])` — Phase 9+ excluded
+     - Lines 344-365: action bar with AI Generate + Approve buttons
+     - Lines 526-531: CitationListPanel rendered
+     - Line 568: `<PdfViewer key={pdfKey} url={pdfUrl} />` — no `projectId` prop
+     - Needs: pass `projectId` to PdfViewer; Phase 9 audit UI; Phase 10 generate; Phase 11 QC dashboard; partial editing UI
+
+   - **`apps/web/lib/compute/semaphore.ts`** — In-memory concurrency control
+     - MAX_UNITS=3, analysis=1 unit → allows 3 concurrent analyses (spec says 2)
+     - In-memory only, lost on server restart
+     - Needs: reduce effective max for analyses to 2
+
+   - **`docker/compile.sh`** — LaTeX compilation in Docker (previously fixed)
+   - **`docker/Dockerfile.latex`** — TeX Live image (previously fixed with scheme-small)
+   - **`apps/web/lib/latex/compile.ts`** — PDF compilation (previously fixed with persist to apollo-pdfs)
+
+4. Errors and Fixes:
+   - **Initial wrong diagnosis (fabricated citations)**: I initially diagnosed the 49/50 Tier D as AI fabricating citations. User corrected: the AI is NOT outputting the BibTeX trailer at all. The root cause is `\\n\\n---BIBTEX---\\n` in template literals producing literal `\n` text, confusing the AI.
+   - **Wrong Phase 9-11 approach (simple placeholders)**: I initially proposed auto-creating placeholder sections. User corrected: Phase 9 should run real citation audit, Phase 10 should auto-generate real appendix content (PIS, ICF, etc.), Phase 11 should run comprehensive QC WITH fix pipelines. User explicitly said "only diagnosis and no treatment options is stupid."
+   - **NBEMS scope**: User corrected that 80-page rule applies only to Introduction through Conclusion (phases 2-8), NOT front/back matter.
+   - **Missing issues**: User identified 4 additional issues not in the original plan: tables broken in round-trip, R analysis concurrency, no figure recommendation, no partial section editing.
+
+5. Problem Solving:
+   - **Solved (previous session)**: Docker image packages (scheme-small), compile.sh chapter copying, PDF persistence to stable path
+   - **Diagnosed**: BibTeX trailer not generated (template literal escaping), tables lost (missing codeBlock handler), R concurrency (semaphore config), no partial editing (unused ai_conversation_id field)
+   - **Plan designed but NOT implemented**: All 10+ workstreams are in the plan file but execution hasn't started (still in plan mode)
+
+6. All User Messages:
+   - (First ExitPlanMode rejection): "what about citation control since introduction chapter?"
+   - (Second ExitPlanMode rejection): "I think your diagnosis on the citation aspect is wrong. Although some of the changes you planned are welcome, but I have noticed a fundamental change in the AI generation pipeline from my local CLI based project to Apollo. Initially AI was generating citations attached to the end of each generated chapter, which were supposed to be verified and appended to a .bib file at each approve and advance step, but this behaviour changed somewhere, and now AI generated sections don't have that appended citations at the end (although consistently using \citekey commands). I feel the system prompts need to be looked into as well as fixing the handling of the .bib file"
+   - (Third ExitPlanMode rejection): "The premise of this error symptom 'References/Appendices/Final QC phases have no AI generation and no auto-created sections, so the Approve button never appears' is wrong. All these steps DO have automation. References and citations are dealt with above. Appendices are to be filled in with appropriate placeholders and from synopsis (patient info sheet and consent etc etc, as per the NBE and ICMR guidelines) and Final QC is a fully automated step for the AI to check all steps and phases till now. There also needs to be pipelines in built to mitigate errors found in QC. only diagnosis and no treatment options is stupid."
+   - (Fourth ExitPlanMode rejection): "NBEMS 80 page rule is only for Introduction to Conclusion, excluding the frontmatter and backmatter. Few other issues, which I can see are broken/non existent now are 1. Tables are not being created (latex commands maybe read as plaintext) 2. Data analysis pipeline allows for >2 simultaneous R calculations to start, then fails on those. 3. No way to choose or mandate or ask for specific figures/auto recommend and generate figures. 4. No way to ask for betterment or changing parts of a section, its either regen full or nothing (brainstorm this)."
+
+7. Pending Tasks:
+   - **Still in plan mode** — Plan file needs to be completed with detailed sections for the 4 new issues (tables, R concurrency, figures, partial editing) before calling ExitPlanMode
+   - The plan file at `/Users/devs/.claude/plans/gentle-booping-zebra.md` has:
+     - ✅ Context section updated with all issues listed
+     - ✅ P0-P1: PDF download + preview reliability
+     - ✅ P2: Fix AI prompts (BibTeX trailer)
+     - ✅ P3: Pre-seed real references
+     - ✅ P4: Fallback BibTeX extraction + await resolution
+     - ✅ P5: Citation quality gate
+     - ✅ P6: Citation panel enhancements
+     - ✅ P7: Phase 9 citation audit
+     - ✅ P8: Phase 10 appendices generation
+     - ✅ P9: Phase 11 Final QC with fix pipelines
+     - ❌ Tables broken (codeBlock handler) — NOT yet added to plan
+     - ❌ R analysis concurrency fix — NOT yet added to plan
+     - ❌ Figure recommendation/generation — NOT yet added to plan
+     - ❌ Partial section editing — NOT yet added to plan
+     - ❌ Files Modified table needs updating
+     - ❌ Implementation Order needs updating
+     - ❌ Verification section needs updating
+
+8. Current Work:
+   The plan file was being updated in plan mode. The Context section was just updated to list all issues (including the 4 new ones), but the detailed implementation sections, files table, implementation order, and verification for the 4 new issues have NOT been written yet. Three explore agents just returned with detailed findings on:
+   - Tables: `tiptap-to-latex.ts` missing `case "codeBlock"` handler (lines 84-154)
+   - R concurrency: `semaphore.ts` MAX_UNITS=3 allows 3 analyses, should be 2
+   - Figures: No auto-recommendation; analyses auto-generate 1:1 figures only
+   - Partial editing: `ai_conversation_id` exists but unused; `instructions` in schema but unused in API
+
+9. Optional Next Step:
+   Add detailed implementation sections to the plan file for the 4 remaining issues:
+   1. **Tables fix**: Add `case "codeBlock"` to `tiptap-to-latex.ts` `serializeNode()` that outputs `node.content[0].text`
+   2. **R concurrency**: Fix semaphore to enforce max 2 concurrent analyses
+   3. **Figure recommendation**: Add AI-powered figure type suggestions based on analysis type + data characteristics
+   4. **Partial section editing**: Implement refine endpoint using existing `instructions` schema field and `ai_conversation_id`
+   
+   Then update the Files Modified table, Implementation Order, and Verification sections. Finally call ExitPlanMode for user approval.
+
+   The user's most recent message was: "NBEMS 80 page rule is only for Introduction to Conclusion, excluding the frontmatter and backmatter. Few other issues, which I can see are broken/non existent now are 1. Tables are not being created (latex commands maybe read as plaintext) 2. Data analysis pipeline allows for >2 simultaneous R calculations to start, then fails on those. 3. No way to choose or mandate or ask for specific figures/auto recommend and generate figures. 4. No way to ask for betterment or changing parts of a section, its either regen full or nothing (brainstorm this)."
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]
