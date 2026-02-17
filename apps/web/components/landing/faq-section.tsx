@@ -27,7 +27,7 @@ const faqs = [
   {
     question: "How does the pricing work?",
     answer:
-      "Start free with a 7-day trial including a sandbox project. The Student plan is \u20B92,499/month or \u20B914,999 for 6-month access. The Professional plan is \u20B94,999/month or \u20B924,999 for lifetime access. Institutional pricing starts at \u20B91,999/student/semester.",
+      "Start free with a sandbox project (Phases 0\u20132, watermarked PDF). The Student plan is \u20B914,999 one-time (90-day access) or \u20B95,499/month. The Professional plan is \u20B939,999 one-time (180-day access). Contact us for institutional pricing.",
   },
   {
     question: "Is my data secure?",

@@ -16,6 +16,7 @@ import { generateFrontMatterLatex } from "@/lib/latex/front-matter";
 import { auditCitations } from "@/lib/citations/audit";
 import type { Project, Section } from "@/lib/types/database";
 import { inngest } from "@/lib/inngest/client";
+import { getPlanConfig } from "@/lib/pricing/config";
 
 export async function POST(
   _request: NextRequest,
@@ -130,6 +131,36 @@ export async function POST(
     if (sectionResult.error || projectResult.error) {
       console.error("Failed to approve section:", sectionResult.error, projectResult.error);
       return internalError("Failed to approve section");
+    }
+
+    // Track monthly phase advancement for subscription plans
+    if (typedProject.license_id) {
+      try {
+        const { data: licence } = await supabase
+          .from("thesis_licenses")
+          .select("plan_type, monthly_phases_advanced")
+          .eq("id", typedProject.license_id)
+          .single();
+
+        if (licence) {
+          try {
+            const config = getPlanConfig(licence.plan_type as string);
+            if (config.maxPhasesPerMonth !== null) {
+              await supabase
+                .from("thesis_licenses")
+                .update({
+                  monthly_phases_advanced:
+                    (licence.monthly_phases_advanced as number) + 1,
+                })
+                .eq("id", typedProject.license_id);
+            }
+          } catch {
+            // Unknown plan type — skip tracking
+          }
+        }
+      } catch (trackErr) {
+        console.warn("Monthly phase tracking failed (non-blocking):", trackErr);
+      }
     }
 
     // If Phase 0 was just approved, auto-create Phase 1 section with front matter

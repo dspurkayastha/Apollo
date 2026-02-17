@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types/database";
 import { PHASES } from "@/lib/phases/constants";
 import { ProjectWorkspace } from "./project-workspace";
+import { ResetProjectButton } from "@/components/project/reset-project-button";
 
 export const dynamic = "force-dynamic";
 
@@ -173,6 +174,11 @@ export default async function ProjectDetailPage({
             </dl>
           </div>
         </details>
+      )}
+
+      {/* Reset button — only for licensed projects before Phase 4 */}
+      {project.status === "licensed" && project.current_phase < 4 && (
+        <ResetProjectButton projectId={project.id} />
       )}
 
       {/* Phase Navigation + Section Viewer */}

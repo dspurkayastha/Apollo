@@ -1,20 +1,22 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { checkLicenceExpiry } from "./licence-expiry";
 import type { ProjectStatus } from "@/lib/types/database";
 
 /**
  * Check that a project is licensed or completed before allowing export.
- * Returns null if authorised, or a 402 response if not.
+ * Also verifies the licence hasn't expired.
+ * Returns project status if authorised, or a 402/404 response if not.
  */
 export async function checkLicenceGate(
   projectId: string,
   userId: string
-): Promise<{ status: ProjectStatus } | NextResponse> {
+): Promise<{ status: ProjectStatus; currentPhase: number } | NextResponse> {
   const supabase = createAdminSupabaseClient();
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, status, user_id")
+    .select("id, status, user_id, license_id, current_phase")
     .eq("id", projectId)
     .single();
 
@@ -46,5 +48,22 @@ export async function checkLicenceGate(
     );
   }
 
-  return { status };
+  // Check licence expiry for licensed (non-completed) projects
+  if (status === "licensed" && project.license_id) {
+    const expiry = await checkLicenceExpiry(project.license_id as string);
+    if (expiry?.expired) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "LICENCE_EXPIRED",
+            message: "Your licence has expired. Please renew to continue exporting.",
+            action: "renew_licence",
+          },
+        },
+        { status: 402 }
+      );
+    }
+  }
+
+  return { status, currentPhase: project.current_phase as number };
 }

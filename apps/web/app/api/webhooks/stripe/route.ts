@@ -4,6 +4,7 @@ import {
   provisionLicence,
   claimWebhookEvent,
 } from "@/lib/payments/provision-licence";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { LicencePlanType } from "@/lib/types/database";
 
 export async function POST(request: NextRequest) {
@@ -29,14 +30,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Atomic idempotency: claim the event BEFORE provisioning.
-    // If another request already claimed it, this returns false.
+    // Atomic idempotency: claim the event BEFORE processing.
     const claimed = await claimWebhookEvent("stripe", event.id, event.type);
     if (!claimed) {
       return NextResponse.json({ status: "already_processed" });
     }
 
-    // Only process completed checkout sessions
+    // One-time checkout completed
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as {
         metadata?: Record<string, string>;
@@ -61,8 +61,48 @@ export async function POST(request: NextRequest) {
       }
 
       await provisionLicence(userId, planType, projectId);
-
       return NextResponse.json({ status: "licence_provisioned" });
+    }
+
+    // Subscription renewal: extend expiry and reset monthly counters.
+    // NOTE: Updates ALL active monthly licences for this user, not a specific one.
+    // If a user has multiple active monthly licences (rare), all get renewed.
+    // Future: store Stripe subscription_id on the licence for precise targeting.
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object as {
+        subscription_details?: { metadata?: Record<string, string> };
+        metadata?: Record<string, string>;
+      };
+
+      const metadata =
+        invoice.subscription_details?.metadata ?? invoice.metadata ?? {};
+      const userId = metadata.user_id;
+
+      if (userId) {
+        const supabase = createAdminSupabaseClient();
+        const newExpiry = new Date();
+        newExpiry.setDate(newExpiry.getDate() + 30);
+
+        await supabase
+          .from("thesis_licenses")
+          .update({
+            expires_at: newExpiry.toISOString(),
+            monthly_phases_advanced: 0,
+            billing_period_start: new Date().toISOString(),
+            status: "active",
+          })
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .in("plan_type", ["student_monthly", "addon"]);
+      }
+
+      return NextResponse.json({ status: "subscription_renewed" });
+    }
+
+    // Subscription deleted: log only (licence expires naturally)
+    if (event.type === "customer.subscription.deleted") {
+      console.log("Stripe subscription deleted:", event.id);
+      return NextResponse.json({ status: "subscription_deleted_logged" });
     }
 
     // Acknowledge other events without processing

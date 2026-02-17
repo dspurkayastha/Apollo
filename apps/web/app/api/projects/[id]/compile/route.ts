@@ -17,7 +17,8 @@ import { assembleThesisContent } from "@/lib/latex/assemble";
 import { compileTex } from "@/lib/latex/compile";
 import { preflightChapter, aiValidateChapters } from "@/lib/latex/validate";
 import { uploadToR2, downloadFromR2 } from "@/lib/r2/client";
-import type { Project, Section, Citation, Figure, Compilation } from "@/lib/types/database";
+import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
+import type { Section, Citation, Figure, Compilation } from "@/lib/types/database";
 
 /** Tmpdir location for figure downloads during compilation */
 const FIGURES_TMP_DIR = path.join(os.tmpdir(), "apollo-figures");
@@ -31,21 +32,24 @@ export async function POST(
     if (!authResult) return unauthorised();
 
     const { id } = await params;
-    const supabase = createAdminSupabaseClient();
 
-    // Fetch project
-    const { data: project, error: projectError } = await supabase
+    // Licence phase gate — use current_phase for compile
+    const supabase = createAdminSupabaseClient();
+    const { data: projCheck } = await supabase
       .from("projects")
-      .select("*")
+      .select("current_phase")
       .eq("id", id)
       .eq("user_id", authResult.user.id)
       .single();
 
-    if (projectError || !project) {
-      return notFound("Project not found");
-    }
+    if (!projCheck) return notFound("Project not found");
 
-    const typedProject = project as Project;
+    const gateResult = await checkLicenceForPhase(
+      id, authResult.user.id, projCheck.current_phase as number, "compile"
+    );
+    if (gateResult instanceof NextResponse) return gateResult;
+
+    const typedProject = gateResult.project;
 
     // Check for existing running compilation (with stale recovery)
     const { data: runningCompilation } = await supabase
@@ -207,22 +211,23 @@ export async function POST(
       // AI validation (non-blocking — runs in parallel with compile setup)
       const aiValidationPromise = aiValidateChapters(chapterFiles);
 
-      // Compile
-      const isWatermark = typedProject.status === "sandbox";
+      // Determine watermark mode
+      const watermarkMode = getWatermarkMode(typedProject.status, typedProject.current_phase);
       const result = await Sentry.startSpan(
         {
           name: "latex.compile",
           op: "compile.latex",
           attributes: {
             "project.id": id,
-            "compile.watermark": isWatermark,
+            "compile.watermark": watermarkMode,
             "compile.chapters": Object.keys(chapterFiles).length,
           },
         },
         () =>
           compileTex(tex, {
             projectId: id,
-            watermark: isWatermark,
+            watermark: watermarkMode === "sandbox",
+            draftFooter: watermarkMode === "draft_footer",
             bibContent: bib,
             chapterFiles,
             figureFiles,
@@ -304,6 +309,16 @@ export async function POST(
     console.error("Unexpected error in POST /api/projects/[id]/compile:", err);
     return internalError();
   }
+}
+
+type WatermarkMode = "sandbox" | "draft_footer" | "none";
+
+function getWatermarkMode(status: string, currentPhase: number): WatermarkMode {
+  if (status === "sandbox") return "sandbox";
+  if (status === "completed") return "none";
+  // Licensed project: draft footer from Phase 6 onwards
+  if (status === "licensed" && currentPhase >= 6) return "draft_footer";
+  return "none";
 }
 
 async function updateCompilation(

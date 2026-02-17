@@ -1,5 +1,6 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { LicencePlanType } from "@/lib/types/database";
+import { getPlanConfig } from "@/lib/pricing/config";
 
 /**
  * Provision a thesis licence for a user after successful payment.
@@ -12,23 +13,22 @@ export async function provisionLicence(
 ): Promise<string> {
   const supabase = createAdminSupabaseClient();
 
+  const config = getPlanConfig(planType);
   const expiresAt = new Date();
-  if (planType.includes("monthly")) {
-    expiresAt.setDate(expiresAt.getDate() + 30);
-  } else {
-    // One-time and addon licences expire in 1 year
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-  }
+  expiresAt.setDate(expiresAt.getDate() + config.validityDays);
+
+  const isMonthly = config.billingType === "monthly";
 
   const { data: licence, error } = await supabase
     .from("thesis_licenses")
     .insert({
       user_id: userId,
       plan_type: planType,
-      status: "available",
+      status: projectId ? "active" : "available",
       project_id: projectId ?? null,
       activated_at: projectId ? new Date().toISOString() : null,
       expires_at: expiresAt.toISOString(),
+      billing_period_start: isMonthly ? new Date().toISOString() : null,
     })
     .select("id")
     .single();

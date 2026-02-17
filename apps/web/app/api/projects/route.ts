@@ -50,6 +50,27 @@ export async function POST(request: NextRequest) {
     const { user } = authResult;
     const supabase = await createServerSupabaseClient();
 
+    // Sandbox project limit: max 1 sandbox project per user
+    const { count: sandboxCount } = await supabase
+      .from("projects")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "sandbox");
+
+    if ((sandboxCount ?? 0) >= 1) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "SANDBOX_LIMIT",
+            message:
+              "You already have a sandbox project. Purchase a licence to unlock it, or delete it to start a new one.",
+            action: "purchase_licence",
+          },
+        },
+        { status: 402 }
+      );
+    }
+
     const { data: project, error } = await supabase
       .from("projects")
       .insert({

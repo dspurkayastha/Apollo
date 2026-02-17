@@ -49,6 +49,50 @@ export async function createStripeSession(
   };
 }
 
+/** Env var mapping for Stripe subscription price IDs (monthly plans only) */
+const STRIPE_PRICE_ENV: Record<string, string> = {
+  student_monthly: "STRIPE_PRICE_ID_STUDENT_MONTHLY",
+  addon: "STRIPE_PRICE_ID_ADDON",
+};
+
+/**
+ * Create a Stripe Checkout session for subscriptions.
+ */
+export async function createStripeSubscriptionSession(
+  planType: string,
+  metadata: Record<string, string>,
+  successUrl: string,
+  cancelUrl: string
+): Promise<{ url: string; sessionId: string }> {
+  const stripe = getStripe();
+
+  const envKey = STRIPE_PRICE_ENV[planType];
+  if (!envKey) {
+    throw new Error(`No Stripe price ID mapping for plan type: ${planType}`);
+  }
+
+  const priceId = process.env[envKey];
+  if (!priceId) {
+    throw new Error(
+      `${envKey} is not configured. Create a price in the Stripe Dashboard and add the price ID to your environment variables.`
+    );
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    payment_method_types: ["card"],
+    line_items: [{ price: priceId, quantity: 1 }],
+    metadata,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+  });
+
+  return {
+    url: session.url!,
+    sessionId: session.id,
+  };
+}
+
 /**
  * Construct and verify a Stripe webhook event.
  */

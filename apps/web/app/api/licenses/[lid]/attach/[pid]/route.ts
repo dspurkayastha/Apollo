@@ -6,7 +6,7 @@ import {
   conflict,
   internalError,
 } from "@/lib/api/errors";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function POST(
   _request: NextRequest,
@@ -18,74 +18,50 @@ export async function POST(
 
     const { lid, pid } = await params;
     const { user } = authResult;
-    const supabase = await createServerSupabaseClient();
+    const supabase = createAdminSupabaseClient();
 
-    // Verify licence belongs to user and is available
-    const { data: licence, error: licenceError } = await supabase
-      .from("thesis_licenses")
-      .select("*")
-      .eq("id", lid)
-      .eq("user_id", user.id)
-      .single();
+    // Atomic attachment via RPC — single transaction validates + updates both rows
+    const { data: result, error: rpcError } = await supabase.rpc(
+      "attach_licence_to_project",
+      {
+        p_licence_id: lid,
+        p_project_id: pid,
+        p_user_id: user.id,
+      }
+    );
 
-    if (licenceError || !licence) {
-      return notFound("Licence not found");
-    }
-
-    if (licence.status !== "available") {
-      return conflict(
-        "Licence is not available. Current status: " + licence.status
-      );
-    }
-
-    // Verify project belongs to user and is in sandbox status
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", pid)
-      .eq("user_id", user.id)
-      .single();
-
-    if (projectError || !project) {
-      return notFound("Project not found");
-    }
-
-    if (project.status !== "sandbox") {
-      return conflict(
-        "Project is not in sandbox status. Current status: " + project.status
-      );
-    }
-
-    // Update licence: attach to project, set active
-    const { error: updateLicenceError } = await supabase
-      .from("thesis_licenses")
-      .update({
-        project_id: pid,
-        status: "active",
-        activated_at: new Date().toISOString(),
-      })
-      .eq("id", lid);
-
-    if (updateLicenceError) {
-      console.error("Failed to update licence:", updateLicenceError);
+    if (rpcError) {
+      console.error("Attach licence RPC error:", rpcError);
       return internalError("Failed to attach licence");
     }
 
-    // Update project: set license_id, status to licensed
-    const { data: updatedProject, error: updateProjectError } = await supabase
-      .from("projects")
-      .update({
-        license_id: lid,
-        status: "licensed",
-      })
-      .eq("id", pid)
-      .select("*")
-      .single();
+    const rpcResult = result as { ok?: boolean; error?: string; detail?: string };
 
-    if (updateProjectError) {
-      console.error("Failed to update project:", updateProjectError);
-      return internalError("Failed to update project with licence");
+    if (rpcResult.error) {
+      switch (rpcResult.error) {
+        case "LICENCE_NOT_FOUND":
+          return notFound("Licence not found");
+        case "LICENCE_NOT_AVAILABLE":
+          return conflict(
+            `Licence is not available. Current status: ${rpcResult.detail ?? "unknown"}`
+          );
+        case "PROJECT_NOT_FOUND":
+          return notFound("Project not found");
+        case "PROJECT_NOT_SANDBOX":
+          return conflict(
+            `Project is not in sandbox status. Current status: ${rpcResult.detail ?? "unknown"}`
+          );
+        default:
+          return internalError("Failed to attach licence");
+      }
     }
+
+    // Fetch updated project for response
+    const { data: updatedProject } = await supabase
+      .from("projects")
+      .select("*")
+      .eq("id", pid)
+      .single();
 
     return NextResponse.json({ data: updatedProject });
   } catch (err) {

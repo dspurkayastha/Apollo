@@ -16,6 +16,19 @@ export async function GET(
     const gateResult = await checkLicenceGate(id, authResult.user.id);
     if (gateResult instanceof NextResponse) return gateResult;
 
+    // Block downloads for licensed projects before Phase 6
+    if (gateResult.status === "licensed" && gateResult.currentPhase < 6) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "DOWNLOAD_RESTRICTED",
+            message: "PDF download available from Phase 6 onwards. Use the preview panel.",
+          },
+        },
+        { status: 403 }
+      );
+    }
+
     const supabase = createAdminSupabaseClient();
 
     // Get latest successful compilation

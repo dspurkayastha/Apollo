@@ -9,16 +9,15 @@ import { cn } from "@/lib/utils";
 
 const plans = [
   {
-    name: "Free Trial",
+    name: "Free Sandbox",
     monthlyPrice: "Free",
     onetimePrice: null,
-    period: "7 days",
+    period: "",
     description: "Explore the platform",
     features: [
-      "Sandbox project",
-      "Synopsis parsing",
-      "Phase 1 preview",
-      "Watermarked PDF",
+      "Phases 0\u20132 (Orientation to Introduction)",
+      "Watermarked PDF preview",
+      "1 sandbox project",
     ],
     cta: "Start Free",
     href: "/sign-up",
@@ -26,17 +25,17 @@ const plans = [
   },
   {
     name: "Student",
-    monthlyPrice: "\u20B9499",
-    onetimePrice: "\u20B91,499",
+    monthlyPrice: "\u20B95,499",
+    onetimePrice: "\u20B914,999",
     period: "/mo",
     onetimePeriod: "one-time",
     description: "Complete your thesis",
     features: [
-      "Everything in Free Trial",
-      "Full 12-phase workflow",
-      "LaTeX compilation",
-      "Citation verification",
-      "Statistical analysis",
+      "Full 12-phase GOLD Standard workflow",
+      "AI generation for all sections",
+      "LaTeX compilation & citation verification",
+      "Statistical analysis pipeline",
+      "PDF + DOCX export",
     ],
     cta: "Get Started",
     href: "/sign-up?plan=student",
@@ -44,16 +43,16 @@ const plans = [
   },
   {
     name: "Professional",
-    monthlyPrice: "\u20B9999",
-    onetimePrice: "\u20B92,999",
-    period: "/mo",
+    monthlyPrice: "Coming soon",
+    onetimePrice: "\u20B939,999",
+    period: "",
     onetimePeriod: "one-time",
-    description: "For serious researchers",
+    description: "For PhD & serious researchers",
     features: [
       "Everything in Student",
-      "Supervisor dashboard",
-      "Priority compilation",
-      "DOCX export",
+      "PhD thesis support",
+      "Opus model tier",
+      "180-day access",
     ],
     cta: "Go Pro",
     href: "/sign-up?plan=professional",
@@ -216,7 +215,7 @@ export function PricingSection() {
           >
             Contact us
           </a>{" "}
-          for institutional pricing starting at ₹1,999/student/semester.
+          for institutional pricing.
         </p>
       </div>
     </section>

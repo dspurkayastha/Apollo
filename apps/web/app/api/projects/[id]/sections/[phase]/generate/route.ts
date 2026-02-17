@@ -25,7 +25,9 @@ import { latexToTiptap } from "@/lib/latex/latex-to-tiptap";
 import { resolveSectionCitations, type CitationResolutionSummary } from "@/lib/citations/auto-resolve";
 import { preSeedReferences, formatReferencesForPrompt } from "@/lib/citations/pre-seed";
 import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
+import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
 import type { Project } from "@/lib/types/database";
+import { NextResponse } from "next/server";
 
 // Sections stuck in "generating" for longer than this are considered stale
 const STALE_GENERATING_MS = 2 * 60 * 1000; // 2 minutes
@@ -51,21 +53,12 @@ export async function POST(
       return rateLimited(rateCheck.retryAfterSeconds);
     }
 
+    // Licence phase gate
+    const gateResult = await checkLicenceForPhase(id, authResult.user.id, phaseNumber, "generate");
+    if (gateResult instanceof NextResponse) return gateResult;
+
     const supabase = createAdminSupabaseClient();
-
-    // Fetch project
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", id)
-      .eq("user_id", authResult.user.id)
-      .single();
-
-    if (projectError || !project) {
-      return notFound("Project not found");
-    }
-
-    const typedProject = project as Project;
+    const typedProject = gateResult.project;
 
     // Phase 0: Synopsis parsing (special handling)
     if (phaseNumber === 0) {

@@ -32,6 +32,7 @@ export async function compileTex(
   options: {
     projectId: string;
     watermark?: boolean;
+    draftFooter?: boolean;
     clsFiles?: string[];
     bstFile?: string;
     bibContent?: string;
@@ -91,6 +92,7 @@ async function dockerCompile(
   options: {
     projectId: string;
     watermark?: boolean;
+    draftFooter?: boolean;
     clsFiles?: string[];
     bstFile?: string;
     bibContent?: string;
@@ -183,7 +185,9 @@ async function dockerCompile(
     ];
 
     if (options.watermark) {
-      args.push("--watermark");
+      args.push("--watermark-mode=sandbox");
+    } else if (options.draftFooter) {
+      args.push("--watermark-mode=draft_footer");
     }
 
     const { stdout, stderr } = await execFileAsync("docker", args, {
@@ -249,11 +253,37 @@ async function dockerCompile(
   }
 }
 
+/**
+ * Inject draftwatermark LaTeX package for local compile mode.
+ * Docker mode handles this via --watermark-mode flag instead.
+ */
+function injectWatermarkPackage(
+  texContent: string,
+  options: { watermark?: boolean; draftFooter?: boolean }
+): string {
+  if (!options.watermark && !options.draftFooter) return texContent;
+
+  const beginDocIdx = texContent.indexOf("\\begin{document}");
+  if (beginDocIdx === -1) return texContent;
+
+  let pkg: string;
+  if (options.watermark) {
+    pkg =
+      "\\usepackage[text={SANDBOX --- Apollo},color=gray!20,scale=1.5,angle=45]{draftwatermark}\n";
+  } else {
+    pkg =
+      "\\usepackage[text={Generated with Apollo},color=gray!30,scale=0.3,pos=b]{draftwatermark}\n";
+  }
+
+  return texContent.slice(0, beginDocIdx) + pkg + texContent.slice(beginDocIdx);
+}
+
 async function localCompile(
   texContent: string,
   options: {
     projectId: string;
     watermark?: boolean;
+    draftFooter?: boolean;
     bibContent?: string;
     chapterFiles?: Record<string, string>;
     figureFiles?: Record<string, string>;
@@ -264,7 +294,7 @@ async function localCompile(
 
   try {
     await mkdir(workDir, { recursive: true });
-    await writeFile(path.join(workDir, "main.tex"), texContent);
+    await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, options));
 
     // Copy templates
     const templatesDir = path.resolve(process.cwd(), "../../templates");

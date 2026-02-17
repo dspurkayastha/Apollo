@@ -14,7 +14,9 @@ import { getAnthropicClient } from "@/lib/ai/client";
 import { REFINE_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { latexToTiptap } from "@/lib/latex/latex-to-tiptap";
 import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
+import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
 import type { Section } from "@/lib/types/database";
+import { NextResponse } from "next/server";
 
 export async function POST(
   request: NextRequest,
@@ -43,19 +45,11 @@ export async function POST(
       return badRequest("Instructions are required");
     }
 
+    // Licence phase gate
+    const gateResult = await checkLicenceForPhase(id, authResult.user.id, phaseNumber, "refine");
+    if (gateResult instanceof NextResponse) return gateResult;
+
     const supabase = createAdminSupabaseClient();
-
-    // Verify project ownership
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("id")
-      .eq("id", id)
-      .eq("user_id", authResult.user.id)
-      .single();
-
-    if (projectError || !project) {
-      return notFound("Project not found");
-    }
 
     // Fetch current section content
     const { data: section, error: sectionError } = await supabase

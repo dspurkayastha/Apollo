@@ -12,7 +12,7 @@ export interface PhaseDefinition {
 export const PHASES: PhaseDefinition[] = [
   { number: 0, name: "orientation", label: "Orientation", requiresLicence: false },
   { number: 1, name: "front_matter", label: "Front Matter", requiresLicence: false },
-  { number: 2, name: "introduction", label: "Introduction", requiresLicence: true },
+  { number: 2, name: "introduction", label: "Introduction", requiresLicence: false },
   { number: 3, name: "aims", label: "Aims & Objectives", requiresLicence: true },
   { number: 4, name: "review_of_literature", label: "Review of Literature", requiresLicence: true },
   { number: 5, name: "materials_methods", label: "Materials & Methods", requiresLicence: true },

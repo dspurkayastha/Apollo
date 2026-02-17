@@ -188,6 +188,149 @@ describeWithDb("Licence Gate Tests", () => {
     });
   });
 
+  describe("Sandbox phase restriction", () => {
+    it("sandbox project allows phases 0-2", async () => {
+      // Sandbox projects should be able to operate on phases 0, 1, 2
+      const { data } = await adminClient
+        .from("projects")
+        .select("status, current_phase")
+        .eq("id", sandboxProjectId)
+        .single();
+
+      expect(data!.status).toBe("sandbox");
+      // Phases 0-2 are sandbox phases — enforced at application layer
+      expect([0, 1, 2]).toContain(data!.current_phase);
+    });
+
+    it("sandbox project phases_completed starts empty", async () => {
+      const { data } = await adminClient
+        .from("projects")
+        .select("phases_completed")
+        .eq("id", sandboxProjectId)
+        .single();
+
+      expect(data!.phases_completed).toEqual([]);
+    });
+  });
+
+  describe("Licence expiry", () => {
+    it("expired licence has status set correctly", async () => {
+      const { data: expiredLicence } = await adminClient
+        .from("thesis_licenses")
+        .insert({
+          user_id: userId,
+          plan_type: "student_onetime",
+          status: "expired",
+          expires_at: new Date(Date.now() - 86400000).toISOString(),
+        })
+        .select()
+        .single();
+
+      expect(expiredLicence).not.toBeNull();
+      expect(expiredLicence!.status).toBe("expired");
+    });
+
+    it("active licence with future expiry is not expired", async () => {
+      const { data: activeLicence } = await adminClient
+        .from("thesis_licenses")
+        .insert({
+          user_id: userId,
+          plan_type: "student_onetime",
+          status: "active",
+          expires_at: new Date(Date.now() + 86400000 * 30).toISOString(),
+        })
+        .select()
+        .single();
+
+      expect(activeLicence).not.toBeNull();
+      expect(activeLicence!.status).toBe("active");
+    });
+  });
+
+  describe("Reset count tracking", () => {
+    it("new licence starts with reset_count 0", async () => {
+      const { data: freshLicence } = await adminClient
+        .from("thesis_licenses")
+        .insert({
+          user_id: userId,
+          plan_type: "student_onetime",
+          status: "active",
+        })
+        .select()
+        .single();
+
+      expect(freshLicence!.reset_count).toBe(0);
+    });
+
+    it("reset_count can be incremented", async () => {
+      const { data: lic } = await adminClient
+        .from("thesis_licenses")
+        .insert({
+          user_id: userId,
+          plan_type: "student_onetime",
+          status: "active",
+          reset_count: 0,
+        })
+        .select()
+        .single();
+
+      await adminClient
+        .from("thesis_licenses")
+        .update({ reset_count: 1 })
+        .eq("id", lic!.id);
+
+      const { data: updated } = await adminClient
+        .from("thesis_licenses")
+        .select("reset_count")
+        .eq("id", lic!.id)
+        .single();
+
+      expect(updated!.reset_count).toBe(1);
+    });
+  });
+
+  describe("Monthly phase tracking", () => {
+    it("new licence starts with monthly_phases_advanced 0", async () => {
+      const { data: monthlyLic } = await adminClient
+        .from("thesis_licenses")
+        .insert({
+          user_id: userId,
+          plan_type: "student_monthly",
+          status: "active",
+        })
+        .select()
+        .single();
+
+      expect(monthlyLic!.monthly_phases_advanced).toBe(0);
+    });
+
+    it("monthly_phases_advanced can be incremented", async () => {
+      const { data: lic } = await adminClient
+        .from("thesis_licenses")
+        .insert({
+          user_id: userId,
+          plan_type: "student_monthly",
+          status: "active",
+          monthly_phases_advanced: 3,
+        })
+        .select()
+        .single();
+
+      await adminClient
+        .from("thesis_licenses")
+        .update({ monthly_phases_advanced: 4 })
+        .eq("id", lic!.id);
+
+      const { data: updated } = await adminClient
+        .from("thesis_licenses")
+        .select("monthly_phases_advanced")
+        .eq("id", lic!.id)
+        .single();
+
+      expect(updated!.monthly_phases_advanced).toBe(4);
+    });
+  });
+
   describe("Identity lock", () => {
     it("identity fields cannot be changed after locking", async () => {
       // Create a licence with identity locked

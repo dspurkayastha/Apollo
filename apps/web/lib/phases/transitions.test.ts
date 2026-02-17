@@ -43,15 +43,21 @@ describe("canAdvancePhase", () => {
     expect(result.code).toBe("SECTION_NOT_APPROVED");
   });
 
-  it("should deny advancing from Phase 1 to Phase 2 without licence", () => {
+  it("should allow advancing from Phase 1 to Phase 2 in sandbox (sandbox includes Phase 2)", () => {
     const project = makeProject({ current_phase: 1, status: "sandbox" });
+    const result = canAdvancePhase(project, "approved");
+    expect(result.allowed).toBe(true);
+  });
+
+  it("should deny advancing from Phase 2 to Phase 3 without licence", () => {
+    const project = makeProject({ current_phase: 2, status: "sandbox" });
     const result = canAdvancePhase(project, "approved");
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("LICENCE_REQUIRED");
   });
 
-  it("should allow advancing from Phase 1 to Phase 2 with licence", () => {
-    const project = makeProject({ current_phase: 1, status: "licensed" });
+  it("should allow advancing from Phase 2 to Phase 3 with licence", () => {
+    const project = makeProject({ current_phase: 2, status: "licensed" });
     const result = canAdvancePhase(project, "approved");
     expect(result.allowed).toBe(true);
   });
@@ -78,7 +84,7 @@ describe("canAdvancePhase", () => {
   it("should deny DEV_LICENCE_BYPASS in production", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("DEV_LICENCE_BYPASS", "true");
-    const project = makeProject({ current_phase: 1, status: "sandbox" });
+    const project = makeProject({ current_phase: 2, status: "sandbox" });
     const result = canAdvancePhase(project, "approved");
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("LICENCE_REQUIRED");
@@ -88,7 +94,7 @@ describe("canAdvancePhase", () => {
   it("should allow DEV_LICENCE_BYPASS in development", () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("DEV_LICENCE_BYPASS", "true");
-    const project = makeProject({ current_phase: 1, status: "sandbox" });
+    const project = makeProject({ current_phase: 2, status: "sandbox" });
     const result = canAdvancePhase(project, "approved");
     expect(result.allowed).toBe(true);
     vi.unstubAllEnvs();

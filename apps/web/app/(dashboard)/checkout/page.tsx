@@ -15,52 +15,80 @@ interface PlanCard {
   description: string;
   features: string[];
   recommended?: boolean;
+  comingSoon?: boolean;
+  suffix?: string;
 }
 
 const PLANS: PlanCard[] = [
   {
-    plan_type: "student_monthly",
-    label: "Student Plan",
-    priceINR: "\u20B9499",
-    priceUSD: "$9.99",
-    description: "Ideal for individual PG students working on a single thesis.",
+    plan_type: "student_onetime",
+    label: "Student One-Time",
+    priceINR: "\u20B914,999",
+    priceUSD: "$179",
+    description: "Pay once, complete your thesis in 90 days.",
     features: [
       "1 thesis licence",
       "All 12 GOLD Standard phases",
       "AI generation for all sections",
       "Statistical analysis pipeline",
       "PDF + DOCX export",
-      "30-day access",
+      "90-day access",
     ],
     recommended: true,
   },
   {
-    plan_type: "professional_monthly",
-    label: "Professional Plan",
-    priceINR: "\u20B9999",
-    priceUSD: "$19.99",
-    description: "For researchers managing multiple theses or publications.",
+    plan_type: "student_monthly",
+    label: "Student Monthly",
+    priceINR: "\u20B95,499",
+    priceUSD: "$65",
+    suffix: "/mo",
+    description: "Flexible monthly plan. Max 4 phases per billing period.",
     features: [
-      "3 thesis licences",
-      "Everything in Student Plan",
-      "Priority compile queue",
-      "Supervisor collaboration links",
-      "Source LaTeX export",
-      "30-day access",
+      "1 thesis licence",
+      "All 12 GOLD Standard phases",
+      "AI generation for all sections",
+      "Statistical analysis pipeline",
+      "PDF + DOCX export",
+      "Max 4 phases per month",
     ],
   },
   {
-    plan_type: "one_time",
-    label: "One-Time Thesis",
-    priceINR: "\u20B91,499",
-    priceUSD: "$29.99",
-    description: "Pay once, complete one thesis at your own pace.",
+    plan_type: "professional_onetime",
+    label: "Professional One-Time",
+    priceINR: "\u20B939,999",
+    priceUSD: "$449",
+    description: "For PhD and serious researchers. 180-day access.",
     features: [
-      "1 thesis licence",
-      "No time limit",
-      "All features included",
-      "Supervisor collaboration",
-      "All export formats",
+      "Everything in Student",
+      "PhD thesis support",
+      "Opus model tier",
+      "Priority compile queue",
+      "Supervisor dashboard",
+      "Source LaTeX export",
+      "180-day access",
+    ],
+  },
+  {
+    plan_type: "professional_monthly",
+    label: "Professional Monthly",
+    priceINR: "TBD",
+    priceUSD: "TBD",
+    description: "Coming soon.",
+    features: [],
+    comingSoon: true,
+  },
+  {
+    plan_type: "addon",
+    label: "Add-on Thesis",
+    priceINR: "\u20B93,999",
+    priceUSD: "$49",
+    suffix: "/mo",
+    description: "Refine and compile only. No new AI generation.",
+    features: [
+      "Refine existing content",
+      "Compile thesis",
+      "No new AI generation",
+      "30-day access",
     ],
   },
 ];
@@ -84,8 +112,8 @@ export default function CheckoutPage() {
 
 // Map landing plan names to checkout plan_type prefixes
 const PLAN_PARAM_MAP: Record<string, string> = {
-  student: "student_monthly",
-  professional: "professional_monthly",
+  student: "student_onetime",
+  professional: "professional_onetime",
 };
 
 function CheckoutContent() {
@@ -119,14 +147,22 @@ function CheckoutContent() {
       const { data } = await res.json();
 
       if (data.provider === "stripe" && data.redirect_url) {
-        // Stripe — redirect to hosted checkout
         window.location.href = data.redirect_url;
         return;
       }
 
       if (data.provider === "razorpay" && data.order_id) {
-        // Razorpay — open checkout modal
         await openRazorpayCheckout(data);
+        return;
+      }
+
+      if (data.provider === "razorpay_subscription" && data.subscription_id) {
+        // Razorpay subscription — redirect to payment page
+        if (data.short_url) {
+          window.location.href = data.short_url;
+        } else {
+          await openRazorpaySubscription(data);
+        }
         return;
       }
 
@@ -147,7 +183,6 @@ function CheckoutContent() {
     currency: string;
     notes: Record<string, string>;
   }) {
-    // Load Razorpay script if not already loaded
     if (!window.Razorpay) {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
@@ -169,7 +204,48 @@ function CheckoutContent() {
       theme: { color: "#2F2F2F" },
       handler: () => {
         toast.success("Payment successful! Your licence is being provisioned.");
-        // Redirect to dashboard after short delay to allow webhook processing
+        setTimeout(() => {
+          if (attachProjectId) {
+            router.push(`/projects/${attachProjectId}`);
+          } else {
+            router.push("/dashboard?payment=success");
+          }
+        }, 2000);
+      },
+      modal: {
+        ondismiss: () => {
+          setLoading(null);
+        },
+      },
+    });
+
+    razorpay.open();
+  }
+
+  async function openRazorpaySubscription(data: {
+    subscription_id: string;
+    key_id: string;
+    notes: Record<string, string>;
+  }) {
+    if (!window.Razorpay) {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load Razorpay"));
+        document.body.appendChild(script);
+      });
+    }
+
+    const razorpay = new window.Razorpay!({
+      key: data.key_id,
+      subscription_id: data.subscription_id,
+      name: "Apollo Thesis",
+      description: data.notes.plan_label ?? "Thesis Licence",
+      notes: data.notes,
+      theme: { color: "#2F2F2F" },
+      handler: () => {
+        toast.success("Subscription activated! Your licence is being provisioned.");
         setTimeout(() => {
           if (attachProjectId) {
             router.push(`/projects/${attachProjectId}`);
@@ -189,7 +265,7 @@ function CheckoutContent() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div className="space-y-2">
         <Link
           href={attachProjectId ? `/projects/${attachProjectId}` : "/dashboard"}
@@ -203,7 +279,7 @@ function CheckoutContent() {
         </h1>
         <p className="text-sm text-[#6B6B6B]">
           Attach a thesis licence to continue generating your thesis beyond
-          Phase 1.
+          Phase 2.
           {attachProjectId && (
             <span className="ml-1 font-medium text-[#8B9D77]">
               The licence will be attached to your current project.
@@ -250,14 +326,21 @@ function CheckoutContent() {
           <div
             key={plan.plan_type}
             className={`relative flex flex-col rounded-2xl border p-6 transition-all ${
-              isHighlighted
-                ? "border-[#8B9D77]/40 bg-[#8B9D77]/[0.03] shadow-[0_2px_12px_rgba(139,157,119,0.1)]"
-                : "border-black/[0.06] bg-white"
+              plan.comingSoon
+                ? "border-black/[0.04] bg-[#FAFAFA] opacity-60"
+                : isHighlighted
+                  ? "border-[#8B9D77]/40 bg-[#8B9D77]/[0.03] shadow-[0_2px_12px_rgba(139,157,119,0.1)]"
+                  : "border-black/[0.06] bg-white"
             }`}
           >
-            {isHighlighted && (
+            {isHighlighted && !plan.comingSoon && (
               <span className="absolute -top-2.5 left-4 rounded-full bg-[#8B9D77] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
                 Recommended
+              </span>
+            )}
+            {plan.comingSoon && (
+              <span className="absolute -top-2.5 left-4 rounded-full bg-[#6B6B6B] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                Coming Soon
               </span>
             )}
 
@@ -269,8 +352,8 @@ function CheckoutContent() {
               <span className="text-3xl font-bold text-[#2F2F2F]">
                 {currency === "INR" ? plan.priceINR : plan.priceUSD}
               </span>
-              {plan.plan_type.includes("monthly") && (
-                <span className="text-sm text-[#6B6B6B]">/month</span>
+              {plan.suffix && (
+                <span className="text-sm text-[#6B6B6B]">{plan.suffix}</span>
               )}
             </div>
 
@@ -290,16 +373,20 @@ function CheckoutContent() {
 
             <Button
               onClick={() => handleCheckout(plan.plan_type)}
-              disabled={loading !== null}
+              disabled={loading !== null || plan.comingSoon}
               className="mt-6 gap-2"
-              variant={isHighlighted ? "default" : "outline"}
+              variant={isHighlighted && !plan.comingSoon ? "default" : "outline"}
             >
               {loading === plan.plan_type ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <CreditCard className="h-4 w-4" />
               )}
-              {loading === plan.plan_type ? "Processing..." : "Get Started"}
+              {plan.comingSoon
+                ? "Coming Soon"
+                : loading === plan.plan_type
+                  ? "Processing..."
+                  : "Get Started"}
             </Button>
           </div>
           );

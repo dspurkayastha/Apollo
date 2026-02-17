@@ -18,10 +18,12 @@ export interface User {
 }
 
 export type LicencePlanType =
+  | "student_onetime"
   | "student_monthly"
+  | "professional_onetime"
   | "professional_monthly"
   | "addon"
-  | "one_time"
+  | "one_time" // legacy
   | "institutional";
 
 export type LicenceStatus = "available" | "active" | "expired" | "transferred";
@@ -41,6 +43,9 @@ export interface ThesisLicence {
   expires_at: string | null;
   transfer_count: number;
   last_transferred_at: string | null;
+  reset_count: number;
+  monthly_phases_advanced: number;
+  billing_period_start: string | null;
   created_at: string;
 }
 

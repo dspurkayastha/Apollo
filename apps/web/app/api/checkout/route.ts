@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/api/auth";
 import { unauthorised, validationError, notFound, internalError } from "@/lib/api/errors";
-import { checkoutSchema, PLAN_PRICES } from "@/lib/validation/payment-schemas";
-import { createRazorpayOrder, RAZORPAY_KEY_ID } from "@/lib/payments/razorpay";
-import { createStripeSession } from "@/lib/payments/stripe";
+import { checkoutSchema } from "@/lib/validation/payment-schemas";
+import { getPlanConfig, getPlanPrice } from "@/lib/pricing/config";
+import { createRazorpayOrder, createRazorpaySubscription, RAZORPAY_KEY_ID } from "@/lib/payments/razorpay";
+import { createStripeSession, createStripeSubscriptionSession } from "@/lib/payments/stripe";
+import { checkVelocity } from "@/lib/payments/velocity-check";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
@@ -21,6 +23,27 @@ export async function POST(request: NextRequest) {
 
     const { plan_type, currency, project_id } = parsed.data;
 
+    // Reject professional_monthly (coming soon)
+    if (plan_type === "professional_monthly") {
+      return validationError(
+        "Professional Monthly plan is coming soon. Please choose a different plan."
+      );
+    }
+
+    // Velocity check
+    const velocity = await checkVelocity(authResult.user.id);
+    if (!velocity.allowed) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "VELOCITY_LIMIT",
+            message: `You have purchased ${velocity.count} licences in the last 30 days (limit: ${velocity.limit}). Please contact support if you need more.`,
+          },
+        },
+        { status: 429 }
+      );
+    }
+
     // Verify project ownership if project_id provided
     if (project_id) {
       const adminDb = createAdminSupabaseClient();
@@ -34,25 +57,42 @@ export async function POST(request: NextRequest) {
       if (!project) return notFound("Project not found");
     }
 
-    const pricing = PLAN_PRICES[plan_type];
-    if (!pricing) {
+    let planConfig;
+    try {
+      planConfig = getPlanConfig(plan_type);
+    } catch {
       return validationError("Invalid plan type");
     }
 
-    const amount = currency === "INR" ? pricing.INR : pricing.USD;
+    const amount = getPlanPrice(plan_type, currency);
     const origin = request.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
     const metadata = {
       user_id: authResult.user.id,
       plan_type,
-      plan_label: pricing.label,
+      plan_label: planConfig.label,
       ...(project_id ? { project_id } : {}),
     };
 
-    if (currency === "INR") {
-      // Razorpay for INR payments
-      const order = await createRazorpayOrder(amount, "INR", metadata);
+    const isSubscription = planConfig.billingType === "monthly";
 
+    if (currency === "INR") {
+      if (isSubscription) {
+        // Razorpay subscription for monthly INR plans
+        const sub = await createRazorpaySubscription(plan_type, metadata);
+        return NextResponse.json({
+          data: {
+            provider: "razorpay_subscription",
+            subscription_id: sub.subscriptionId,
+            short_url: sub.shortUrl,
+            key_id: RAZORPAY_KEY_ID,
+            notes: metadata,
+          },
+        });
+      }
+
+      // Razorpay one-time order for INR
+      const order = await createRazorpayOrder(amount, "INR", metadata);
       return NextResponse.json({
         data: {
           provider: "razorpay",
@@ -64,7 +104,24 @@ export async function POST(request: NextRequest) {
         },
       });
     } else {
-      // Stripe for USD payments
+      if (isSubscription) {
+        // Stripe subscription for monthly USD plans
+        const session = await createStripeSubscriptionSession(
+          plan_type,
+          metadata,
+          `${origin}/dashboard?payment=success`,
+          `${origin}/dashboard?payment=cancelled`
+        );
+        return NextResponse.json({
+          data: {
+            provider: "stripe",
+            redirect_url: session.url,
+            session_id: session.sessionId,
+          },
+        });
+      }
+
+      // Stripe one-time for USD
       const session = await createStripeSession(
         amount,
         "USD",
@@ -72,7 +129,6 @@ export async function POST(request: NextRequest) {
         `${origin}/dashboard?payment=success`,
         `${origin}/dashboard?payment=cancelled`
       );
-
       return NextResponse.json({
         data: {
           provider: "stripe",

@@ -50,7 +50,7 @@ export function canAdvancePhase(
   ) {
     return {
       allowed: false,
-      reason: "Active licence required to advance beyond Phase 1",
+      reason: "Active licence required to advance beyond Phase 2",
       code: "LICENCE_REQUIRED",
     };
   }
