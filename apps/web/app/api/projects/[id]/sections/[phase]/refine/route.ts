@@ -12,7 +12,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidPhase } from "@/lib/phases/transitions";
 import { getAnthropicClient } from "@/lib/ai/client";
 import { REFINE_SYSTEM_PROMPT } from "@/lib/ai/prompts";
-import { latexToTiptap } from "@/lib/latex/latex-to-tiptap";
+import { extractCiteKeys } from "@/lib/citations/extract-keys";
 import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
 import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
 import type { Section } from "@/lib/types/database";
@@ -109,9 +109,8 @@ export async function POST(
 
           await messageStream.finalMessage();
 
-          // Convert LaTeX → Tiptap JSON
-          const tiptapResult = latexToTiptap(fullResponse);
-          const citationKeys = tiptapResult.citationKeys;
+          // Extract citation keys directly from LaTeX (no round-trip)
+          const citationKeys = extractCiteKeys(fullResponse);
 
           // Word count
           const plainText = fullResponse
@@ -120,12 +119,12 @@ export async function POST(
             .replace(/[{}\\]/g, " ");
           const wordCount = plainText.split(/\s+/).filter(Boolean).length;
 
-          // Update section (3-tier fallback like generate)
+          // Update section (LaTeX is canonical — no rich_content_json)
           const { error: updateError } = await supabase
             .from("sections")
             .update({
               latex_content: fullResponse,
-              rich_content_json: tiptapResult.json,
+              rich_content_json: null,
               ai_generated_latex: fullResponse,
               word_count: wordCount,
               citation_keys: citationKeys,
@@ -140,6 +139,7 @@ export async function POST(
               .from("sections")
               .update({
                 latex_content: fullResponse,
+                rich_content_json: null,
                 word_count: wordCount,
                 citation_keys: citationKeys,
                 status: "review",

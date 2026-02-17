@@ -242,7 +242,7 @@ describe("assembleThesisContent", () => {
 
     // Metadata populated
     expect(tex).toContain("\\thesistitle{Prevalence of Anaemia in Pregnancy}");
-    // Chapter file produced (content passes through tiptap round-trip in fallback)
+    // Chapter file produced (latex_content used directly)
     expect(chapterFiles["chapters/introduction.tex"]).toContain(
       "Anaemia is a common condition in pregnancy."
     );
@@ -252,8 +252,7 @@ describe("assembleThesisContent", () => {
 
   it("produces chapter files for all phases 2-8", () => {
     const project = makeProject();
-    // Use realistic LaTeX content (no underscores) since fallback path
-    // runs tiptap round-trip which escapes special chars
+    // LaTeX content used directly (no round-trip)
     const sections = [
       makeSection({ phase_number: 2, latex_content: "Introduction content here.", status: "approved" }),
       makeSection({ id: "s3", phase_number: 3, latex_content: "Aims content here.", status: "approved" }),
@@ -277,19 +276,38 @@ describe("assembleThesisContent", () => {
     expect(warnings.filter((w) => w.includes("no approved/review content") && !w.includes("Phase 10")).length).toBe(0);
   });
 
-  it("uses tiptapToLatex(rich_content_json) when available — escapes #", () => {
+  it("uses latex_content directly (LaTeX is canonical)", () => {
     const project = makeProject();
     const sections = [
       makeSection({
         phase_number: 2,
-        latex_content: "# Introduction\nRaw latex with # chars",
+        latex_content: "\\section{Background}\nContent with $p < 0.05$ and \\footnote{note}.",
+        rich_content_json: null,
+        status: "approved",
+      }),
+    ];
+
+    const { chapterFiles } = assembleThesisContent(TEMPLATE, project, sections, []);
+
+    // LaTeX constructs preserved exactly — no round-trip destruction
+    expect(chapterFiles["chapters/introduction.tex"]).toContain("\\section{Background}");
+    expect(chapterFiles["chapters/introduction.tex"]).toContain("$p < 0.05$");
+    expect(chapterFiles["chapters/introduction.tex"]).toContain("\\footnote{note}");
+  });
+
+  it("ignores rich_content_json — uses latex_content only", () => {
+    const project = makeProject();
+    const sections = [
+      makeSection({
+        phase_number: 2,
+        latex_content: "\\section{Introduction}\nLatex content is canonical.",
         rich_content_json: {
           type: "doc",
           content: [
             {
               type: "paragraph",
               content: [
-                { type: "text", text: "Introduction with # properly escaped" },
+                { type: "text", text: "This rich content is ignored." },
               ],
             },
           ],
@@ -300,28 +318,9 @@ describe("assembleThesisContent", () => {
 
     const { chapterFiles } = assembleThesisContent(TEMPLATE, project, sections, []);
 
-    // tiptapToLatex escapes # → \#
-    expect(chapterFiles["chapters/introduction.tex"]).toContain("\\#");
-    // Should NOT contain raw markdown heading
-    expect(chapterFiles["chapters/introduction.tex"]).not.toContain("# Introduction");
-  });
-
-  it("falls back to latex_content when rich_content_json is null (with round-trip)", () => {
-    const project = makeProject();
-    const sections = [
-      makeSection({
-        phase_number: 2,
-        latex_content: "\\section{Background}\nFallback content.",
-        rich_content_json: null,
-        status: "approved",
-      }),
-    ];
-
-    const { chapterFiles } = assembleThesisContent(TEMPLATE, project, sections, []);
-
-    // Fallback path runs tiptap round-trip: heading + paragraph preserved
-    expect(chapterFiles["chapters/introduction.tex"]).toContain("\\section{Background}");
-    expect(chapterFiles["chapters/introduction.tex"]).toContain("Fallback content.");
+    // latex_content is used, rich_content_json is ignored
+    expect(chapterFiles["chapters/introduction.tex"]).toContain("Latex content is canonical.");
+    expect(chapterFiles["chapters/introduction.tex"]).not.toContain("This rich content is ignored.");
   });
 
   it("extracts BibTeX from ai_generated_latex (not latex_content)", () => {

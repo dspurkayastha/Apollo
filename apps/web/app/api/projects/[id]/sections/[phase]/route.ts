@@ -11,7 +11,6 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { sectionUpdateSchema } from "@/lib/validation/section-schemas";
 import { isValidPhase } from "@/lib/phases/transitions";
 import { getPhase } from "@/lib/phases/constants";
-import { tiptapToLatex } from "@/lib/latex/tiptap-to-latex";
 import { extractCiteKeys } from "@/lib/citations/extract-keys";
 
 export async function GET(
@@ -109,24 +108,11 @@ export async function PUT(
       .eq("phase_number", phaseNumber)
       .single();
 
-    // Build update payload based on save mode
+    // Build update payload — LaTeX is canonical (no rich_content_json)
     let updateData: Record<string, unknown> = {};
     let hasContent = false;
 
-    if (parsed.data.rich_content_json) {
-      // Rich text save: convert Tiptap JSON → LaTeX
-      const result = tiptapToLatex(
-        parsed.data.rich_content_json as unknown as Parameters<typeof tiptapToLatex>[0]
-      );
-      updateData = {
-        rich_content_json: parsed.data.rich_content_json,
-        latex_content: result.latex,
-        word_count: countWords(result.latex),
-        citation_keys: result.citationKeys,
-      };
-      hasContent = result.latex.trim().length > 0;
-    } else if (parsed.data.latex_content !== undefined) {
-      // Source view save: raw LaTeX — invalidate rich_content_json
+    if (parsed.data.latex_content !== undefined) {
       updateData = {
         latex_content: parsed.data.latex_content,
         rich_content_json: null,

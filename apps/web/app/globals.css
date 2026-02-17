@@ -1,3 +1,5 @@
+@import "katex/dist/katex.min.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -202,6 +204,30 @@
   100% {
     transform: translateX(200%);
   }
+}
+
+/* ── CodeMirror editor decorations ── */
+
+/* Citation chip — sage-coloured badge for \cite{key} */
+.cm-cite-chip {
+  background: #8B9D7722;
+  border: 1px solid #8B9D7744;
+  border-radius: 4px;
+  padding: 1px 3px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  color: #5A6B4A;
+}
+
+/* Math preview tooltip — appears on hover over $...$ regions */
+.cm-math-tooltip {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  max-width: 400px;
+  overflow-x: auto;
 }
 
 /* Zen focus rings */

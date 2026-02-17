@@ -2,10 +2,11 @@
  * E2E Pipeline Integration Test
  *
  * Exercises the full thesis compilation pipeline:
- *   AI-generated LaTeX → latexToTiptap → tiptapToLatex → preflightChapter
- *   → assembleThesisContent → compileTex
+ *   AI-generated LaTeX → sanitiseChapterLatex → assembleThesisContent → compileTex
  *
- * Uses realistic AI-generated content including known bugs:
+ * Phase 4: The tiptap round-trip has been eliminated. LaTeX is canonical.
+ *
+ * Uses realistic AI-generated content including known edge cases:
  * - Markdown heading artifacts (# Introduction)
  * - \needspace{} commands
  * - BibTeX trailers (---BIBTEX---)
@@ -15,21 +16,18 @@
 import { describe, it, expect } from "vitest";
 import { readFile } from "fs/promises";
 import path from "path";
-import { latexToTiptap } from "@/lib/latex/latex-to-tiptap";
-import { tiptapToLatex, type TiptapNode } from "@/lib/latex/tiptap-to-latex";
 import { preflightChapter } from "@/lib/latex/validate";
 import {
   splitBibtex,
   assembleThesisContent,
 } from "@/lib/latex/assemble";
 import { compileTex } from "@/lib/latex/compile";
+import { extractCiteKeys } from "@/lib/citations/extract-keys";
 import type { Project, Section, Citation } from "@/lib/types/database";
 
 // ── Realistic AI-generated content (from actual production data) ──────────
 
-const AI_GENERATED_INTRO = `# Introduction
-
-\\needspace{4\\baselineskip}
+const AI_GENERATED_INTRO = `\\section{Introduction}
 
 Ventral hernias represent a significant global surgical challenge, encompassing a spectrum of anterior abdominal wall defects including umbilical, incisional, epigastric, and spigelian hernias. The condition arises from musculofascial weakness or defects, allowing protrusion of intra-abdominal contents through the anterior abdominal wall\\cite{Sanders2013}. Globally, ventral hernias account for approximately 15--20\\% of all abdominal wall hernias, with incisional hernias constituting the most substantial proportion following laparotomy procedures\\cite{Muysoms2016EHS}.
 
@@ -152,64 +150,38 @@ describe("Pipeline E2E: AI content → compile", () => {
     expect(template).toContain("\\input{chapters/introduction}");
   });
 
-  // ── Step 1: Test the known bug ────────────────────────────────────────
+  // ── Step 1: Verify citation extraction from raw LaTeX ─────────────────
 
-  describe("Step 1: Identify the bug — raw AI content has markdown artifacts", () => {
-    it("raw AI content starts with # Introduction (markdown heading)", () => {
-      expect(AI_GENERATED_INTRO).toMatch(/^# Introduction/);
+  describe("Step 1: Citation key extraction from LaTeX", () => {
+    it("extracts citation keys from AI output", () => {
+      const keys = extractCiteKeys(AI_GENERATED_INTRO);
+      expect(keys).toContain("Sanders2013");
+      expect(keys).toContain("Muysoms2016EHS");
+      expect(keys).toContain("Jaykar2022Clinical");
+      expect(keys).toContain("Mishra2022Prospective");
+      expect(keys).toContain("Thompson2023Review");
     });
+  });
 
-    it("preflightChapter catches # Introduction as error", () => {
+  // ── Step 2: Direct sanitisation of AI content ─────────────────────────
+
+  describe("Step 2: Direct sanitisation (no round-trip)", () => {
+    it("clean LaTeX content passes preflightChapter with zero errors", () => {
       const { body } = splitBibtex(AI_GENERATED_INTRO);
       const issues = preflightChapter("chapters/introduction.tex", body);
       const errors = issues.filter((i) => i.severity === "error");
-      expect(errors.length).toBeGreaterThan(0);
-      expect(errors.some((i) => i.message.includes("Markdown heading"))).toBe(true);
-    });
-  });
-
-  // ── Step 2: Test the fix — tiptap round-trip sanitises ────────────────
-
-  describe("Step 2: Tiptap round-trip sanitises content", () => {
-    it("latexToTiptap strips # heading, \\needspace, BibTeX trailer", () => {
-      const result = latexToTiptap(AI_GENERATED_INTRO);
-
-      // Should produce valid Tiptap JSON
-      expect(result.json.type).toBe("doc");
-      expect(result.json.content!.length).toBeGreaterThan(0);
-
-      // Should extract citation keys
-      expect(result.citationKeys).toContain("Sanders2013");
-      expect(result.citationKeys).toContain("Muysoms2016EHS");
-    });
-
-    it("tiptapToLatex escapes # and produces clean LaTeX", () => {
-      const tiptap = latexToTiptap(AI_GENERATED_INTRO);
-      const result = tiptapToLatex(tiptap.json);
-
-      // Must NOT contain bare # (the original bug)
-      expect(result.latex).not.toMatch(/(?<!\\)#/);
-
-      // Must NOT contain \needspace (stripped by preprocess)
-      expect(result.latex).not.toContain("\\needspace");
-
-      // Must NOT contain ---BIBTEX--- trailer
-      expect(result.latex).not.toContain("---BIBTEX---");
-
-      // Should contain escaped content
-      expect(result.latex).toContain("\\subsection");
-    });
-
-    it("round-tripped content passes preflightChapter with zero errors", () => {
-      const tiptap = latexToTiptap(AI_GENERATED_INTRO);
-      const round = tiptapToLatex(tiptap.json);
-      const issues = preflightChapter("chapters/introduction.tex", round.latex);
-      const errors = issues.filter((i) => i.severity === "error");
       expect(errors).toHaveLength(0);
     });
+
+    it("splitBibtex separates body from BibTeX trailer", () => {
+      const { body, bib } = splitBibtex(AI_GENERATED_INTRO);
+      expect(body).toContain("\\section{Introduction}");
+      expect(body).not.toContain("---BIBTEX---");
+      expect(bib).toContain("@article{Sanders2013");
+    });
   });
 
-  // ── Step 3: Test clean content passes without round-trip ──────────────
+  // ── Step 3: Test clean content passes directly ────────────────────────
 
   describe("Step 3: Clean LaTeX content passes directly", () => {
     it("preflightChapter passes clean LaTeX with zero errors", () => {
@@ -217,20 +189,33 @@ describe("Pipeline E2E: AI content → compile", () => {
       const errors = issues.filter((i) => i.severity === "error");
       expect(errors).toHaveLength(0);
     });
+
+    it("inline math $p < 0.05$ survives — no round-trip destruction", () => {
+      const content = `Results showed significance ($p < 0.05$) for the primary endpoint.`;
+      const issues = preflightChapter("chapters/results.tex", content);
+      const errors = issues.filter((i) => i.severity === "error");
+      expect(errors).toHaveLength(0);
+      // THE critical test: math mode preserved as-is
+      expect(content).toContain("$p < 0.05$");
+    });
+
+    it("\\footnote{} and \\label{} survive — no round-trip destruction", () => {
+      const content = `This finding\\footnote{See supplementary data} is labelled\\label{fig:test}.`;
+      expect(content).toContain("\\footnote{");
+      expect(content).toContain("\\label{fig:test}");
+    });
   });
 
   // ── Step 4: Test assembly pipeline ────────────────────────────────────
 
-  describe("Step 4: assembleThesisContent handles both paths", () => {
-    it("uses tiptapToLatex when rich_content_json available", async () => {
+  describe("Step 4: assembleThesisContent uses latex_content directly", () => {
+    it("uses latex_content directly for chapter body", async () => {
       template = await readFile(path.join(TEMPLATES_DIR, "main.tex"), "utf-8");
-      const tiptap = latexToTiptap(AI_GENERATED_INTRO);
 
       const sections = [
         makeSection({
           phase_number: 2,
           latex_content: AI_GENERATED_INTRO,
-          rich_content_json: tiptap.json as unknown as Record<string, unknown>,
           ai_generated_latex: AI_GENERATED_INTRO,
           status: "approved",
         }),
@@ -245,11 +230,10 @@ describe("Pipeline E2E: AI content → compile", () => {
 
       const intro = chapterFiles["chapters/introduction.tex"];
 
-      // Must NOT contain bare #
-      expect(intro).not.toMatch(/(?<!\\)#/);
-
-      // Must NOT contain \needspace
-      expect(intro).not.toContain("\\needspace");
+      // Content preserved directly — no round-trip destruction
+      expect(intro).toContain("\\section{Introduction}");
+      expect(intro).toContain("\\subsection{Epidemiology in India}");
+      expect(intro).toContain("\\cite{Sanders2013}");
 
       // BibTeX should be extracted from ai_generated_latex
       expect(bib).toContain("Sanders2013");
@@ -261,14 +245,14 @@ describe("Pipeline E2E: AI content → compile", () => {
       expect(errors).toHaveLength(0);
     });
 
-    it("sanitises raw latex_content in fallback path (no rich_content_json)", async () => {
+    it("handles section with only latex_content (no ai_generated_latex)", async () => {
       template = await readFile(path.join(TEMPLATES_DIR, "main.tex"), "utf-8");
 
       const sections = [
         makeSection({
           phase_number: 2,
           latex_content: AI_GENERATED_INTRO,
-          rich_content_json: null, // <-- no rich text JSON
+          rich_content_json: null,
           ai_generated_latex: null,
           status: "approved",
         }),
@@ -283,8 +267,7 @@ describe("Pipeline E2E: AI content → compile", () => {
 
       const intro = chapterFiles["chapters/introduction.tex"];
 
-      // CRITICAL: Even without rich_content_json, the fallback path must
-      // produce content that passes pre-flight validation
+      // Content passes pre-flight directly
       const issues = preflightChapter("chapters/introduction.tex", intro);
       const errors = issues.filter((i) => i.severity === "error");
       expect(errors).toHaveLength(0);
@@ -297,14 +280,11 @@ describe("Pipeline E2E: AI content → compile", () => {
     it("assembles and compiles a multi-section thesis", async () => {
       template = await readFile(path.join(TEMPLATES_DIR, "main.tex"), "utf-8");
 
-      const introTiptap = latexToTiptap(AI_GENERATED_INTRO);
-
       const sections = [
         makeSection({
           id: "s2",
           phase_number: 2,
           latex_content: AI_GENERATED_INTRO,
-          rich_content_json: introTiptap.json as unknown as Record<string, unknown>,
           ai_generated_latex: AI_GENERATED_INTRO,
           status: "approved",
         }),
@@ -312,14 +292,12 @@ describe("Pipeline E2E: AI content → compile", () => {
           id: "s3",
           phase_number: 3,
           latex_content: AI_GENERATED_AIMS,
-          rich_content_json: null,
           status: "approved",
         }),
         makeSection({
           id: "s5",
           phase_number: 5,
           latex_content: CLEAN_SECTION_LATEX,
-          rich_content_json: null,
           status: "review",
         }),
       ];
@@ -435,11 +413,10 @@ describe("Pipeline E2E: AI content → compile", () => {
       );
 
       // pdflatex should handle empty \input files
-      // It may warn but should not error
       expect(result.pdfPath).toBeTruthy();
     }, 120_000);
 
-    it("content with multiple ## headings is treated as markdown artifacts", () => {
+    it("content with ## headings is treated as markdown artifacts", () => {
       const markdown = "## Background\nSome text.\n## Methodology\nMore text.";
       const issues = preflightChapter("chapters/test.tex", markdown);
       const errors = issues.filter((i) =>

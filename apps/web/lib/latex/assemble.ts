@@ -1,6 +1,4 @@
 import { generateTex } from "./generate-tex";
-import { tiptapToLatex, type TiptapNode } from "./tiptap-to-latex";
-import { latexToTiptap } from "./latex-to-tiptap";
 import { normaliseUnicode } from "./escape";
 import type { Project, Section, Citation } from "@/lib/types/database";
 
@@ -134,7 +132,7 @@ export function stripTierDCitations(
 // ── Chapter body sanitisation ────────────────────────────────────────────────
 
 /**
- * Sanitise a chapter body after the tiptap round-trip:
+ * Sanitise a chapter body:
  * 1. Strip bare markdown separators (--- / *** / ___)
  * 2. Repair unbalanced \begin{}/\end{} environments
  * 3. Repair unbalanced braces
@@ -223,9 +221,9 @@ function sanitiseChapterLatex(latex: string): string {
  * In LaTeX, `&` is a column separator inside tabular/longtable/array — valid there.
  * Everywhere else it causes "Misplaced alignment tab character &".
  *
- * The tiptap round-trip escapes `&` in text nodes via `escapeLatex()`, but
- * content inside `codeBlock` nodes (non-tabular environments like `\begin{center}`)
- * passes through raw. AI may output bare `&` inside such environments.
+ * AI-generated content may contain bare `&` outside tabular environments
+ * (e.g. journal names like "Endocrinology & Metabolism"). This function
+ * escapes them while preserving valid column separators inside tabulars.
  */
 function escapeBareAmpersands(latex: string): string {
   const lines = latex.split("\n");
@@ -300,16 +298,11 @@ function injectFrontMatter(
 
   if (!phase1) return tex;
 
-  // Get content via same pipeline as chapters
+  // Get content directly from latex_content (canonical)
   let content = "";
-  if (phase1.rich_content_json) {
-    const r = tiptapToLatex(phase1.rich_content_json as unknown as TiptapNode);
-    content = r.latex;
-  } else if (phase1.latex_content) {
+  if (phase1.latex_content) {
     const { body } = splitBibtex(phase1.latex_content);
-    const tiptapJson = latexToTiptap(body);
-    const r = tiptapToLatex(tiptapJson.json);
-    content = r.latex;
+    content = body;
   }
 
   if (!content.trim()) return tex;
@@ -385,8 +378,7 @@ export interface AssembleResult {
  *
  * 1. Populate metadata via `generateTex()`
  * 2. For each phase 2–8: find the section, produce chapter body + extract BibTeX
- * 3. Chapter body source: `tiptapToLatex(rich_content_json)` if available,
- *    else `splitBibtex(latex_content).body` as fallback
+ * 3. Chapter body source: `splitBibtex(latex_content).body` (LaTeX is canonical)
  * 4. BibTeX source: `ai_generated_latex` (preserves ---BIBTEX--- trailer after user edits),
  *    else fallback to `latex_content`
  * 5. Each chapter body → `chapterFiles["chapters/xxx.tex"]`
@@ -435,30 +427,12 @@ export function assembleThesisContent(
       continue;
     }
 
-    // Chapter body: prefer tiptap round-trip (sanitised, escaped)
+    // Chapter body: use latex_content directly (canonical — no round-trip)
     let chapterBody = "";
 
-    if (section.rich_content_json) {
-      const tiptapResult = tiptapToLatex(section.rich_content_json as unknown as TiptapNode);
-      chapterBody = tiptapResult.latex;
-      if (tiptapResult.warnings.length > 0) {
-        warnings.push(
-          `Phase ${phaseNum} tiptap warnings: ${tiptapResult.warnings.join(", ")}`
-        );
-      }
-    } else if (section.latex_content) {
-      // Fallback: sanitise raw latex_content via tiptap round-trip.
-      // This strips markdown artifacts (# headings), \needspace, comments,
-      // and escapes LaTeX special characters like bare #.
+    if (section.latex_content) {
       const { body } = splitBibtex(section.latex_content);
-      const tiptapJson = latexToTiptap(body);
-      const roundTripped = tiptapToLatex(tiptapJson.json);
-      chapterBody = roundTripped.latex;
-      if (roundTripped.warnings.length > 0) {
-        warnings.push(
-          `Phase ${phaseNum} fallback round-trip warnings: ${roundTripped.warnings.join(", ")}`
-        );
-      }
+      chapterBody = body;
     }
 
     if (!chapterBody) {

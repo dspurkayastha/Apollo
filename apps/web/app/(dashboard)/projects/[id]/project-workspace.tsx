@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
@@ -13,9 +13,7 @@ import type {
   Figure,
   ComplianceCheck,
 } from "@/lib/types/database";
-import type { JSONContent } from "novel";
 import type { ReviewIssue } from "@/lib/ai/review-section";
-import { latexToTiptap } from "@/lib/latex/latex-to-tiptap";
 import { PHASES } from "@/lib/phases/constants";
 import { PipelineTimeline } from "@/components/project/pipeline-timeline";
 import { SectionViewer } from "@/components/project/section-viewer";
@@ -25,7 +23,7 @@ import { AIGenerateButton } from "@/components/project/ai-generate-button";
 import { ReviewDialog } from "@/components/project/review-dialog";
 import { Button } from "@/components/ui/button";
 import { useGlassSidebar } from "@/components/layout/glass-sidebar-provider";
-import { FileText, Code, Eye, CheckCircle2 } from "lucide-react";
+import { FileText, Eye, CheckCircle2 } from "lucide-react";
 import { CitationListPanel } from "@/components/project/citation-list-panel";
 import { CitationSearchDialog } from "@/components/project/citation-search-dialog";
 import { ThesisCompletion } from "@/components/project/thesis-completion";
@@ -37,18 +35,10 @@ import { MermaidEditor } from "@/components/project/mermaid-editor";
 import { ProgressDashboard } from "@/components/project/progress-dashboard";
 
 // Dynamic imports — heavy editor/viewer components
-const SectionEditor = dynamic(
+const LaTeXEditor = dynamic(
   () =>
-    import("@/components/editor/section-editor").then(
-      (m) => m.SectionEditor
-    ),
-  { ssr: false, loading: () => <EditorSkeleton /> }
-);
-
-const LaTeXSourceView = dynamic(
-  () =>
-    import("@/components/editor/latex-source-view").then(
-      (m) => m.LaTeXSourceView
+    import("@/components/editor/latex-editor").then(
+      (m) => m.LaTeXEditor
     ),
   { ssr: false, loading: () => <EditorSkeleton /> }
 );
@@ -76,7 +66,6 @@ function EditorSkeleton() {
   );
 }
 
-type EditorMode = "richtext" | "source";
 type MobileTab = "edit" | "preview";
 
 type WorkspaceTab = "editor" | "data" | "compliance" | "figures" | "progress";
@@ -110,7 +99,6 @@ export function ProjectWorkspace({
   const router = useRouter();
   const { setExpanded, isMobile } = useGlassSidebar();
   const [viewingPhase, setViewingPhase] = useState(project.current_phase);
-  const [editorMode, setEditorMode] = useState<EditorMode>("source");
   const [mobileTab, setMobileTab] = useState<MobileTab>("edit");
   const [pdfUrl, setPdfUrl] = useState(latestPdfUrl ?? null);
   const [pdfKey, setPdfKey] = useState(0);
@@ -140,32 +128,8 @@ export function ProjectWorkspace({
   const isCurrentPhase = viewingPhase === project.current_phase;
   const isEditable =
     currentSection?.status === "draft" || currentSection?.status === "review";
-  // Show the toggle when the section has any viewable content (even if not editable)
-  const hasViewableContent = Boolean(
-    currentSection?.latex_content || currentSection?.rich_content_json
-  );
-
-  // Compute rich content: use stored JSON, or convert from LaTeX on the fly
-  const richContentForEditor = useMemo(() => {
-    if (currentSection?.rich_content_json) {
-      return currentSection.rich_content_json as JSONContent;
-    }
-    // Fallback: convert latex_content → Tiptap JSON for pre-existing sections
-    if (currentSection?.latex_content) {
-      const result = latexToTiptap(currentSection.latex_content);
-      return result.json as JSONContent;
-    }
-    return null;
-  }, [currentSection?.id, currentSection?.rich_content_json, currentSection?.latex_content]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-select editor mode: richtext when rich content is available, source otherwise
-  useEffect(() => {
-    if (richContentForEditor) {
-      setEditorMode("richtext");
-    } else {
-      setEditorMode("source");
-    }
-  }, [currentSection?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Show the editor when the section has any viewable content
+  const hasViewableContent = Boolean(currentSection?.latex_content);
 
   // Compile and refresh the PDF preview
   const compileAndRefreshPdf = useCallback(async () => {
@@ -267,23 +231,11 @@ export function ProjectWorkspace({
       );
     }
 
-    // Editable — show live editor
+    // Editable — show live LaTeX editor
     if (isEditable) {
-      if (editorMode === "richtext") {
-        return (
-          <SectionEditor
-            key={`${currentSection.id}-rich`}
-            projectId={project.id}
-            phaseNumber={viewingPhase}
-            initialContent={richContentForEditor}
-            onSaveSuccess={handleSaveSuccess}
-          />
-        );
-      }
-
       return (
-        <LaTeXSourceView
-          key={`${currentSection.id}-source`}
+        <LaTeXEditor
+          key={`${currentSection.id}-editor`}
           projectId={project.id}
           phaseNumber={viewingPhase}
           initialContent={currentSection.latex_content}
@@ -292,38 +244,26 @@ export function ProjectWorkspace({
       );
     }
 
-    // Non-editable but has content (approved/generating) — read-only view
-    // Toggle between rich text rendering and source view
-    if (editorMode === "source") {
-      return (
-        <div className="rounded-2xl bg-white p-6 landing-card-elevated">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-serif text-lg font-semibold text-[#2F2F2F]">{phaseDef?.label ?? `Phase ${viewingPhase}`}</h3>
-            <div className="flex items-center gap-3">
-              {currentSection.word_count > 0 && (
-                <span className="font-mono text-xs text-[#6B6B6B]">
-                  {currentSection.word_count} words
-                </span>
-              )}
-              <span className="font-mono text-xs text-[#6B6B6B] italic">Read-only</span>
-            </div>
-          </div>
-          <div className="rounded-lg bg-[#FAFAFA] p-4">
-            <pre className="whitespace-pre-wrap break-words font-mono text-sm text-[#2F2F2F]/80">
-              {currentSection.latex_content}
-            </pre>
+    // Non-editable but has content (approved/generating) — read-only source view
+    return (
+      <div className="rounded-2xl bg-white p-6 landing-card-elevated">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="font-serif text-lg font-semibold text-[#2F2F2F]">{phaseDef?.label ?? `Phase ${viewingPhase}`}</h3>
+          <div className="flex items-center gap-3">
+            {currentSection.word_count > 0 && (
+              <span className="font-mono text-xs text-[#6B6B6B]">
+                {currentSection.word_count} words
+              </span>
+            )}
+            <span className="font-mono text-xs text-[#6B6B6B] italic">Read-only</span>
           </div>
         </div>
-      );
-    }
-
-    // Rich text read-only view
-    return (
-      <SectionViewer
-        section={currentSection}
-        phaseName={phaseDef?.label ?? `Phase ${viewingPhase}`}
-        phaseNumber={viewingPhase}
-      />
+        <div className="rounded-lg bg-[#FAFAFA] p-4">
+          <pre className="whitespace-pre-wrap break-words font-mono text-sm text-[#2F2F2F]/80">
+            {currentSection.latex_content}
+          </pre>
+        </div>
+      </div>
     );
   };
 
@@ -398,29 +338,6 @@ export function ProjectWorkspace({
           }}
         />
 
-        {/* Editor mode toggle — pushed right, visible when section has content */}
-        {hasViewableContent && (
-          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-black/[0.06] bg-white p-0.5">
-            <Button
-              size="sm"
-              variant={editorMode === "richtext" ? "secondary" : "ghost"}
-              onClick={() => setEditorMode("richtext")}
-              className="h-7 gap-1.5 rounded-full px-3 text-xs"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              Rich Text
-            </Button>
-            <Button
-              size="sm"
-              variant={editorMode === "source" ? "secondary" : "ghost"}
-              onClick={() => setEditorMode("source")}
-              className="h-7 gap-1.5 rounded-full px-3 text-xs"
-            >
-              <Code className="h-3.5 w-3.5" />
-              Source
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Word count bar */}

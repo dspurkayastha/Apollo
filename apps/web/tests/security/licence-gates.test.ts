@@ -159,6 +159,9 @@ describeWithDb("Licence Gate Tests", () => {
 
       // Service role bypasses — application enforcement tested via API tests
       expect(data).not.toBeNull();
+
+      // Reset for subsequent tests
+      await adminClient.from("projects").update({ current_phase: 0 }).eq("id", sandboxProjectId);
     });
   });
 

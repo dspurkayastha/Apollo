@@ -1,6 +1,6 @@
 /**
  * Shared utility to extract \cite{key} keys from LaTeX content.
- * Used by tiptap-to-latex serialiser, section save route, and auto-resolve.
+ * Used by section save route, generate/refine routes, and auto-resolve.
  */
 
 const CITE_REGEX = /\\cite\{([^}]+)\}/g;

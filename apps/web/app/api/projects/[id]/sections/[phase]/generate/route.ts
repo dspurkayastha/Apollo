@@ -21,7 +21,7 @@ import {
   getPhaseUserMessage,
 } from "@/lib/ai/prompts";
 import { parseSynopsisResponse } from "@/lib/ai/parse-synopsis-response";
-import { latexToTiptap } from "@/lib/latex/latex-to-tiptap";
+import { extractCiteKeys } from "@/lib/citations/extract-keys";
 import { resolveSectionCitations, type CitationResolutionSummary } from "@/lib/citations/auto-resolve";
 import { preSeedReferences, formatReferencesForPrompt } from "@/lib/citations/pre-seed";
 import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
@@ -344,16 +344,8 @@ async function handleSectionGenerate(
           console.error("Failed to record token usage:", err)
         );
 
-        // Convert LaTeX → Tiptap JSON for rich text editor
-        const tiptapResult = latexToTiptap(fullResponse);
-        const citationKeys = tiptapResult.citationKeys;
-
-        if (tiptapResult.warnings.length > 0) {
-          console.warn(
-            `LaTeX→Tiptap parse warnings (phase ${phaseNumber}):`,
-            tiptapResult.warnings,
-          );
-        }
+        // Extract citation keys directly from LaTeX (no round-trip)
+        const citationKeys = extractCiteKeys(fullResponse);
 
         // Count words (rough: strip LaTeX commands)
         const plainText = fullResponse
@@ -362,12 +354,12 @@ async function handleSectionGenerate(
           .replace(/[{}\\]/g, " ");
         const wordCount = plainText.split(/\s+/).filter(Boolean).length;
 
-        // Update section with generated content + rich text JSON
+        // Update section with generated content (LaTeX is canonical — no rich_content_json)
         const { error: updateError } = await supabase
           .from("sections")
           .update({
             latex_content: fullResponse,
-            rich_content_json: tiptapResult.json,
+            rich_content_json: null,
             ai_generated_latex: fullResponse,
             word_count: wordCount,
             citation_keys: citationKeys,
@@ -378,17 +370,17 @@ async function handleSectionGenerate(
           .eq("phase_number", phaseNumber);
 
         // Fallback: if update failed (e.g. ai_generated_latex column missing),
-        // retry without ai_generated_latex but keep rich_content_json
+        // retry without ai_generated_latex
         if (updateError) {
           console.warn(
             `Section update failed (phase ${phaseNumber}), retrying without ai_generated_latex:`,
             updateError.message,
           );
-          const { error: fallback1Error } = await supabase
+          const { error: fallbackError } = await supabase
             .from("sections")
             .update({
               latex_content: fullResponse,
-              rich_content_json: tiptapResult.json,
+              rich_content_json: null,
               word_count: wordCount,
               citation_keys: citationKeys,
               status: "review",
@@ -397,30 +389,11 @@ async function handleSectionGenerate(
             .eq("project_id", project.id)
             .eq("phase_number", phaseNumber);
 
-          // If that also fails (rich_content_json missing too), try core-only
-          if (fallback1Error) {
-            console.warn(
-              `Section fallback also failed (phase ${phaseNumber}), retrying core-only:`,
-              fallback1Error.message,
+          if (fallbackError) {
+            console.error(
+              `Section fallback update also failed (phase ${phaseNumber}):`,
+              fallbackError.message,
             );
-            const { error: fallback2Error } = await supabase
-              .from("sections")
-              .update({
-                latex_content: fullResponse,
-                word_count: wordCount,
-                citation_keys: citationKeys,
-                status: "review",
-                updated_at: new Date().toISOString(),
-              })
-              .eq("project_id", project.id)
-              .eq("phase_number", phaseNumber);
-
-            if (fallback2Error) {
-              console.error(
-                `Section core-only update also failed (phase ${phaseNumber}):`,
-                fallback2Error.message,
-              );
-            }
           }
         }
 
@@ -443,7 +416,6 @@ async function handleSectionGenerate(
               type: "complete",
               wordCount,
               citationKeys,
-              parseWarnings: tiptapResult.warnings,
               citationSummary,
             })}\n\n`
           )
