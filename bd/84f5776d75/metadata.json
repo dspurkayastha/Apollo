@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 200,
+  "checkpoints_count": 198,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -24,7 +24,6 @@
     "apps/web/app/(dashboard)/projects/project-card.tsx",
     "apps/web/app/api/checkout/route.ts",
     "apps/web/app/api/citations/search/route.ts",
-    "apps/web/app/api/health/route.ts",
     "apps/web/app/api/inngest/route.ts",
     "apps/web/app/api/licenses/route.ts",
     "apps/web/app/api/projects/[id]/abbreviations/[abbrevId]/route.ts",
@@ -170,7 +169,6 @@
     "apps/web/lib/inngest/client.ts",
     "apps/web/lib/inngest/events.ts",
     "apps/web/lib/inngest/functions/analysis-runner.ts",
-    "apps/web/lib/inngest/functions/stale-cleanup.ts",
     "apps/web/lib/inngest/functions/thesis-workflow.ts",
     "apps/web/lib/latex/abbreviations.test.ts",
     "apps/web/lib/latex/abbreviations.ts",
@@ -207,9 +205,6 @@
     "apps/web/lib/r-plumber/analysis-runner.ts",
     "apps/web/lib/r-plumber/client.test.ts",
     "apps/web/lib/r-plumber/client.ts",
-    "apps/web/lib/r2/client.ts",
-    "apps/web/lib/redis/client.ts",
-    "apps/web/lib/supabase/admin.ts",
     "apps/web/lib/types/database.ts",
     "apps/web/lib/validation/abbreviation-schemas.ts",
     "apps/web/lib/validation/analysis-schemas.ts",
@@ -258,7 +253,6 @@
     "docker/plumber.R",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
-    "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
@@ -445,10 +439,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 81571,
-    "cache_creation_tokens": 6398863,
-    "cache_read_tokens": 241110625,
-    "output_tokens": 504697,
-    "api_call_count": 2580
+    "input_tokens": 81483,
+    "cache_creation_tokens": 6271418,
+    "cache_read_tokens": 233697056,
+    "output_tokens": 488751,
+    "api_call_count": 2496
   }
 }
