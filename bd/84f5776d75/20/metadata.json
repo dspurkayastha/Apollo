@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "80cd2251-68f3-4583-919d-1a80fb5c382b",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-17T15:34:36.823439Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "apps/web/components/auth/interactive-grid.tsx"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 63055,
+    "cache_read_tokens": 522558,
+    "output_tokens": 7139,
+    "api_call_count": 10
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-17T15:34:36.586843Z",
+    "agent_lines": 0,
+    "human_added": 10668,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 10668,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/80cd2251-68f3-4583-919d-1a80fb5c382b.jsonl"
+}

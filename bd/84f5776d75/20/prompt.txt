@@ -1,0 +1,129 @@
+Implement the following plan:
+
+# Plan: Rewrite Auth 3D Scene to Match Hero Quality + Fix Layout
+
+## Context
+
+The auth page 3D scene looks like a "first pass render" compared to the polished landing page hero scene. Root causes identified:
+
+1. **Material quality gap** — Auth uses opaque `meshStandardMaterial` for network nodes (flat/matte look) while hero uses `MeshTransmissionMaterial` (glass with refraction, chromatic aberration, depth). Auth's glass objects use hardcoded thickness values instead of radius-scaled ones.
+2. **Scene clutter** — 5 unrelated objects (network, tablet, paperweight, vase, platform) feel scattered. Hero has 2 cohesive object groups (thesis pages + scatter plot) that tell a story.
+3. **Lighting over-compensation** — Auth lowered ambient to 0.35 then added under-fill lights to fix harsh shadows. Hero uses balanced ambient 0.5 + warm key/fill rig naturally.
+4. **Camera too far** — Auth at distance 9.5 with FOV 40° makes objects small. Hero at distance 7 with FOV 38° frames objects tightly.
+5. **Tone mapping hack** — Auth enables ACESFilmicToneMapping + exposure 1.1 to rescue flat lighting. Hero doesn't need it.
+6. **Wireframe lines** — Auth uses `lineBasicMaterial` (thin, aliased). Hero uses drei `Line` (smooth, consistent width).
+7. **Canvas textures** — Auth's tablet texture is 512x720, no grain, generic content. Hero's pages are 1024x1440 with grain noise, real medical content, 3 variants.
+8. **Layout issues** — "Last used" badge clips, Clerk `cardBox` still has white bg, dot grid too faint.
+
+## Strategy
+
+**Rewrite `auth-3d-scene.tsx` from scratch** using the exact same patterns, imports, material configs, lighting rig, and Canvas setup as `hero-3d-scene.tsx`. Keep the academic/knowledge-graph theme but with hero-level execution.
+
+### Scene Composition (2 focused object groups)
+
+**Group 1: Knowledge Graph** (replaces old NetworkTopology)
+- Icosahedron vertex positions (deduplicated) — same algorithm
+- **Nodes**: `MeshTransmissionMaterial` glass spheres (hero's scatter sphere config exactly) — alternating sage `#8B9D77` and warm amber `#D4A373` colours
+- **Edges**: `Line` from drei (not `lineBasicMaterial`) — subtle `#C0C0C0`, lineWidth 1
+- Radius-scaled thickness: `thickness={radius * 5}`, `backsideThickness={radius * 2}`
+- Per-colour-group breathe animation (hero's `GROUP_BREATHE` pattern)
+- Slow orbital drift on the parent group
+
+**Group 2: Thesis Book Stack** (replaces old FacingTablet + vase + paperweight + platform)
+- 2 thesis pages using hero's `ThesisPageMesh` pattern exactly:
+  - `RoundedBox` body with warm paper tint `#F0EDE6`
+  - `1024x1440` Canvas texture with grain noise, serif titles, body text
+  - `emissiveIntensity={0.06}` for page readability
+  - Content: page 1 = "Introduction" (renal biomarker study), page 2 = "Materials and Methods"
+- Slight fan/spread (hero's page group pattern) with `Float` wrappers
+- Positioned right of centre, overlapping with knowledge graph
+
+**Removed objects**: GlassPaperweight, StylizedPampasVase, CeramicPlatform (declutter)
+
+### Technical Config (match hero exactly)
+
+| Setting | Hero (source of truth) | Auth (target) |
+|---------|----------------------|---------------|
+| Camera | `[0, 0.5, 7]`, fov 38 | Same |
+| DPR | `[1, 1.5]` | Same |
+| GL | `antialias, alpha, powerPreference: "default"` | Same (remove toneMapping) |
+| Ambient | 0.5 | Same |
+| Key light | `[4, 8, 3]`, 1.8, 1024x1024 shadow map | Same |
+| Fill lights | `[-4, 4, 3]` 0.6 warm + `[2, -2, 5]` 0.3 warm | Same |
+| Rim light | `[-3, 2, -4]` 0.8 cool | Same |
+| ContactShadows | `[0, -1.5, 0]`, opacity 0.3, scale 20, blur 2.5, 512 | Same |
+| Environment | Procedural 5-plane studio | Same values as hero |
+
+### Transmission Material Config (per-node, matching hero scatter spheres)
+```
+transmission: 1, thickness: radius * 5, roughness: 0.01
+chromaticAberration: 0.04, anisotropicBlur: 0.08
+distortion: 0.15, distortionScale: 0.4, temporalDistortion: 0.02
+backside: true, backsideThickness: radius * 2
+opacity: 0.65, toneMapped: false
+```
+
+### Realism Requirements (not "2000s video game")
+- **Shadow maps 2048x2048** with tuned bias (-0.0005) and normalBias (0.02) — sharp but artefact-free
+- **Paper thickness**: RoundedBox `0.04` depth (not paper-thin, visibly 3D)
+- **Paper edge tint**: `#F0EDE6` body vs `#FFFFFF` front face — visible edge colour creates depth
+- **Glass nodes**: Full transmission + chromatic aberration + distortion = light bends through each sphere realistically
+- **ContactShadows**: Soft, blurred (2.5), warm colour `#2A2520` — ground objects convincingly
+- **Environment map**: Procedural 5-plane studio with warm/cool fills — reflections on glass look like a real studio photograph
+- **Grain noise on paper**: 800 procedural noise points on each Canvas texture — prevents the "flat digital paper" look
+- **emissiveIntensity 0.06 on page fronts**: Subtle self-illumination makes text readable without washing out shadows
+
+### Layout Fixes
+
+**Auth layout** (`app/(auth)/layout.tsx`):
+- Change left panel from `w-[55%]` to `w-[60%]` (60/40 split — hero panel dominates, Clerk form stays compact)
+- Right panel (40%): add `overflow-hidden` to prevent badge clipping outside viewport
+
+**Clerk appearance** (sign-in + sign-up):
+- Widen `rootBox` to `max-w-[460px]` (from 440)
+- Add `cardBox: "shadow-none bg-transparent"` (already done)
+- Add `lastAuthenticationStrategyBadge: "text-xs"` to prevent overflow
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `components/auth/auth-3d-scene.tsx` | **Full rewrite** — knowledge graph + thesis book stack using hero patterns |
+| `app/(auth)/layout.tsx` | Panel split 50/50, overflow fix |
+| `app/(auth)/sign-in/[[...sign-in]]/page.tsx` | Widen rootBox, badge styling |
+| `app/(auth)/sign-up/[[...sign-up]]/page.tsx` | Same |
+
+## Verification
+
+1. Visit `/sign-in` — left panel shows knowledge graph (glass nodes with chromatic aberration) + thesis pages with readable text, all on beige bg with dot grid
+2. Scene quality matches hero — glass nodes shimmer, pages have visible grain, lighting is warm and cohesive
+3. Right panel — Clerk form with no white card background, dot grid visible, no badge clipping
+4. Mobile — right panel only (no 3D scene), form centred
+5. `npx tsc --noEmit` passes with 0 errors
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+[Request interrupted by user]
+
+---
+
+I have a diffrent mockup for the left pane. The right pane will be lighter warm tone than left and will retain dot grid. clerk element bg will be transparent glassmorphic, with clamshell smoothened edges. Left pane image is attached. Use best possible 3d render option to achieve perfect similarity. take special care for the light, shadow,glass and all detials.
+
+---
+
+[Image: source: /Users/devs/Downloads/Gemini_Generated_Image_glon03glon03glon.png]
+
+---
+
+[Request interrupted by user]
+
+---
+
+forget this plan , and look at my last input
+
+---
+
+[Request interrupted by user for tool use]
