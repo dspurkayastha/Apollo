@@ -1,0 +1,253 @@
+Implement the following plan:
+
+# Phase 2: Infrastructure Foundation — Implementation Plan
+
+## Context
+
+Phase 1 (Critical Safety) is committed and pushed (`b852cec`). Phase 2 covers 8 items from `docs/Mitigation_plan.md` §Phase 2 (items 2.1–2.9, skipping 2.7). These address infrastructure gaps that must be resolved before public beta: in-memory state that won't survive restarts, ephemeral file storage, missing env validation, stale compile recovery, and middleware coverage holes.
+
+**Skipped:** Item 2.7 (Webhook Replay Protection / 5-min staleness window) — proven harmful during Phase 1 analysis. Payment gateways retry at intervals >5 minutes; staleness checks would reject legitimate retries. Atomic idempotency via `claimWebhookEvent()` already handles deduplication.
+
+---
+
+## Step 1: Singleton Supabase Admin Client
+
+**Review ID:** IV-E5 | **Mitigation item:** 2.8
+
+**File:** `apps/web/lib/supabase/admin.ts`
+
+Convert from per-call factory to module-level singleton. The admin client is stateless and safe to reuse:
+
+```typescript
+let adminClient: SupabaseClient | null = null;
+
+export function createAdminSupabaseClient(): SupabaseClient {
+  if (!adminClient) {
+    adminClient = createClient(/* ... */);
+  }
+  return adminClient;
+}
+```
+
+Same export signature — no callers change. ~10 lines.
+
+---
+
+## Step 2: Environment Variable Validation
+
+**Review ID:** IV-E10 | **Mitigation item:** 2.3
+
+**New file:** `apps/web/lib/env.ts`
+
+Zod schema validating all required env vars at import time.
+
+**Required (fail-fast):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `ANTHROPIC_API_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`
+
+**Optional (warn):** `SENTRY_DSN`, `POSTHOG_KEY`, `INNGEST_*`, `RAZORPAY_*`, `STRIPE_*`, `PUBMED_API_KEY`, `CROSSREF_MAILTO`, `UPSTASH_REDIS_*`
+
+**Also:**
+- Import `lib/env.ts` in `next.config.ts` for build-time validation
+- Add `R2_ACCOUNT_ID` to `.env.example`
+- Update `lib/r2/client.ts` to use validated env
+
+~60 lines new + ~7 lines across 3 files.
+
+---
+
+## Step 3: Health Check Endpoint
+
+**Review ID:** IV-E9 | **Mitigation item:** 2.6
+
+**New file:** `apps/web/app/api/health/route.ts`
+
+Simple unauthenticated `GET` returning `{ status: "ok", timestamp, version }`. No DB/Redis probes (avoids cascading failures in health checks). ~15 lines.
+
+---
+
+## Step 4: Stale Compilation Recovery
+
+**Review ID:** IV-E3 | **Mitigation item:** 2.4
+
+**File:** `apps/web/app/api/projects/[id]/compile/route.ts` (lines 49–59)
+
+Add 5-minute staleness window to the "already running" check:
+
+1. Fetch running compilation including `created_at`
+2. If `created_at` < 5 min ago → still return 409 conflict (genuinely running)
+3. If `created_at` >= 5 min ago → mark as `failed` with error "Compilation timed out", then allow new compile
+
+Self-healing on next request — no cron needed at this layer. ~15 lines changed.
+
+---
+
+## Step 5: Upstash Redis for Semaphore and Rate Limiter
+
+**Review IDs:** IV-E1, F1, D7, IV-A6 | **Mitigation item:** 2.1 | **Decision:** DECISIONS.md §7.2
+
+Largest step. Both `semaphore.ts` (in-memory Map) and `rate-limit.ts` (in-memory Map) need Redis. The semaphore's queue promotion uses no-op `resolve` callbacks (bug D7).
+
+### 5a: Create Upstash Redis database
+Use Upstash MCP to create DB in `ap-southeast-1`. Add creds to `.env.local`, uncomment in `.env.example`.
+
+### 5b: Install dependency
+`pnpm add @upstash/redis` in `apps/web`.
+
+### 5c: Redis client singleton
+**New file:** `apps/web/lib/redis/client.ts` — singleton `getRedis()` that returns `null` if env vars missing (graceful dev fallback).
+
+### 5d: Rewrite semaphore.ts
+**File:** `apps/web/lib/compute/semaphore.ts`
+
+- Active jobs → Redis HASH `apollo:semaphore:active` with 10-min TTL per job (auto-expire safety)
+- Units counter → Redis key `apollo:semaphore:units`
+- `tryAcquire()` → Redis transaction: check units + per-user + analysis limits → SET
+- `release()` → DEL job + decrement counter
+- **Queue elimination:** Return `{acquired: false, position, estimatedWaitMs}` for callers to retry. Eliminates broken no-op resolve callbacks (D7).
+- **Fallback:** If `getRedis()` returns null, use existing in-memory logic (dev without Redis still works).
+
+Same `tryAcquire`/`release`/`getStatus` interface — callers unchanged.
+
+### 5e: Rewrite rate-limit.ts
+**File:** `apps/web/lib/ai/rate-limit.ts`
+
+- Redis sorted set `apollo:ratelimit:{userId}` with score=timestamp
+- ZADD + ZREMRANGEBYSCORE + ZCARD for sliding window
+- Same `{allowed, remaining, retryAfterSeconds}` return
+- **Fallback:** In-memory if no Redis.
+
+### 5f: Apply rate limiting to all AI routes
+Currently only `generate/route.ts` calls `checkRateLimit()`. Add to:
+- `sections/[phase]/refine/route.ts`
+- `analyses/auto-detect/route.ts`
+- `synopsis/parse/route.ts`
+- `datasets/generate/route.ts`
+
+Pattern: `const rl = checkRateLimit(userId); if (!rl.allowed) return tooManyRequests(rl.retryAfterSeconds);`
+
+### 5g: Tests
+Existing `semaphore.test.ts` still passes (falls back to in-memory). Same contract.
+
+~150 lines across semaphore.ts + rate-limit.ts + redis/client.ts + 4 route files.
+
+---
+
+## Step 6: R2 Storage for PDFs and Figures
+
+**Review IDs:** IV-E2, C9, D1 | **Mitigation item:** 2.2
+
+### 6a: Add `uploadToR2` helper
+**File:** `apps/web/lib/r2/client.ts` — new export for direct Buffer upload (used for PDFs and figures).
+
+### 6b: Upload compiled PDF to R2
+**File:** `apps/web/app/api/projects/[id]/compile/route.ts`
+
+After successful `compileTex()`, read PDF from tmpdir, upload to R2 key `projects/{projectId}/compilations/{compilationId}.pdf`, store key in `compilations.pdf_url`.
+
+### 6c: Serve PDFs via R2 signed URL
+**File:** `apps/web/app/api/projects/[id]/preview.pdf/route.ts`
+
+Fetch compilation → get `pdf_url` (R2 key) → `generateDownloadUrl(key)` → redirect.
+
+### 6d: Upload figures to R2 after R analysis
+**File:** `apps/web/lib/r-plumber/analysis-runner.ts`
+
+After R Plumber returns, upload figures to `projects/{projectId}/figures/{analysisId}/{filename}`, store R2 key in `figures.file_url`.
+
+### 6e: Update compile route figure resolution
+**File:** `apps/web/app/api/projects/[id]/compile/route.ts` (lines 123–137)
+
+Download figures from R2 to tmpdir before compilation instead of reading from `FIGURES_BASE_DIR`.
+
+~80 lines across 4 files.
+
+---
+
+## Step 7: Inngest Stale Cleanup Cron
+
+**Review ID:** E1 extended | **Mitigation item:** 2.5 | **Decision:** DECISIONS.md §7.1
+
+**New file:** `apps/web/lib/inngest/functions/stale-cleanup.ts`
+
+Inngest cron (every 5 min) that sweeps stale compilations and analyses:
+- `compilations` with `status = "running"` older than 5 min → mark `failed`
+- `analyses` with `status = "running"` older than 10 min → mark `failed`
+
+**File:** `apps/web/app/api/inngest/route.ts` — register the new function.
+
+~30 lines new + ~3 lines changed.
+
+---
+
+## Step 8: Middleware Route Coverage
+
+**Review ID:** IV-A1 | **Mitigation item:** 2.9
+
+**File:** `apps/web/middleware.ts`
+
+Add missing routes to `isProtectedRoute`:
+```
+"/api/checkout(.*)",
+"/api/synopsis(.*)",
+"/api/citations(.*)",
+```
+
+**Intentionally excluded** (own auth mechanisms):
+- `/api/webhooks/*` — HMAC signature verification
+- `/api/inngest` — Inngest signing key
+- `/api/review/*` — token-based reviewer access
+- `/api/health` — public (new in Step 3)
+
+~3 lines changed.
+
+---
+
+## Files Summary
+
+| Step | File | Action | ~Lines |
+|------|------|--------|--------|
+| 1 | `lib/supabase/admin.ts` | Edit (singleton) | 10 |
+| 2 | `lib/env.ts` | **Create** | 60 |
+| 2 | `next.config.ts` | Edit (import env) | 5 |
+| 2 | `.env.example` | Edit (add R2_ACCOUNT_ID) | 2 |
+| 2 | `lib/r2/client.ts` | Edit (validated env) | 2 |
+| 3 | `app/api/health/route.ts` | **Create** | 15 |
+| 4 | `app/api/.../compile/route.ts` | Edit (stale recovery) | 15 |
+| 5 | `lib/redis/client.ts` | **Create** | 20 |
+| 5 | `lib/compute/semaphore.ts` | Rewrite | 100 |
+| 5 | `lib/ai/rate-limit.ts` | Rewrite | 40 |
+| 5 | 4 API route files | Edit (add rate limit) | 20 |
+| 6 | `lib/r2/client.ts` | Edit (uploadToR2) | 15 |
+| 6 | `app/api/.../compile/route.ts` | Edit (R2 upload) | 20 |
+| 6 | `app/api/.../preview.pdf/route.ts` | Edit (R2 redirect) | 20 |
+| 6 | `lib/r-plumber/analysis-runner.ts` | Edit (R2 figures) | 25 |
+| 7 | `lib/inngest/functions/stale-cleanup.ts` | **Create** | 30 |
+| 7 | `app/api/inngest/route.ts` | Edit (register) | 3 |
+| 8 | `middleware.ts` | Edit (add routes) | 3 |
+
+All paths relative to `apps/web/`. Total: ~405 lines across 4 new + 14 modified files.
+
+---
+
+## Verification
+
+1. **`pnpm lint`** — no new lint errors
+2. **`pnpm tsc --noEmit`** — no TypeScript errors
+3. **`pnpm test`** — existing 226+ tests pass (semaphore tests use in-memory fallback in test env)
+4. **Manual checks:**
+   - `curl /api/health` → `{"status":"ok",...}`
+   - Start app with missing required env var → fails fast with descriptive error
+   - Trigger compile → PDF stored in R2, preview serves via signed URL
+   - Kill server mid-compile → restart → next compile auto-recovers stale record
+   - Hit rate limit on refine/auto-detect/synopsis → 429
+   - `/api/checkout`, `/api/synopsis`, `/api/citations` require auth via middleware
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+now recheck the entire phase 2 changes against the review, Decisions and the mitigation plan, and apply your own logic. Think ultra hard, and make sure any mistakes werent made. Do not take the mitigation plan as gospel, if any logical errors are there , think about them, and show me.
+
+---
+
+I need you to create a file in /docs/ called Mitigation_implementation which will note all phase completion notes and serve as future auditable and traceable doc and lessons. Fill it with Phase 1, and phase 2 completion notes. Then commit and push the changes

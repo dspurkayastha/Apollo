@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 197,
+  "checkpoints_count": 200,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -24,6 +24,7 @@
     "apps/web/app/(dashboard)/projects/project-card.tsx",
     "apps/web/app/api/checkout/route.ts",
     "apps/web/app/api/citations/search/route.ts",
+    "apps/web/app/api/health/route.ts",
     "apps/web/app/api/inngest/route.ts",
     "apps/web/app/api/licenses/route.ts",
     "apps/web/app/api/projects/[id]/abbreviations/[abbrevId]/route.ts",
@@ -165,9 +166,11 @@
     "apps/web/lib/datasets/generate.ts",
     "apps/web/lib/datasets/parse.test.ts",
     "apps/web/lib/datasets/parse.ts",
+    "apps/web/lib/env.ts",
     "apps/web/lib/inngest/client.ts",
     "apps/web/lib/inngest/events.ts",
     "apps/web/lib/inngest/functions/analysis-runner.ts",
+    "apps/web/lib/inngest/functions/stale-cleanup.ts",
     "apps/web/lib/inngest/functions/thesis-workflow.ts",
     "apps/web/lib/latex/abbreviations.test.ts",
     "apps/web/lib/latex/abbreviations.ts",
@@ -204,6 +207,9 @@
     "apps/web/lib/r-plumber/analysis-runner.ts",
     "apps/web/lib/r-plumber/client.test.ts",
     "apps/web/lib/r-plumber/client.ts",
+    "apps/web/lib/r2/client.ts",
+    "apps/web/lib/redis/client.ts",
+    "apps/web/lib/supabase/admin.ts",
     "apps/web/lib/types/database.ts",
     "apps/web/lib/validation/abbreviation-schemas.ts",
     "apps/web/lib/validation/analysis-schemas.ts",
@@ -252,6 +258,7 @@
     "docker/plumber.R",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
+    "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
@@ -428,13 +435,20 @@
       "context": "/bd/84f5776d75/23/context.md",
       "content_hash": "/bd/84f5776d75/23/content_hash.txt",
       "prompt": "/bd/84f5776d75/23/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/24/metadata.json",
+      "transcript": "/bd/84f5776d75/24/full.jsonl",
+      "context": "/bd/84f5776d75/24/context.md",
+      "content_hash": "/bd/84f5776d75/24/content_hash.txt",
+      "prompt": "/bd/84f5776d75/24/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 81473,
-    "cache_creation_tokens": 6266182,
-    "cache_read_tokens": 232426505,
-    "output_tokens": 488466,
-    "api_call_count": 2488
+    "input_tokens": 81571,
+    "cache_creation_tokens": 6398863,
+    "cache_read_tokens": 241110625,
+    "output_tokens": 504697,
+    "api_call_count": 2580
   }
 }
