@@ -18,6 +18,7 @@ export async function GET() {
     const { data: projects, error } = await supabase
       .from("projects")
       .select("*")
+      .eq("user_id", authResult.user.id)
       .order("updated_at", { ascending: false });
 
     if (error) {

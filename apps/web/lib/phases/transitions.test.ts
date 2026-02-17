@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { canAdvancePhase, isValidPhase } from "./transitions";
 import type { Project } from "@/lib/types/database";
 
@@ -56,8 +56,14 @@ describe("canAdvancePhase", () => {
     expect(result.allowed).toBe(true);
   });
 
-  it("should deny advancing beyond the final phase", () => {
+  it("should allow approving the final phase (Phase 11) to complete the thesis", () => {
     const project = makeProject({ current_phase: 11, status: "licensed" });
+    const result = canAdvancePhase(project, "approved");
+    expect(result.allowed).toBe(true);
+  });
+
+  it("should deny advancing beyond the final phase", () => {
+    const project = makeProject({ current_phase: 12, status: "completed" });
     const result = canAdvancePhase(project, "approved");
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("INVALID_TRANSITION");
@@ -67,6 +73,25 @@ describe("canAdvancePhase", () => {
     const project = makeProject({ current_phase: 5, status: "licensed" });
     const result = canAdvancePhase(project, "approved");
     expect(result.allowed).toBe(true);
+  });
+
+  it("should deny DEV_LICENCE_BYPASS in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEV_LICENCE_BYPASS", "true");
+    const project = makeProject({ current_phase: 1, status: "sandbox" });
+    const result = canAdvancePhase(project, "approved");
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe("LICENCE_REQUIRED");
+    vi.unstubAllEnvs();
+  });
+
+  it("should allow DEV_LICENCE_BYPASS in development", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("DEV_LICENCE_BYPASS", "true");
+    const project = makeProject({ current_phase: 1, status: "sandbox" });
+    const result = canAdvancePhase(project, "approved");
+    expect(result.allowed).toBe(true);
+    vi.unstubAllEnvs();
   });
 });
 

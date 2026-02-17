@@ -22,7 +22,9 @@ mkdir -p "$OUTPUT_DIR"
 
 # Copy source files to /tmp for read-only filesystem compatibility
 cp /thesis/*.tex /thesis/*.cls /thesis/*.bst /tmp/ 2>/dev/null || true
+cp /thesis/*.bib /tmp/ 2>/dev/null || true
 cp -r /thesis/logo /tmp/logo 2>/dev/null || true
+cp -r /thesis/chapters /tmp/chapters 2>/dev/null || true
 
 # Create empty .bib if not present (for compilation without references)
 if [ ! -f /tmp/references.bib ]; then

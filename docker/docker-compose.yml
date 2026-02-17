@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # Web: run Next.js dev server on the host, not in Docker.
   # Use `pnpm dev` in apps/web/ and set LATEX_COMPILE_MODE=docker.
@@ -8,6 +6,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.latex
+    image: apollo-latex
     container_name: apollo-latex
     network_mode: none
     read_only: true
@@ -32,6 +31,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.r-plumber
+    image: apollo-r-plumber
     container_name: apollo-r-plumber
     read_only: true
     tmpfs:

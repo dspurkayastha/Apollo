@@ -56,11 +56,17 @@ export function generateTex(
     ssuhs: { university: "logo/ssuhs-logo", institute: "logo/ssuhs-logo" },
   };
   const logos = logoMap[project.university_type ?? ""] ?? logoMap.sskm;
-  // Insert \universitylogo and \institutelogo commands after metadata block
+  // Insert logos and additional packages before \begin{document}
+  // AI-generated content may use math symbols requiring these packages
   const logoCommands = `\\universitylogo{${logos.university}}\n\\institutelogo{${logos.institute}}`;
+  const extraPackages = [
+    "\\usepackage{mathrsfs}   % \\mathscr{} -- formal script math font",
+    "\\usepackage{amssymb}    % Extended math symbols",
+    "\\usepackage{graphicx}   % \\includegraphics for figures",
+  ].join("\n");
   tex = tex.replace(
     /(\\begin\{document\})/,
-    `${logoCommands}\n\n$1`
+    `${logoCommands}\n\n${extraPackages}\n\n$1`
   );
 
   // Replace field values

@@ -26,10 +26,10 @@ const plans = [
   },
   {
     name: "Student",
-    monthlyPrice: "\u20B92,499",
-    onetimePrice: "\u20B914,999",
+    monthlyPrice: "\u20B9499",
+    onetimePrice: "\u20B91,499",
     period: "/mo",
-    onetimePeriod: "6-month access",
+    onetimePeriod: "one-time",
     description: "Complete your thesis",
     features: [
       "Everything in Free Trial",
@@ -39,15 +39,15 @@ const plans = [
       "Statistical analysis",
     ],
     cta: "Get Started",
-    href: "/sign-up",
+    href: "/sign-up?plan=student",
     popular: true,
   },
   {
     name: "Professional",
-    monthlyPrice: "\u20B94,999",
-    onetimePrice: "\u20B924,999",
+    monthlyPrice: "\u20B9999",
+    onetimePrice: "\u20B92,999",
     period: "/mo",
-    onetimePeriod: "6-month license",
+    onetimePeriod: "one-time",
     description: "For serious researchers",
     features: [
       "Everything in Student",
@@ -56,7 +56,7 @@ const plans = [
       "DOCX export",
     ],
     cta: "Go Pro",
-    href: "/sign-up",
+    href: "/sign-up?plan=professional",
     popular: false,
   },
 ];

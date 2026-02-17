@@ -3,7 +3,7 @@
 
 library(plumber)
 library(jsonlite)
-library(tidyverse)
+library(dplyr)
 library(gtsummary)
 library(ggplot2)
 library(broom)
@@ -54,6 +54,21 @@ parse_data <- function(data) {
     }
   }
   df
+}
+
+#' Apply colour scheme to a ggplot
+apply_colour_scheme <- function(plot, colour_scheme = "default") {
+  if (is.null(colour_scheme) || colour_scheme == "default") {
+    return(plot)
+  }
+  if (colour_scheme == "greyscale") {
+    return(plot + scale_fill_grey() + scale_colour_grey() + theme_minimal())
+  }
+  if (colour_scheme == "colourblind-safe") {
+    cb_palette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#999999")
+    return(plot + scale_fill_manual(values = cb_palette) + scale_colour_manual(values = cb_palette))
+  }
+  plot
 }
 
 # ── Health check ──────────────────────────────────────────────────────────────
@@ -163,13 +178,24 @@ function(req) {
       test_name <- "Chi-Square Test"
     }
 
-    # Create bar plot
+    # Create plot — chart_type override (default: bar)
+    chart_type <- ifelse(is.null(body$chart_type), "bar", body$chart_type)
+    colour_scheme <- ifelse(is.null(body$colour_scheme), "default", body$colour_scheme)
+
     plot_df <- as.data.frame(tbl)
     names(plot_df) <- c("Predictor", "Outcome", "Count")
-    p <- ggplot(plot_df, aes(x = Predictor, y = Count, fill = Outcome)) +
-      geom_bar(stat = "identity", position = "dodge") +
-      theme_minimal() +
-      labs(title = test_name, x = predictor, y = "Count", fill = outcome)
+
+    if (chart_type == "heatmap") {
+      p <- ggplot(plot_df, aes(x = Predictor, y = Outcome, fill = Count)) +
+        geom_tile() + scale_fill_gradient(low = "white", high = "steelblue") +
+        theme_minimal() + labs(title = test_name)
+    } else {
+      p <- ggplot(plot_df, aes(x = Predictor, y = Count, fill = Outcome)) +
+        geom_bar(stat = "identity", position = "dodge") +
+        theme_minimal() +
+        labs(title = test_name, x = predictor, y = "Count", fill = outcome)
+    }
+    p <- apply_colour_scheme(p, colour_scheme)
 
     fig <- save_plot_base64(p, "chi_square_plot.pdf")
 
@@ -245,18 +271,30 @@ function(req) {
       test_name <- "Wilcoxon Rank-Sum Test"
     }
 
-    # Box plot
+    # Plot — chart_type override (default: box)
+    chart_type <- ifelse(is.null(body$chart_type), "box", body$chart_type)
+    colour_scheme <- ifelse(is.null(body$colour_scheme), "default", body$colour_scheme)
+
     plot_df <- data.frame(
       Value = outcome_vals,
       Group = group_vals,
       stringsAsFactors = FALSE
     ) %>% filter(!is.na(Value), !is.na(Group))
 
-    p <- ggplot(plot_df, aes(x = Group, y = Value, fill = Group)) +
-      geom_boxplot(alpha = 0.7) +
-      theme_minimal() +
+    p <- ggplot(plot_df, aes(x = Group, y = Value, fill = Group))
+    if (chart_type == "violin") {
+      p <- p + geom_violin(alpha = 0.7) + geom_boxplot(width = 0.1, alpha = 0.5)
+    } else if (chart_type == "bar") {
+      p <- ggplot(plot_df, aes(x = Group, y = Value, fill = Group)) +
+        stat_summary(fun = mean, geom = "bar", alpha = 0.7) +
+        stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2)
+    } else {
+      p <- p + geom_boxplot(alpha = 0.7)
+    }
+    p <- p + theme_minimal() +
       labs(title = test_name, x = group, y = outcome) +
       theme(legend.position = "none")
+    p <- apply_colour_scheme(p, colour_scheme)
 
     fig <- save_plot_base64(p, "t_test_plot.pdf")
 

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -14,9 +14,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 interface PdfViewerProps {
   url: string | null;
   isSandbox?: boolean;
+  projectId?: string;
 }
 
-export function PdfViewer({ url, isSandbox }: PdfViewerProps) {
+export function PdfViewer({ url, isSandbox, projectId }: PdfViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
@@ -118,6 +119,25 @@ export function PdfViewer({ url, isSandbox }: PdfViewerProps) {
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
+          {projectId && (
+            <>
+              <div className="mx-1 h-4 w-px bg-[#E5E5E5]" />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  window.open(
+                    `/api/projects/${projectId}/preview.pdf?download=1`,
+                    "_blank"
+                  )
+                }
+                className="h-7 w-7 p-0"
+                title="Download PDF"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

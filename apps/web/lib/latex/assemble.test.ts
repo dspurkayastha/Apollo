@@ -273,8 +273,8 @@ describe("assembleThesisContent", () => {
     expect(chapterFiles["chapters/results.tex"]).toContain("Results content here.");
     expect(chapterFiles["chapters/discussion.tex"]).toContain("Discussion content here.");
     expect(chapterFiles["chapters/conclusion.tex"]).toContain("Conclusion content here.");
-    // No missing-phase warnings for 2-8
-    expect(warnings.filter((w) => w.includes("no approved/review content")).length).toBe(0);
+    // No missing-phase warnings for 2-8 (phase 10 appendices may warn if not present)
+    expect(warnings.filter((w) => w.includes("no approved/review content") && !w.includes("Phase 10")).length).toBe(0);
   });
 
   it("uses tiptapToLatex(rich_content_json) when available — escapes #", () => {
@@ -417,8 +417,9 @@ describe("assembleThesisContent", () => {
     expect(chapterFiles["chapters/results.tex"]).toBe("");
     expect(chapterFiles["chapters/discussion.tex"]).toBe("");
     expect(chapterFiles["chapters/conclusion.tex"]).toBe("");
-    // Should have warnings for each missing phase
-    expect(warnings.filter((w) => w.includes("no approved/review content")).length).toBe(7);
+    expect(chapterFiles["chapters/appendices.tex"]).toBe("");
+    // Should have warnings for each missing phase (2-8 + 10)
+    expect(warnings.filter((w) => w.includes("no approved/review content")).length).toBe(8);
   });
 
   it("does not produce chapter files for phase 0 or phase 1", () => {

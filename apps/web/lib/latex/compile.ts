@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile, writeFile, mkdir, rm } from "fs/promises";
+import { readFile, writeFile, mkdir, rm, copyFile } from "fs/promises";
 import path from "path";
 import os from "os";
 import { parseLatexLog } from "./parse-log";
@@ -36,6 +36,8 @@ export async function compileTex(
     bstFile?: string;
     bibContent?: string;
     chapterFiles?: Record<string, string>;
+    /** Paths to figure files (relative path → absolute source path) */
+    figureFiles?: Record<string, string>;
   }
 ): Promise<CompileResult> {
   const mode = getCompileMode();
@@ -67,9 +69,9 @@ async function mockCompile(texContent: string): Promise<CompileResult> {
   // In mock mode, write a minimal placeholder PDF so the compile route sees a pdfPath
   let pdfPath: string | null = null;
   if (success) {
-    const mockPdfDir = path.join(os.tmpdir(), "apollo-mock-pdf");
-    await mkdir(mockPdfDir, { recursive: true });
-    pdfPath = path.join(mockPdfDir, "main.pdf");
+    const persistDir = path.join(os.tmpdir(), "apollo-pdfs");
+    await mkdir(persistDir, { recursive: true });
+    pdfPath = path.join(persistDir, "mock.pdf");
     // Minimal valid PDF (1-page blank)
     const minimalPdf = `%PDF-1.0\n1 0 obj<</Pages 2 0 R>>endobj\n2 0 obj<</Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</MediaBox[0 0 612 792]>>endobj\ntrailer<</Root 1 0 R>>\n`;
     await writeFile(pdfPath, minimalPdf);
@@ -93,6 +95,7 @@ async function dockerCompile(
     bstFile?: string;
     bibContent?: string;
     chapterFiles?: Record<string, string>;
+    figureFiles?: Record<string, string>;
   }
 ): Promise<CompileResult> {
   const start = Date.now();
@@ -149,6 +152,19 @@ async function dockerCompile(
       }
     }
 
+    // Copy figure files (relative path → absolute source) into workDir
+    if (options.figureFiles) {
+      for (const [relPath, srcPath] of Object.entries(options.figureFiles)) {
+        try {
+          const destPath = path.join(workDir, relPath);
+          await mkdir(path.dirname(destPath), { recursive: true });
+          await copyFile(srcPath, destPath);
+        } catch {
+          // Figure file may have been deleted — non-fatal
+        }
+      }
+    }
+
     // Create output directory
     const outputDir = path.join(workDir, "output");
     await mkdir(outputDir, { recursive: true });
@@ -174,11 +190,14 @@ async function dockerCompile(
       timeout: 120_000,
     });
 
-    // Read output
+    // Persist PDF to a stable directory (temp workDir is cleaned up in finally)
     let pdfPath: string | null = null;
     try {
-      await readFile(path.join(outputDir, "main.pdf"));
-      pdfPath = path.join(outputDir, "main.pdf");
+      const pdfData = await readFile(path.join(outputDir, "main.pdf"));
+      const persistDir = path.join(os.tmpdir(), "apollo-pdfs");
+      await mkdir(persistDir, { recursive: true });
+      pdfPath = path.join(persistDir, `${options.projectId}.pdf`);
+      await writeFile(pdfPath, pdfData);
     } catch {
       // PDF may not have been generated
     }
@@ -199,17 +218,25 @@ async function dockerCompile(
       rawLog,
       compileTimeMs: Date.now() - start,
     };
-  } catch (err) {
+  } catch (err: unknown) {
+    // execFileAsync includes stdout/stderr on the error object
+    const execErr = err as { message?: string; stdout?: string; stderr?: string };
+    const fullOutput = [execErr.stderr, execErr.stdout, execErr.message]
+      .filter(Boolean)
+      .join("\n");
+    const log = parseLatexLog(fullOutput);
+
+    // If parseLatexLog found no errors, use the raw error message
+    if (log.errorCount === 0) {
+      log.errors.push(execErr.message ?? "Docker compilation failed");
+      log.errorCount = 1;
+    }
+
     return {
       success: false,
       pdfPath: null,
-      log: {
-        errors: [err instanceof Error ? err.message : "Docker compilation failed"],
-        warnings: [],
-        errorCount: 1,
-        warningCount: 0,
-      },
-      rawLog: err instanceof Error ? err.message : "Unknown error",
+      log,
+      rawLog: fullOutput,
       compileTimeMs: Date.now() - start,
     };
   } finally {
@@ -229,6 +256,7 @@ async function localCompile(
     watermark?: boolean;
     bibContent?: string;
     chapterFiles?: Record<string, string>;
+    figureFiles?: Record<string, string>;
   }
 ): Promise<CompileResult> {
   const start = Date.now();
@@ -272,6 +300,19 @@ async function localCompile(
       }
     }
 
+    // Copy figure files (relative path → absolute source) into workDir
+    if (options.figureFiles) {
+      for (const [relPath, srcPath] of Object.entries(options.figureFiles)) {
+        try {
+          const destPath = path.join(workDir, relPath);
+          await mkdir(path.dirname(destPath), { recursive: true });
+          await copyFile(srcPath, destPath);
+        } catch {
+          // Figure file may have been deleted — non-fatal
+        }
+      }
+    }
+
     // Run pdflatex → bibtex → pdflatex × 2
     const pdflatexArgs = ["-interaction=nonstopmode", "-output-directory", workDir, path.join(workDir, "main.tex")];
 
@@ -280,10 +321,14 @@ async function localCompile(
     await execFileAsync("pdflatex", pdflatexArgs, { timeout: 120_000, cwd: workDir }).catch(() => {});
     await execFileAsync("pdflatex", pdflatexArgs, { timeout: 120_000, cwd: workDir }).catch(() => {});
 
+    // Persist PDF to a stable directory
     let pdfPath: string | null = null;
     try {
-      await readFile(path.join(workDir, "main.pdf"));
-      pdfPath = path.join(workDir, "main.pdf");
+      const pdfData = await readFile(path.join(workDir, "main.pdf"));
+      const persistDir = path.join(os.tmpdir(), "apollo-pdfs");
+      await mkdir(persistDir, { recursive: true });
+      pdfPath = path.join(persistDir, `${options.projectId}.pdf`);
+      await writeFile(pdfPath, pdfData);
     } catch {
       // PDF may not have been generated
     }
@@ -317,5 +362,12 @@ async function localCompile(
       rawLog: err instanceof Error ? err.message : "Unknown error",
       compileTimeMs: Date.now() - start,
     };
+  } finally {
+    // Cleanup work directory (PDF already persisted)
+    try {
+      await rm(workDir, { recursive: true, force: true });
+    } catch {
+      // Best effort cleanup
+    }
   }
 }

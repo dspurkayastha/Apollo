@@ -5,4 +5,15 @@ Sentry.init({
   enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
+
+  beforeSend(event) {
+    // Strip PII from error context (matches sentry.server.config.ts)
+    if (event.user) {
+      delete event.user.email;
+      delete event.user.username;
+      delete (event.user as Record<string, unknown>).name;
+      delete (event.user as Record<string, unknown>).registration_no;
+    }
+    return event;
+  },
 });

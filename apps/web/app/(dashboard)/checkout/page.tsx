@@ -82,10 +82,18 @@ export default function CheckoutPage() {
   );
 }
 
+// Map landing plan names to checkout plan_type prefixes
+const PLAN_PARAM_MAP: Record<string, string> = {
+  student: "student_monthly",
+  professional: "professional_monthly",
+};
+
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const attachProjectId = searchParams.get("attach");
+  const planParam = searchParams.get("plan");
+  const highlightPlan = planParam ? PLAN_PARAM_MAP[planParam] : null;
   const [currency, setCurrency] = useState<"INR" | "USD">("INR");
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -233,16 +241,21 @@ function CheckoutContent() {
 
       {/* Plan cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {PLANS.map((plan) => (
+        {PLANS.map((plan) => {
+          const isHighlighted = highlightPlan
+            ? plan.plan_type === highlightPlan
+            : plan.recommended;
+
+          return (
           <div
             key={plan.plan_type}
             className={`relative flex flex-col rounded-2xl border p-6 transition-all ${
-              plan.recommended
+              isHighlighted
                 ? "border-[#8B9D77]/40 bg-[#8B9D77]/[0.03] shadow-[0_2px_12px_rgba(139,157,119,0.1)]"
                 : "border-black/[0.06] bg-white"
             }`}
           >
-            {plan.recommended && (
+            {isHighlighted && (
               <span className="absolute -top-2.5 left-4 rounded-full bg-[#8B9D77] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
                 Recommended
               </span>
@@ -279,7 +292,7 @@ function CheckoutContent() {
               onClick={() => handleCheckout(plan.plan_type)}
               disabled={loading !== null}
               className="mt-6 gap-2"
-              variant={plan.recommended ? "default" : "outline"}
+              variant={isHighlighted ? "default" : "outline"}
             >
               {loading === plan.plan_type ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -289,7 +302,8 @@ function CheckoutContent() {
               {loading === plan.plan_type ? "Processing..." : "Get Started"}
             </Button>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Security note */}

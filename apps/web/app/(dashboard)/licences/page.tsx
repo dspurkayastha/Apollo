@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { CreditCard } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { licenceStatusClasses } from "@/lib/format";
 import type { ThesisLicence, Project } from "@/lib/types/database";
@@ -26,6 +28,13 @@ export default async function LicencesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Licences</h1>
+        <Link
+          href="/checkout"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#2F2F2F] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2F2F2F]/90"
+        >
+          <CreditCard className="h-4 w-4" />
+          Purchase licence
+        </Link>
       </div>
 
       {licences.length === 0 ? (

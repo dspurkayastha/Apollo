@@ -4,12 +4,14 @@ import {
   unauthorised,
   validationError,
   badRequest,
+  notFound,
   internalError,
 } from "@/lib/api/errors";
 import {
   generateUploadUrl,
   ALLOWED_UPLOAD_TYPES,
 } from "@/lib/r2/client";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,6 +46,17 @@ export async function POST(request: NextRequest) {
     ) {
       return badRequest("Invalid file name: path traversal characters are not permitted");
     }
+
+    // Verify project ownership
+    const adminDb = createAdminSupabaseClient();
+    const { data: project } = await adminDb
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("user_id", authResult.user.id)
+      .single();
+
+    if (!project) return notFound("Project not found");
 
     // Sanitise the file name (remove any remaining unsafe characters)
     const sanitisedFileName = fileName

@@ -8,7 +8,7 @@ import {
   queueFull,
 } from "@/lib/api/errors";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { analysisCreateSchema } from "@/lib/validation/analysis-schemas";
+import { analysisCreateSchema, REQUIRED_PARAMS, type AnalysisType } from "@/lib/validation/analysis-schemas";
 import { tryAcquire, release } from "@/lib/compute/semaphore";
 import { inngest } from "@/lib/inngest/client";
 import { executeAnalysis } from "@/lib/r-plumber/analysis-runner";
@@ -84,15 +84,42 @@ export async function POST(
       });
     }
 
-    // Verify dataset exists and belongs to this project
+    // Validate required parameters for this analysis type
+    const analysisType = parsed.data.analysis_type as AnalysisType;
+    const requiredParams = REQUIRED_PARAMS[analysisType] ?? [];
+    const missingParams = requiredParams.filter(
+      (key) => {
+        const val = parsed.data.parameters[key as keyof typeof parsed.data.parameters];
+        return !val || (typeof val === "string" && val.trim() === "");
+      }
+    );
+    if (missingParams.length > 0) {
+      return validationError(
+        `${analysisType} analysis requires: ${missingParams.join(", ")}`,
+        { missing: missingParams }
+      );
+    }
+
+    // Verify dataset exists, belongs to this project, and has data
     const { data: dataset } = await supabase
       .from("datasets")
-      .select("id")
+      .select("id, row_count, rows_json")
       .eq("id", parsed.data.dataset_id)
       .eq("project_id", id)
       .single();
 
     if (!dataset) return notFound("Dataset not found");
+
+    if (!dataset.row_count || dataset.row_count === 0) {
+      return validationError("Dataset has no rows. Please re-upload the dataset file.");
+    }
+
+    const hasRows = Array.isArray(dataset.rows_json) && (dataset.rows_json as unknown[]).length > 0;
+    if (!hasRows) {
+      return validationError(
+        "Dataset has no stored row data. Please delete this dataset and generate or upload a new one."
+      );
+    }
 
     // Try to acquire compute semaphore
     const semResult = tryAcquire("analysis", id, authResult.user.id);

@@ -13,6 +13,7 @@ export async function GET() {
     const { data: licences, error } = await supabase
       .from("thesis_licenses")
       .select("*")
+      .eq("user_id", authResult.user.id)
       .order("created_at", { ascending: false });
 
     if (error) {

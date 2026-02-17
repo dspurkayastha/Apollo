@@ -1,48 +1,37 @@
 FROM texlive/texlive:latest-minimal
 
-# Install required TeX Live packages
+# Install scheme-small (collection-basic + collection-latex + collection-latexrecommended
+# + collection-fontsrecommended + collection-metapost + collection-xetex + epstopdf).
+# This covers the vast majority of common packages and their transitive dependencies,
+# eliminating one-by-one missing-package issues.
+RUN tlmgr install scheme-small && rm -rf /tmp/*
+
+# Install extra packages required by sskm-thesis.cls / ssuhs-thesis.cls
+# that are NOT part of scheme-small
 RUN tlmgr install \
-    latexmk \
-    bibtex \
-    fancyhdr \
-    geometry \
-    graphicx \
-    hyperref \
-    xcolor \
-    setspace \
+    natbib \
     titlesec \
     tocloft \
-    caption \
-    subcaption \
-    longtable \
-    booktabs \
-    multirow \
-    array \
-    tabularx \
-    pdfpages \
-    amsmath \
-    amssymb \
-    natbib \
-    etoolbox \
-    ifthen \
-    fontenc \
-    inputenc \
-    babel \
-    times \
-    helvet \
-    courier \
-    bookmark \
-    xstring \
-    pdflscape \
-    float \
     enumitem \
-    parskip \
-    url \
     doi \
     draftwatermark \
-    tools \
-    latex \
+    needspace \
+    lastpage \
+    hyphenat \
+    datetime \
+    fmtcount \
+    emptypage \
+    lettrine \
+    nomencl \
+    threeparttable \
+    multirow \
+    bookmark \
+    xstring \
+    babel-english \
     && rm -rf /tmp/*
+
+# Symlink all TeX Live binaries to /usr/local/bin (already on PATH, arch-agnostic)
+RUN for f in /usr/local/texlive/2025/bin/*/*; do ln -sf "$f" /usr/local/bin/; done
 
 # Install Ghostscript for watermarking and pandoc for DOCX export
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -57,6 +46,10 @@ RUN chmod +x /usr/local/bin/compile.sh
 # Copy watermark script
 COPY docker/watermark.sh /usr/local/bin/watermark.sh
 RUN chmod +x /usr/local/bin/watermark.sh
+
+# Ensure font generation works on read-only filesystem
+ENV TEXMFVAR=/tmp/texmf-var
+ENV HOME=/tmp
 
 # Working directory for compilation
 WORKDIR /thesis

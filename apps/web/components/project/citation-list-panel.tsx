@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -10,6 +10,7 @@ import {
   Trash2,
   Shield,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Citation, ProvenanceTier } from "@/lib/types/database";
@@ -55,11 +56,17 @@ export function CitationListPanel({
   onAddCitation,
 }: CitationListPanelProps) {
   const router = useRouter();
+  // Auto-expand when Tier D citations exist (via effect to avoid hydration mismatch)
+  const hasTierD = citations.some((c) => c.provenance_tier === "D");
   const [isOpen, setIsOpen] = useState(false);
+  useEffect(() => {
+    if (hasTierD) setIsOpen(true);
+  }, [hasTierD]);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [isAuditing, setIsAuditing] = useState(false);
   const [attestingId, setAttestingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reResolvingId, setReResolvingId] = useState<string | null>(null);
 
   const handleRunAudit = useCallback(async () => {
     setIsAuditing(true);
@@ -121,6 +128,26 @@ export function CitationListPanel({
         // Delete failure — user can retry
       } finally {
         setDeletingId(null);
+      }
+    },
+    [projectId, router]
+  );
+
+  const handleReResolve = useCallback(
+    async (citationId: string) => {
+      setReResolvingId(citationId);
+      try {
+        const res = await fetch(
+          `/api/projects/${projectId}/citations/${citationId}/re-resolve`,
+          { method: "POST" }
+        );
+        if (res.ok) {
+          router.refresh();
+        }
+      } catch {
+        // Re-resolve failure — user can retry
+      } finally {
+        setReResolvingId(null);
       }
     },
     [projectId, router]
@@ -237,6 +264,19 @@ export function CitationListPanel({
             </div>
           )}
 
+          {/* Tier D help text */}
+          {hasTierD && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-800 space-y-1">
+              <p className="font-medium">Unverified citations (Tier D)</p>
+              <p>
+                These citations could not be verified against CrossRef or PubMed.
+                You can: <strong>Re-resolve</strong> (retry lookup), <strong>Attest</strong> (confirm manually),
+                or <strong>Delete</strong> and replace with a verified reference.
+              </p>
+              <p className="text-amber-600">Tier D citations block Final QC only — they do not block earlier phases.</p>
+            </div>
+          )}
+
           {/* Citation list */}
           {citations.length === 0 ? (
             <p className="py-4 text-center text-xs text-[#6B6B6B]">
@@ -264,20 +304,36 @@ export function CitationListPanel({
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     {citation.provenance_tier === "D" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0"
-                        title="Attest this citation"
-                        onClick={() => void handleAttest(citation.id)}
-                        disabled={attestingId === citation.id}
-                      >
-                        {attestingId === citation.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <ClipboardCheck className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          title="Re-resolve citation"
+                          onClick={() => void handleReResolve(citation.id)}
+                          disabled={reResolvingId === citation.id}
+                        >
+                          {reResolvingId === citation.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          title="Attest this citation"
+                          onClick={() => void handleAttest(citation.id)}
+                          disabled={attestingId === citation.id}
+                        >
+                          {attestingId === citation.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ClipboardCheck className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </>
                     )}
                     <Button
                       size="sm"

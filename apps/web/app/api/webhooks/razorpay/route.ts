@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyRazorpaySignature } from "@/lib/payments/razorpay";
 import {
   provisionLicence,
-  isEventProcessed,
-  markEventProcessed,
+  claimWebhookEvent,
 } from "@/lib/payments/provision-licence";
 import type { LicencePlanType } from "@/lib/types/database";
 
@@ -38,8 +37,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Idempotency check
-    if (await isEventProcessed("razorpay", eventId)) {
+    // Atomic idempotency: claim the event BEFORE provisioning.
+    // If another request already claimed it, this returns false.
+    const claimed = await claimWebhookEvent("razorpay", eventId, eventType);
+    if (!claimed) {
       return NextResponse.json({ status: "already_processed" });
     }
 
@@ -60,7 +61,6 @@ export async function POST(request: NextRequest) {
       }
 
       await provisionLicence(userId, planType, projectId);
-      await markEventProcessed("razorpay", eventId, eventType);
 
       return NextResponse.json({ status: "licence_provisioned" });
     }

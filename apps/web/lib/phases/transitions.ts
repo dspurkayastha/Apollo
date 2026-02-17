@@ -16,11 +16,11 @@ export function canAdvancePhase(
 ): TransitionCheck {
   const { current_phase, status } = project;
 
-  // Cannot go beyond the final phase
-  if (current_phase >= MAX_PHASE) {
+  // Cannot go beyond the final phase (but final phase itself CAN be approved)
+  if (current_phase > MAX_PHASE) {
     return {
       allowed: false,
-      reason: "Already at the final phase",
+      reason: "Already beyond the final phase",
       code: "INVALID_TRANSITION",
     };
   }
@@ -34,9 +34,14 @@ export function canAdvancePhase(
     };
   }
 
+  // Final phase — no next phase to check licence for, just allow completion
+  if (current_phase === MAX_PHASE) {
+    return { allowed: true };
+  }
+
   // Check if next phase requires a licence
   const nextPhase = getPhase(current_phase + 1);
-  const devBypass = process.env.DEV_LICENCE_BYPASS === "true";
+  const devBypass = process.env.NODE_ENV !== "production" && process.env.DEV_LICENCE_BYPASS === "true";
   if (
     nextPhase?.requiresLicence &&
     status !== "licensed" &&

@@ -28,6 +28,7 @@ import { useGlassSidebar } from "@/components/layout/glass-sidebar-provider";
 import { FileText, Code, Eye, CheckCircle2 } from "lucide-react";
 import { CitationListPanel } from "@/components/project/citation-list-panel";
 import { CitationSearchDialog } from "@/components/project/citation-search-dialog";
+import { ThesisCompletion } from "@/components/project/thesis-completion";
 import { DatasetUpload } from "@/components/project/dataset-upload";
 import { AnalysisWizard } from "@/components/project/analysis-wizard";
 import { ComplianceDashboard } from "@/components/project/compliance-dashboard";
@@ -93,7 +94,7 @@ interface ProjectWorkspaceProps {
 }
 
 // Phases that support direct AI generation (no external data dependency)
-const AI_GENERATABLE_PHASES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+const AI_GENERATABLE_PHASES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 10]);
 
 export function ProjectWorkspace({
   project,
@@ -120,6 +121,9 @@ export function ProjectWorkspace({
   const [mermaidEditorOpen, setMermaidEditorOpen] = useState(false);
 
   const [isApproving, setIsApproving] = useState(false);
+  const [refineDialogOpen, setRefineDialogOpen] = useState(false);
+  const [refineInstructions, setRefineInstructions] = useState("");
+  const [isRefining, setIsRefining] = useState(false);
 
   // Auto-collapse sidebar on desktop to maximise workspace area
   useEffect(() => {
@@ -127,6 +131,8 @@ export function ProjectWorkspace({
       setExpanded(false);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isCompleted = project.status === "completed";
 
   const currentSection =
     sections.find((s) => s.phase_number === viewingPhase) ?? null;
@@ -324,12 +330,14 @@ export function ProjectWorkspace({
   return (
     <div className="space-y-4">
       {/* Licence Banner */}
-      <LicenceBanner
-        projectId={project.id}
-        currentPhase={project.current_phase}
-        projectStatus={project.status}
-        devLicenceBypass={devLicenceBypass}
-      />
+      {!isCompleted && (
+        <LicenceBanner
+          projectId={project.id}
+          currentPhase={project.current_phase}
+          projectStatus={project.status}
+          devLicenceBypass={devLicenceBypass}
+        />
+      )}
 
       {/* Pipeline Timeline */}
       <PipelineTimeline
@@ -337,16 +345,29 @@ export function ProjectWorkspace({
         phasesCompleted={project.phases_completed}
         projectStatus={project.status}
         devLicenceBypass={devLicenceBypass}
-        onPhaseClick={setViewingPhase}
+        onPhaseClick={isCompleted ? undefined : setViewingPhase}
       />
 
+      {/* Completed — show celebration view */}
+      {isCompleted && (
+        <ThesisCompletion
+          project={project}
+          sections={sections}
+          datasets={datasets}
+          citations={citations}
+        />
+      )}
+
+      {!isCompleted && <>
       {/* Action Bar */}
       <div className="flex items-center gap-3">
         {isCurrentPhase && AI_GENERATABLE_PHASES.has(viewingPhase) && (
           <AIGenerateButton
             projectId={project.id}
             phaseNumber={viewingPhase}
+            hasContent={hasViewableContent}
             onComplete={handleGenerateComplete}
+            onRefine={() => setRefineDialogOpen(true)}
           />
         )}
 
@@ -565,7 +586,7 @@ export function ProjectWorkspace({
           </PanelResizeHandle>
           <Panel defaultSize={50} minSize={25} className="pl-0">
             <div className="h-full overflow-auto rounded-2xl bg-[#FDFDFD] landing-card-elevated">
-              <PdfViewer key={pdfKey} url={pdfUrl} />
+              <PdfViewer key={pdfKey} url={pdfUrl} projectId={project.id} isSandbox={project.status === "sandbox"} />
             </div>
           </Panel>
         </PanelGroup>
@@ -581,10 +602,84 @@ export function ProjectWorkspace({
         <div
           className={mobileTab === "edit" ? "hidden" : ""}
         >
-          <PdfViewer key={pdfKey} url={pdfUrl} />
+          <PdfViewer key={pdfKey} url={pdfUrl} projectId={project.id} isSandbox={project.status === "sandbox"} />
         </div>
       </div>
         </>
+      )}
+
+      {/* Refine dialog — targeted AI editing */}
+      {refineDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="font-serif text-lg font-semibold text-[#2F2F2F]">
+              Refine this section
+            </h3>
+            <p className="mt-1 text-sm text-[#6B6B6B]">
+              Describe what you&apos;d like to change. The AI will modify only the relevant parts.
+            </p>
+            <textarea
+              value={refineInstructions}
+              onChange={(e) => setRefineInstructions(e.target.value)}
+              placeholder="e.g., Expand the paragraph about inclusion criteria&#10;Add a comparison table for the three main studies&#10;Add 5 more recent references (2020-2025)"
+              className="mt-3 w-full rounded-xl border border-black/10 px-3 py-2 text-sm placeholder:text-[#D1D1D1] focus:border-[#8B9D77] focus:outline-none focus:ring-1 focus:ring-[#8B9D77]/30"
+              rows={4}
+              disabled={isRefining}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRefineDialogOpen(false);
+                  setRefineInstructions("");
+                }}
+                disabled={isRefining}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!refineInstructions.trim() || isRefining}
+                onClick={async () => {
+                  setIsRefining(true);
+                  try {
+                    const res = await fetch(
+                      `/api/projects/${project.id}/sections/${viewingPhase}/refine`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ instructions: refineInstructions.trim() }),
+                      }
+                    );
+                    if (res.ok && res.body) {
+                      // Consume the SSE stream to completion before refreshing
+                      const reader = res.body.getReader();
+                      try {
+                        while (true) {
+                          const { done } = await reader.read();
+                          if (done) break;
+                        }
+                      } finally {
+                        reader.releaseLock();
+                      }
+                      setRefineDialogOpen(false);
+                      setRefineInstructions("");
+                      router.refresh();
+                      void compileAndRefreshPdf();
+                    }
+                  } catch {
+                    // Error handled silently
+                  } finally {
+                    setIsRefining(false);
+                  }
+                }}
+              >
+                {isRefining ? "Refining..." : "Refine"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Review dialog — shown before approval when issues found */}
@@ -609,6 +704,7 @@ export function ProjectWorkspace({
           router.refresh();
         }}
       />
+      </>}
     </div>
   );
 }

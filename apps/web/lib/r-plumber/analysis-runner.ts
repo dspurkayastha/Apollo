@@ -1,11 +1,18 @@
 import * as Sentry from "@sentry/nextjs";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
+import os from "os";
 import { callRPlumber, RPlumberError } from "./client";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import {
   ANALYSIS_TIMEOUTS,
+  REQUIRED_PARAMS,
   type AnalysisType,
 } from "@/lib/validation/analysis-schemas";
 import type { Analysis } from "@/lib/types/database";
+
+/** Base directory for figure file storage (dev: tmpdir, prod: R2) */
+const FIGURES_BASE_DIR = path.join(os.tmpdir(), "apollo-figures");
 
 /** R Plumber response shape (consistent across all endpoints) */
 export interface RAnalysisResponse {
@@ -54,16 +61,64 @@ export async function runAnalysis(
     throw new Error(`Unknown analysis type: ${analysisType}`);
   }
 
-  // Build the request body
+  // Pre-flight: validate data is not empty
+  if (datasetRows.length === 0) {
+    throw new Error(
+      `Cannot run ${analysisType} analysis: dataset has no rows. ` +
+      "Please re-upload the dataset file."
+    );
+  }
+
+  // Pre-flight: validate required parameters are present
+  const requiredParams = REQUIRED_PARAMS[analysisType] ?? [];
+  const missingParams = requiredParams.filter(
+    (key) => !params[key] || (typeof params[key] === "string" && params[key].trim() === "")
+  );
+  if (missingParams.length > 0) {
+    throw new Error(
+      `Cannot run ${analysisType} analysis: missing required parameters: ${missingParams.join(", ")}. ` +
+      "Please specify the required column mappings."
+    );
+  }
+
+  // Pre-flight: validate that referenced columns exist in the dataset
+  const dataColumns = Object.keys(datasetRows[0] ?? {});
+  const columnParams = ["outcome", "predictor", "group", "time", "event"] as const;
+  for (const key of columnParams) {
+    const colName = params[key] as string | undefined;
+    if (colName && colName.trim() !== "" && !colName.includes(",")) {
+      // Single column reference — check it exists (skip comma-separated predictors)
+      if (!dataColumns.includes(colName)) {
+        throw new Error(
+          `Column "${colName}" (${key}) not found in dataset. ` +
+          `Available columns: ${dataColumns.join(", ")}`
+        );
+      }
+    }
+  }
+
+  // Build the request body — only include defined parameters
   const requestBody: Record<string, unknown> = {
     data: datasetRows,
-    outcome: params.outcome,
-    predictor: params.predictor,
-    group: params.group,
-    time: params.time,
-    event: params.event,
     confidence_level: params.confidence_level ?? 0.95,
   };
+  // Only add non-empty string parameters to avoid sending undefined/null to R
+  for (const key of columnParams) {
+    const val = params[key] as string | undefined;
+    if (val && val.trim() !== "") {
+      requestBody[key] = val;
+    }
+  }
+  // Pass figure preferences if present
+  const figPrefs = params.figure_preferences as Record<string, unknown> | undefined;
+  if (figPrefs) {
+    if (figPrefs.chart_type && figPrefs.chart_type !== "auto") {
+      requestBody.chart_type = figPrefs.chart_type;
+    }
+    if (figPrefs.colour_scheme && figPrefs.colour_scheme !== "default") {
+      requestBody.colour_scheme = figPrefs.colour_scheme;
+    }
+  }
 
   const { data: rResult } = await Sentry.startSpan(
     {
@@ -80,7 +135,7 @@ export async function runAnalysis(
     () => callRPlumber<RAnalysisResponse>(endpoint, requestBody, timeout)
   );
 
-  // Process figures — store base64 references (real R2 upload in production)
+  // Process figures — decode base64 and write to disk + insert DB record
   const figureUrls: string[] = [];
   const supabase = createAdminSupabaseClient();
 
@@ -89,6 +144,21 @@ export async function runAnalysis(
 
     const figureUrl = `figures/${analysis.project_id}/${analysis.id}/${fig.filename}`;
     figureUrls.push(figureUrl);
+
+    // Write decoded figure file to disk so LaTeX compile can find it
+    try {
+      const figDir = path.join(
+        FIGURES_BASE_DIR,
+        analysis.project_id,
+        analysis.id
+      );
+      await mkdir(figDir, { recursive: true });
+      const figPath = path.join(figDir, fig.filename);
+      const buffer = Buffer.from(fig.base64, "base64");
+      await writeFile(figPath, buffer);
+    } catch (err) {
+      console.warn(`Failed to write figure file ${figureUrl}:`, err);
+    }
 
     // Insert figure record
     await supabase.from("figures").insert({
@@ -157,11 +227,12 @@ export async function executeAnalysis(analysisId: string): Promise<void> {
       throw new Error(`Dataset ${typedAnalysis.dataset_id} not found`);
     }
 
-    // Use stored rows_json — falls back to empty array if not yet migrated
-    const datasetRows = (dataset.rows_json as Record<string, unknown>[] | null) ?? [];
-    if (datasetRows.length === 0) {
-      console.warn(
-        `Dataset ${typedAnalysis.dataset_id} has no rows_json — analysis may produce empty results`
+    // Use stored rows_json — fail if missing (dataset must be re-uploaded)
+    const datasetRows = dataset.rows_json as Record<string, unknown>[] | null;
+    if (!datasetRows || datasetRows.length === 0) {
+      throw new Error(
+        `Dataset ${typedAnalysis.dataset_id} has no stored data (rows_json is empty). ` +
+        "The dataset file may need to be re-uploaded."
       );
     }
 

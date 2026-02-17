@@ -11,6 +11,7 @@ import { getAnthropicClient } from "@/lib/ai/client";
 import {
   autoDetectSchema,
   analysisTypes,
+  REQUIRED_PARAMS,
 } from "@/lib/validation/analysis-schemas";
 import type { AnalysisRecommendation } from "@/lib/validation/analysis-schemas";
 
@@ -66,15 +67,23 @@ export async function POST(
       });
     }
 
-    // Fetch dataset
+    // Fetch dataset — include rows_json to verify data is available
     const { data: dataset } = await supabase
       .from("datasets")
-      .select("id, columns_json, row_count, file_url")
+      .select("id, columns_json, row_count, rows_json, file_url")
       .eq("id", parsed.data.dataset_id)
       .eq("project_id", id)
       .single();
 
     if (!dataset) return notFound("Dataset not found");
+
+    // Pre-flight: verify the dataset actually has stored row data
+    const hasRows = Array.isArray(dataset.rows_json) && (dataset.rows_json as unknown[]).length > 0;
+    if (!hasRows) {
+      return validationError(
+        "Dataset has no stored row data. Please delete this dataset and generate or upload a new one."
+      );
+    }
 
     // Fetch Phase 0 synopsis section for context
     const { data: synopsisSection } = await supabase
@@ -102,6 +111,7 @@ Recommend up to 5 analyses from the available types. For each, provide:
 - rationale: 1-2 sentences explaining why this analysis suits the data
 - parameters: map dataset columns to roles (outcome, predictor, group, time, event) — use exact column names
 - confidence: "high", "medium", or "low"
+- suggested_figures: array of 1-3 objects with { chart_type, description } — recommend appropriate visualisations. Available chart_type values: bar, box, scatter, line, forest, kaplan-meier, heatmap, violin
 
 Order by confidence (highest first). Only recommend analyses that genuinely suit the data columns and study type.
 
@@ -137,13 +147,14 @@ Respond with ONLY a JSON array of recommendations, no markdown fences or other t
       }
 
       if (Array.isArray(parsed)) {
+        const columnNames = columns.map((c) => c.name);
+
         recommendations = parsed
           .filter(
             (r: Record<string, unknown>) =>
               typeof r.analysis_type === "string" &&
               analysisTypes.includes(r.analysis_type as (typeof analysisTypes)[number])
           )
-          .slice(0, 5)
           .map((r: Record<string, unknown>) => ({
             analysis_type: r.analysis_type as AnalysisRecommendation["analysis_type"],
             rationale: typeof r.rationale === "string" ? r.rationale : "",
@@ -154,7 +165,20 @@ Respond with ONLY a JSON array of recommendations, no markdown fences or other t
             parameters: normaliseParameters(
               r.parameters as Record<string, unknown> | undefined
             ),
-          }));
+          }))
+          // Drop recommendations missing required parameters
+          .filter((rec) => {
+            const required = REQUIRED_PARAMS[rec.analysis_type] ?? [];
+            const params = rec.parameters as Record<string, string | undefined>;
+            for (const key of required) {
+              const val = params[key];
+              if (!val || val.trim() === "") return false;
+              // Also verify the column actually exists in the dataset
+              if (!columnNames.includes(val)) return false;
+            }
+            return true;
+          })
+          .slice(0, 5);
       }
     } catch {
       // All parsing failed — return empty recommendations instead of 500

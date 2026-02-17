@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { constructStripeEvent } from "@/lib/payments/stripe";
 import {
   provisionLicence,
-  isEventProcessed,
-  markEventProcessed,
+  claimWebhookEvent,
 } from "@/lib/payments/provision-licence";
 import type { LicencePlanType } from "@/lib/types/database";
 
@@ -30,8 +29,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Idempotency check
-    if (await isEventProcessed("stripe", event.id)) {
+    // Atomic idempotency: claim the event BEFORE provisioning.
+    // If another request already claimed it, this returns false.
+    const claimed = await claimWebhookEvent("stripe", event.id, event.type);
+    if (!claimed) {
       return NextResponse.json({ status: "already_processed" });
     }
 
@@ -60,7 +61,6 @@ export async function POST(request: NextRequest) {
       }
 
       await provisionLicence(userId, planType, projectId);
-      await markEventProcessed("stripe", event.id, event.type);
 
       return NextResponse.json({ status: "licence_provisioned" });
     }

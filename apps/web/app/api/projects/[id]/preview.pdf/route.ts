@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { readFile } from "fs/promises";
+import path from "path";
+import os from "os";
 import { getAuthenticatedUser } from "@/lib/api/auth";
 import { unauthorised, notFound, internalError } from "@/lib/api/errors";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -41,20 +43,38 @@ export async function GET(
       return notFound("No compiled PDF available — trigger a compilation first");
     }
 
+    const download = request.nextUrl.searchParams.get("download") === "1";
+    const disposition = download
+      ? `attachment; filename="thesis.pdf"`
+      : "inline";
+
     // In production, this would generate a signed R2 URL and redirect.
     // For local dev, read the PDF file from disk and stream it.
-    try {
-      const pdfBytes = await readFile(compilation.pdf_url);
-      return new Response(pdfBytes, {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": "inline",
-          "Cache-Control": "private, max-age=60",
-        },
-      });
-    } catch {
+    // Try the stored path first, then deterministic fallback path.
+    let pdfBytes: Uint8Array | null = null;
+    for (const candidate of [
+      compilation.pdf_url,
+      path.join(os.tmpdir(), "apollo-pdfs", `${id}.pdf`),
+    ]) {
+      try {
+        pdfBytes = await readFile(candidate);
+        break;
+      } catch {
+        // Try next candidate
+      }
+    }
+
+    if (!pdfBytes) {
       return notFound("PDF file not found on disk — recompile to regenerate");
     }
+
+    return new Response(pdfBytes as unknown as BodyInit, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": disposition,
+        "Cache-Control": "private, max-age=60",
+      },
+    });
   } catch (err) {
     console.error("Unexpected error in GET /api/projects/[id]/preview.pdf:", err);
     return internalError();

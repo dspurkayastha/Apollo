@@ -10,21 +10,16 @@ interface CompileButtonProps {
   onCompileSuccess?: () => void;
 }
 
-interface CompileResponse {
-  data: {
-    compilation_id: string;
-    status: string;
-    warnings: string[];
-    errors: string[];
-    compile_time_ms: number;
-    queue_position?: number;
-    estimated_wait_ms?: number;
-  };
+interface CompileResult {
+  compilation_id: string;
+  status: string;
+  warnings: string[];
+  compile_time_ms: number;
 }
 
 export function CompileButton({ projectId, disabled, onCompileSuccess }: CompileButtonProps) {
   const [isCompiling, setIsCompiling] = useState(false);
-  const [result, setResult] = useState<CompileResponse["data"] | null>(null);
+  const [result, setResult] = useState<CompileResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [estimatedWait, setEstimatedWait] = useState<number | null>(null);
@@ -42,21 +37,23 @@ export function CompileButton({ projectId, disabled, onCompileSuccess }: Compile
 
     pollRef.current = setInterval(async () => {
       try {
-        // Re-attempt the compile — server will either queue again or start
         const response = await fetch(`/api/projects/${projectId}/compile`, {
           method: "POST",
         });
         const body = await response.json();
 
         if (response.status === 202 || response.status === 429) {
-          // Still queued
           const pos = body.data?.queue_position ?? body.error?.queue_position;
           const wait = body.data?.estimated_wait_ms ?? body.error?.estimated_wait_ms;
           setQueuePosition(pos ?? null);
           setEstimatedWait(wait ?? null);
         } else if (response.ok && body.data?.status === "completed") {
-          // Compilation succeeded
-          setResult(body.data);
+          setResult({
+            compilation_id: body.data.compilation_id,
+            status: "completed",
+            warnings: Array.isArray(body.data.warnings) ? body.data.warnings : [],
+            compile_time_ms: body.data.compile_time_ms ?? 0,
+          });
           setQueuePosition(null);
           setEstimatedWait(null);
           setIsCompiling(false);
@@ -88,23 +85,44 @@ export function CompileButton({ projectId, disabled, onCompileSuccess }: Compile
         method: "POST",
       });
 
-      const body = (await response.json()) as CompileResponse | { error: { message: string; queue_position?: number; estimated_wait_ms?: number } };
+      const body = await response.json();
 
       if (response.status === 202 || response.status === 429) {
         // Queued — extract position and start polling
-        const errorBody = body as { error: { message: string; queue_position?: number; estimated_wait_ms?: number } };
-        setQueuePosition(errorBody.error?.queue_position ?? 1);
-        setEstimatedWait(errorBody.error?.estimated_wait_ms ?? null);
-        return; // Don't set isCompiling to false — keep polling
+        setQueuePosition(body.error?.queue_position ?? body.data?.queue_position ?? 1);
+        setEstimatedWait(body.error?.estimated_wait_ms ?? body.data?.estimated_wait_ms ?? null);
+        return; // Keep polling
       }
 
-      if ("error" in body) {
-        setError((body as { error: { message: string } }).error.message);
+      const data = body.data;
+
+      if (response.ok && data?.status === "completed") {
+        // Success — store normalised result
+        setResult({
+          compilation_id: data.compilation_id,
+          status: "completed",
+          warnings: Array.isArray(data.warnings) ? data.warnings : [],
+          compile_time_ms: data.compile_time_ms ?? 0,
+        });
+        onCompileSuccess?.();
+      } else if (data?.status === "validation_failed") {
+        // Pre-flight validation failed — show issues as error text
+        const issues: { chapter: string; message: string }[] = Array.isArray(data.issues) ? data.issues : [];
+        const msg = issues.length > 0
+          ? `Validation failed: ${issues.map((i: { chapter: string; message: string }) => `${i.chapter} — ${i.message}`).join("; ")}`
+          : "Validation failed — fix issues in the editor and retry";
+        setError(msg);
+      } else if (data?.status === "failed") {
+        // Compile failed — show errors
+        const errors: string[] = Array.isArray(data.errors) ? data.errors : [];
+        const msg = errors.length > 0
+          ? `Compilation failed: ${errors.join("; ")}`
+          : "Compilation failed — check the LaTeX source for errors";
+        setError(msg);
+      } else if (body.error?.message) {
+        setError(body.error.message);
       } else {
-        setResult(body.data);
-        if (body.data.status === "completed") {
-          onCompileSuccess?.();
-        }
+        setError("Unexpected response from server");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Compilation failed");
@@ -150,30 +168,12 @@ export function CompileButton({ projectId, disabled, onCompileSuccess }: Compile
       </div>
 
       {result && (
-        <div
-          className={cn(
-            "rounded-2xl p-3 text-sm",
-            result.status === "completed"
-              ? "bg-[#8B9D77]/10 text-[#8B9D77]"
-              : "bg-destructive/10 text-destructive"
-          )}
-        >
-          {result.status === "completed" ? (
-            <p>
-              Compiled successfully in {result.compile_time_ms}ms
-              {result.warnings.length > 0 &&
-                ` (${result.warnings.length} warnings)`}
-            </p>
-          ) : (
-            <div>
-              <p className="font-medium">Compilation failed</p>
-              {result.errors.map((e, i) => (
-                <p key={i} className="mt-1 text-xs opacity-80">
-                  {e}
-                </p>
-              ))}
-            </div>
-          )}
+        <div className="rounded-2xl bg-[#8B9D77]/10 p-3 text-sm text-[#8B9D77]">
+          <p>
+            Compiled successfully in {result.compile_time_ms}ms
+            {result.warnings.length > 0 &&
+              ` (${result.warnings.length} warnings)`}
+          </p>
         </div>
       )}
 
@@ -182,8 +182,4 @@ export function CompileButton({ projectId, disabled, onCompileSuccess }: Compile
       )}
     </div>
   );
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }

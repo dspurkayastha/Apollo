@@ -41,6 +41,7 @@ interface QueueEntry {
 const MAX_UNITS = 3;
 const MAX_QUEUE_DEPTH = 5;
 const MAX_PER_USER = 2; // No single user can hold >2 concurrent slots
+const MAX_ANALYSIS_CONCURRENT = 2; // R Plumber container limit
 const ESTIMATED_WAIT_PER_POSITION_MS = 30_000;
 
 const UNIT_COST: Record<JobType, number> = {
@@ -71,6 +72,15 @@ function userActiveCount(userId: string): number {
   return count;
 }
 
+/** Count active analysis jobs across all users */
+function activeAnalysisCount(): number {
+  let count = 0;
+  for (const job of activeJobs.values()) {
+    if (job.type === "analysis") count++;
+  }
+  return count;
+}
+
 export function tryAcquire(
   type: JobType,
   projectId: string,
@@ -97,6 +107,25 @@ export function tryAcquire(
       position,
       estimatedWaitMs: position * ESTIMATED_WAIT_PER_POSITION_MS,
       reason: "Per-user concurrency limit reached — queued",
+    };
+  }
+
+  // Analysis concurrency limit: R Plumber can only handle 2 concurrent requests
+  if (type === "analysis" && activeAnalysisCount() >= MAX_ANALYSIS_CONCURRENT) {
+    const queue = queues[type];
+    if (queue.length >= MAX_QUEUE_DEPTH) {
+      return {
+        acquired: false,
+        reason: "Analysis concurrency limit reached and queue full",
+      };
+    }
+    const position = queue.length + 1;
+    queue.push({ type, projectId, userId, resolve: () => {} });
+    return {
+      acquired: false,
+      position,
+      estimatedWaitMs: position * ESTIMATED_WAIT_PER_POSITION_MS,
+      reason: "Analysis concurrency limit reached — queued",
     };
   }
 
@@ -134,6 +163,11 @@ export function release(jobId: string): void {
     const cost = UNIT_COST[type];
 
     while (queue.length > 0 && usedUnits() + cost <= MAX_UNITS) {
+      // Respect R Plumber concurrency limit during promotion
+      if (type === "analysis" && activeAnalysisCount() >= MAX_ANALYSIS_CONCURRENT) {
+        break;
+      }
+
       const entry = queue[0]!;
 
       // Check per-user limit before promoting

@@ -237,18 +237,73 @@ function checkBritishEnglish(latex: string): ReviewIssue[] {
   return issues;
 }
 
+// ── Citation quality ────────────────────────────────────────────────────────
+
+interface CitationRecord {
+  cite_key: string;
+  provenance_tier: string;
+}
+
+const CITATION_HEAVY_PHASES = new Set([2, 4, 5, 7]);
+
+export function checkCitationQuality(
+  latex: string,
+  citations: CitationRecord[],
+  phaseNumber: number,
+): ReviewIssue[] {
+  if (!CITATION_HEAVY_PHASES.has(phaseNumber)) return [];
+
+  const issues: ReviewIssue[] = [];
+  const bodyKeys = extractCiteKeys(latex);
+
+  // Count tiers
+  const citationMap = new Map(citations.map((c) => [c.cite_key, c.provenance_tier]));
+  let tierDCount = 0;
+  const missingKeys: string[] = [];
+
+  for (const key of bodyKeys) {
+    const tier = citationMap.get(key);
+    if (!tier) {
+      missingKeys.push(key);
+    } else if (tier === "D") {
+      tierDCount++;
+    }
+  }
+
+  const total = bodyKeys.size;
+  if (total > 0 && tierDCount / total > 0.5) {
+    issues.push({
+      severity: "warning",
+      category: "citation",
+      message: `${tierDCount} of ${total} citations are unverified (Tier D) — consider re-resolving or attesting before approval`,
+    });
+  }
+
+  if (missingKeys.length > 0) {
+    issues.push({
+      severity: "warning",
+      category: "citation",
+      message: `${missingKeys.length} citation key(s) not found in database: ${missingKeys.slice(0, 5).join(", ")}${missingKeys.length > 5 ? "..." : ""}`,
+    });
+  }
+
+  return issues;
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function reviewSection(
   currentLatex: string,
   originalLatex: string | null,
   phaseNumber: number,
+  citations?: CitationRecord[],
 ): ReviewResult {
   const issues: ReviewIssue[] = [
     ...checkCitations(currentLatex, originalLatex),
     ...checkWordCount(currentLatex, phaseNumber),
     ...checkStructure(currentLatex, phaseNumber),
     ...checkBritishEnglish(currentLatex),
+    ...(citations ? checkCitationQuality(currentLatex, citations, phaseNumber) : []),
   ];
 
   // passedReview is true if there are no errors or warnings

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/api/auth";
-import { unauthorised, validationError, internalError } from "@/lib/api/errors";
+import { unauthorised, validationError, notFound, internalError } from "@/lib/api/errors";
 import { checkoutSchema, PLAN_PRICES } from "@/lib/validation/payment-schemas";
 import { createRazorpayOrder, RAZORPAY_KEY_ID } from "@/lib/payments/razorpay";
 import { createStripeSession } from "@/lib/payments/stripe";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +20,20 @@ export async function POST(request: NextRequest) {
     }
 
     const { plan_type, currency, project_id } = parsed.data;
+
+    // Verify project ownership if project_id provided
+    if (project_id) {
+      const adminDb = createAdminSupabaseClient();
+      const { data: project } = await adminDb
+        .from("projects")
+        .select("id")
+        .eq("id", project_id)
+        .eq("user_id", authResult.user.id)
+        .single();
+
+      if (!project) return notFound("Project not found");
+    }
+
     const pricing = PLAN_PRICES[plan_type];
     if (!pricing) {
       return validationError("Invalid plan type");

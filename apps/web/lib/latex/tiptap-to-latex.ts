@@ -5,7 +5,7 @@
  * inclusion in a thesis section body. Uses escapeLatex() for all user text.
  */
 
-import { escapeLatex } from "./escape";
+import { escapeLatex, normaliseUnicode } from "./escape";
 import { extractCiteKeys } from "@/lib/citations/extract-keys";
 
 // ── Tiptap JSON node types ──────────────────────────────────────────────────
@@ -142,6 +142,13 @@ function serializeNode(node: TiptapNode, warnings: string[]): string {
 
     case "hardBreak":
       return "\\\\\n";
+
+    case "codeBlock": {
+      // Code blocks contain raw LaTeX (tables, figures) — pass through unescaped
+      // but normalise Unicode (smart quotes, em-dashes) to prevent invalid UTF-8 errors
+      const text = normaliseUnicode(node.content?.[0]?.text ?? "");
+      return text + "\n\n";
+    }
 
     default:
       warnings.push(`Unsupported node type: ${node.type}`);

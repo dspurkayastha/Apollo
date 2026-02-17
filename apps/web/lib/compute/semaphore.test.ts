@@ -129,14 +129,49 @@ describe("compute semaphore", () => {
     expect(a3.position).toBe(1);
   });
 
-  it("different users can acquire slots independently", () => {
+  it("different users can acquire slots independently up to analysis limit", () => {
     const a1 = tryAcquire("analysis", "project-1", "user-1");
     const a2 = tryAcquire("analysis", "project-2", "user-2");
-    const a3 = tryAcquire("analysis", "project-3", "user-3");
     expect(a1.acquired).toBe(true);
     expect(a2.acquired).toBe(true);
-    expect(a3.acquired).toBe(true);
-    expect(getStatus().usedUnits).toBe(3);
+    expect(getStatus().usedUnits).toBe(2);
+
+    // 3rd analysis queued — R Plumber can only handle 2 concurrent
+    const a3 = tryAcquire("analysis", "project-3", "user-3");
+    expect(a3.acquired).toBe(false);
+    expect(a3.reason).toContain("Analysis concurrency limit");
+    expect(a3.position).toBe(1);
+  });
+
+  it("enforces max 2 concurrent analyses across all users", () => {
+    // 2 analyses from different users — both succeed
+    const a1 = tryAcquire("analysis", "p1", "user-1");
+    const a2 = tryAcquire("analysis", "p2", "user-2");
+    expect(a1.acquired).toBe(true);
+    expect(a2.acquired).toBe(true);
+
+    // 3rd analysis queued even though global capacity has 1 unit left
+    const a3 = tryAcquire("analysis", "p3", "user-3");
+    expect(a3.acquired).toBe(false);
+    expect(a3.position).toBe(1);
+
+    // But a compile job can still use the remaining unit — no, it needs 2 units
+    // and only 1 is available, so it should also be queued
+    const c1 = tryAcquire("compile", "p4", "user-4");
+    expect(c1.acquired).toBe(false);
+
+    // Release one analysis → compile c1 promoted first (cost 2, 1+2=3 ≤ MAX)
+    // a3 stays queued (capacity full)
+    release(a1.jobId!);
+    expect(getStatus().usedUnits).toBe(3); // a2(1) + promoted c1(2)
+    expect(getStatus().queueDepth.compile).toBe(0);
+    expect(getStatus().queueDepth.analysis).toBe(1); // a3 still waiting
+
+    // Release a2 → a3 can finally promote
+    release(a2.jobId!);
+    // usedUnits was 3, released 1 → 2 (c1). Analysis queue: a3 cost 1, 2+1=3 ≤ 3, analysis count=0 < 2
+    expect(getStatus().usedUnits).toBe(3); // c1(2) + promoted a3(1)
+    expect(getStatus().queueDepth.analysis).toBe(0);
   });
 
   it("promotes different user from queue when per-user limit blocks first entry", () => {

@@ -54,34 +54,28 @@ export async function provisionLicence(
 }
 
 /**
- * Check idempotency — has this webhook event already been processed?
+ * Atomic idempotency: attempt to INSERT the event into processed_webhooks.
+ * The UNIQUE constraint on event_id means a concurrent/retry request will
+ * conflict and return no rows. Returns true if this call claimed the event
+ * (i.e. we should proceed with provisioning), false if already claimed.
+ *
+ * This MUST run BEFORE provisionLicence() — if we provisioned first and
+ * this insert failed, a retry would provision a second licence.
  */
-export async function isEventProcessed(
+export async function claimWebhookEvent(
   provider: string,
-  eventId: string
+  eventId: string,
+  eventType: string
 ): Promise<boolean> {
   const supabase = createAdminSupabaseClient();
   const { data } = await supabase
     .from("processed_webhooks")
-    .select("id")
-    .eq("event_id", eventId)
-    .maybeSingle();
+    .upsert(
+      { provider, event_id: eventId, event_type: eventType },
+      { onConflict: "event_id", ignoreDuplicates: true }
+    )
+    .select("id");
 
-  return data !== null;
-}
-
-/**
- * Mark a webhook event as processed (idempotency guard).
- */
-export async function markEventProcessed(
-  provider: string,
-  eventId: string,
-  eventType: string
-): Promise<void> {
-  const supabase = createAdminSupabaseClient();
-  await supabase.from("processed_webhooks").insert({
-    provider,
-    event_id: eventId,
-    event_type: eventType,
-  });
+  // upsert with ignoreDuplicates returns an empty array if the row already existed
+  return (data?.length ?? 0) > 0;
 }

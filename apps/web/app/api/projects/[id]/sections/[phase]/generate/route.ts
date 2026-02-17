@@ -22,7 +22,8 @@ import {
 } from "@/lib/ai/prompts";
 import { parseSynopsisResponse } from "@/lib/ai/parse-synopsis-response";
 import { latexToTiptap } from "@/lib/latex/latex-to-tiptap";
-import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
+import { resolveSectionCitations, type CitationResolutionSummary } from "@/lib/citations/auto-resolve";
+import { preSeedReferences, formatReferencesForPrompt } from "@/lib/citations/pre-seed";
 import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
 import type { Project } from "@/lib/types/database";
 
@@ -237,6 +238,32 @@ async function handleSectionGenerate(
     userMessage += analysisContext;
   }
 
+  // Pre-seed real PubMed references for citation-heavy phases
+  const CITATION_HEAVY_PHASES = new Set([2, 4, 5, 7]);
+  if (CITATION_HEAVY_PHASES.has(phaseNumber)) {
+    try {
+      const metadata = (project.metadata_json ?? {}) as Record<string, unknown>;
+      const keywords = (metadata.keywords as string[]) ?? [];
+      const studyType = (metadata.study_type as string) ?? null;
+      const department = (metadata.department as string) ?? null;
+      const maxRefs = phaseNumber === 4 ? 30 : 20; // ROL needs more references
+
+      const preSeeded = await preSeedReferences(
+        project.title ?? "",
+        keywords,
+        studyType,
+        department,
+        maxRefs
+      );
+
+      if (preSeeded.length > 0) {
+        userMessage += formatReferencesForPrompt(preSeeded);
+      }
+    } catch (err) {
+      console.warn("Pre-seed references failed (non-blocking):", err);
+    }
+  }
+
   // Create/update section as "generating"
   const phaseDef = getPhase(phaseNumber);
   await supabase.from("sections").upsert(
@@ -257,7 +284,8 @@ async function handleSectionGenerate(
   const model = [2, 7].includes(phaseNumber)
     ? "claude-sonnet-4-5-20250929" // TODO: Switch to Opus when API access available
     : "claude-sonnet-4-5-20250929";
-  const maxTokens = phaseNumber === 4 ? 8000 : 4000; // ROL needs more tokens
+  // ROL needs most tokens; citation-heavy phases need extra for BibTeX trailer
+  const maxTokens = phaseNumber === 4 ? 12000 : [2, 5, 7].includes(phaseNumber) ? 8000 : 6000;
 
   // Track whether the stream completed normally
   let streamCompleted = false;
@@ -405,10 +433,16 @@ async function handleSectionGenerate(
 
         streamCompleted = true;
 
-        // Fire-and-forget: resolve citations from BibTeX trailer
-        void resolveSectionCitations(project.id, fullResponse).catch((err) =>
-          console.error("Background citation resolution failed:", err)
-        );
+        // Resolve citations from BibTeX trailer (15-second timeout)
+        let citationSummary: CitationResolutionSummary | null = null;
+        try {
+          citationSummary = await Promise.race([
+            resolveSectionCitations(project.id, fullResponse),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+          ]);
+        } catch (err) {
+          console.error("Citation resolution failed:", err);
+        }
 
         controller.enqueue(
           encoder.encode(
@@ -417,6 +451,7 @@ async function handleSectionGenerate(
               wordCount,
               citationKeys,
               parseWarnings: tiptapResult.warnings,
+              citationSummary,
             })}\n\n`
           )
         );

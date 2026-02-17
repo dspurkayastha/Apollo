@@ -31,10 +31,17 @@ export function preflightChapter(
 
   const issues: ValidationIssue[] = [];
   const lines = latex.split("\n");
+  let inTabularEnv = 0; // depth counter for tabular/longtable/array
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNum = i + 1;
+
+    // Track tabular environment depth (& is valid inside these)
+    const tabOpens = (line.match(/\\begin\{(tabular|longtable|tabularx|array)\}/g) || []).length;
+    const tabCloses = (line.match(/\\end\{(tabular|longtable|tabularx|array)\}/g) || []).length;
+    inTabularEnv += tabOpens - tabCloses;
+    inTabularEnv = Math.max(0, inTabularEnv);
 
     // Unescaped # not preceded by \ (the exact bug we hit)
     // Match # that is NOT preceded by \ and NOT inside a comment (line starting with %)
@@ -48,6 +55,19 @@ export function preflightChapter(
           chapter: chapterName,
           severity: "error",
           message: `Unescaped '#' character — use '\\#' in LaTeX`,
+          line: lineNum,
+        });
+      }
+    }
+
+    // Bare & outside tabular environments (causes "Misplaced alignment tab character &")
+    if (!line.trimStart().startsWith("%") && !inTabularEnv) {
+      const ampMatches = line.matchAll(/(?<!\\)&/g);
+      for (const _match of ampMatches) {
+        issues.push({
+          chapter: chapterName,
+          severity: "warning",
+          message: `Bare '&' character — should be '\\&' outside tabular environments`,
           line: lineNum,
         });
       }

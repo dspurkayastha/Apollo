@@ -54,10 +54,17 @@ export async function POST(
 
     const typedSection = section as Section;
 
+    // Fetch citations for quality check on citation-heavy phases
+    const { data: citations } = await supabase
+      .from("citations")
+      .select("cite_key, provenance_tier")
+      .eq("project_id", id);
+
     const result = reviewSection(
       typedSection.latex_content,
       typedSection.ai_generated_latex,
       phaseNumber,
+      (citations ?? []) as { cite_key: string; provenance_tier: string }[],
     );
 
     return NextResponse.json({ data: result });

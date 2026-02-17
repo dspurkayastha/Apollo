@@ -13,6 +13,7 @@ import { isValidPhase } from "@/lib/phases/transitions";
 import { canAdvancePhase } from "@/lib/phases/transitions";
 import { getPhase } from "@/lib/phases/constants";
 import { generateFrontMatterLatex } from "@/lib/latex/front-matter";
+import { auditCitations } from "@/lib/citations/audit";
 import type { Project, Section } from "@/lib/types/database";
 import { inngest } from "@/lib/inngest/client";
 
@@ -149,6 +150,98 @@ export async function POST(
         },
         { onConflict: "project_id,phase_number" }
       );
+    }
+
+    // Phase 8 approved → auto-create Phase 9 with citation audit results
+    if (phaseNumber === 8) {
+      const phase9Def = getPhase(9);
+      try {
+        // Fetch all sections and citations for audit
+        const [{ data: allSections }, { data: allCitations }] = await Promise.all([
+          supabase
+            .from("sections")
+            .select("*")
+            .eq("project_id", id)
+            .eq("status", "approved"),
+          supabase
+            .from("citations")
+            .select("*")
+            .eq("project_id", id),
+        ]);
+
+        const auditResult = auditCitations(
+          (allSections ?? []) as Section[],
+          (allCitations ?? []) as unknown as import("@/lib/types/database").Citation[]
+        );
+
+        const citations = allCitations ?? [];
+        const auditLatex = [
+          "\\section{Citation Audit Summary}",
+          "",
+          `Integrity Score: ${auditResult.integrityScore}\\%`,
+          "",
+          `Total citations: ${citations.length}`,
+          `Tier A (verified): ${citations.filter((c) => c.provenance_tier === "A").length}`,
+          `Tier B (confirmed): ${citations.filter((c) => c.provenance_tier === "B").length}`,
+          `Tier C (attested): ${citations.filter((c) => c.provenance_tier === "C").length}`,
+          `Tier D (unverified): ${citations.filter((c) => c.provenance_tier === "D").length}`,
+          "",
+          auditResult.missingCitations.length > 0
+            ? `\\subsection{Missing Citations}\n${auditResult.missingCitations.map((m) => `\\texttt{${m.citeKey}}`).join(", ")}`
+            : "No missing citations.",
+          "",
+          auditResult.orphanedCitations.length > 0
+            ? `\\subsection{Orphaned Citations}\n${auditResult.orphanedCitations.map((o) => `\\texttt{${o.citeKey}}`).join(", ")}`
+            : "No orphaned citations.",
+          "",
+          auditResult.tierDBlocking.length > 0
+            ? `\\subsection{Tier D Citations (Blocking Final QC)}\n${auditResult.tierDBlocking.map((d) => `\\texttt{${d.citeKey}}`).join(", ")}`
+            : "No Tier D citations blocking Final QC.",
+        ].join("\n");
+
+        await supabase.from("sections").upsert(
+          {
+            project_id: id,
+            phase_number: 9,
+            phase_name: phase9Def?.name ?? "references",
+            latex_content: auditLatex,
+            word_count: auditLatex.split(/\s+/).length,
+            citation_keys: [],
+            status: "review",
+          },
+          { onConflict: "project_id,phase_number" }
+        );
+      } catch (auditError) {
+        console.warn("Citation audit auto-trigger failed (non-blocking):", auditError);
+      }
+    }
+
+    // Phase 10 approved → auto-create Phase 11 with QC placeholder
+    if (phaseNumber === 10) {
+      const phase11Def = getPhase(11);
+      await supabase.from("sections").upsert(
+        {
+          project_id: id,
+          phase_number: 11,
+          phase_name: phase11Def?.name ?? "final_qc",
+          latex_content: "Run Final QC to generate the quality report.",
+          word_count: 0,
+          citation_keys: [],
+          status: "review",
+        },
+        { onConflict: "project_id,phase_number" }
+      );
+    }
+
+    // Phase 11 approval: verify QC passed + set project to completed
+    if (phaseNumber === 11) {
+      await supabase
+        .from("projects")
+        .update({
+          status: "completed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
     }
 
     // Emit Inngest event for workflow orchestration (skip if not configured)

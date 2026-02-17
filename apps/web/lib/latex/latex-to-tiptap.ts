@@ -39,8 +39,13 @@ function preprocess(latex: string): string {
   result = result.replace(/\\label\{[^}]*\}/g, "");
   // Remove \needspace{...}
   result = result.replace(/\\needspace\{[^}]*\}/g, "");
+  // Remove \usepackage{...} — AI sometimes injects these into chapter content
+  // but they belong in the preamble only; inside \begin{document} they cause errors
+  result = result.replace(/\\usepackage(?:\[[^\]]*\])?\{[^}]*\}/g, "");
   // Remove full-line comments (lines starting with %)
   result = result.replace(/^%.*$/gm, "");
+  // Remove markdown horizontal separators (--- / *** / ___ on own line)
+  result = result.replace(/^\s*[-*_]{3,}\s*$/gm, "");
   // Convert markdown heading artefacts to LaTeX headings
   // (AI sometimes produces `# Title` instead of `\section{Title}`)
   result = result.replace(/^###\s+(.+)$/gm, "\\subsubsection{$1}");
@@ -377,15 +382,34 @@ function tokeniseBlocks(latex: string): Block[] {
       const startLine = trimmed;
       i++;
 
-      // Collect until \end{envName}
+      // Collect until \end{envName} — also accept trailing comments/whitespace
       while (i < lines.length) {
         const eLine = lines[i];
-        if (eLine.trim() === `\\end{${envName}}`) {
+        if (eLine.trim() === `\\end{${envName}}` || eLine.trim().startsWith(`\\end{${envName}}`)) {
           i++;
           break;
         }
         envContent.push(eLine);
         i++;
+      }
+
+      // If we hit EOF without finding \end{envName}, close any nested
+      // environments that were opened but not closed inside the block
+      if (i >= lines.length) {
+        const nestedStack: string[] = [];
+        for (const cl of envContent) {
+          const nestedBegin = cl.trim().match(/^\\begin\{(\w+)\}/);
+          const nestedEnd = cl.trim().match(/^\\end\{(\w+)\}/) ??
+            cl.trim().match(/\\end\{(\w+)\}\s*$/);
+          if (nestedBegin) nestedStack.push(nestedBegin[1]);
+          if (nestedEnd && nestedStack.length > 0 && nestedStack[nestedStack.length - 1] === nestedEnd[1]) {
+            nestedStack.pop();
+          }
+        }
+        // Close unclosed nested envs in LIFO order
+        for (let j = nestedStack.length - 1; j >= 0; j--) {
+          envContent.push(`\\end{${nestedStack[j]}}`);
+        }
       }
 
       if (envName === "itemize") {

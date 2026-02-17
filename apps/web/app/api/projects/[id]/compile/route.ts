@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import path from "path";
+import os from "os";
 import { getAuthenticatedUser } from "@/lib/api/auth";
 import {
   unauthorised,
@@ -15,7 +16,10 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { assembleThesisContent } from "@/lib/latex/assemble";
 import { compileTex } from "@/lib/latex/compile";
 import { preflightChapter, aiValidateChapters } from "@/lib/latex/validate";
-import type { Project, Section, Citation, Compilation } from "@/lib/types/database";
+import type { Project, Section, Citation, Figure, Compilation } from "@/lib/types/database";
+
+/** Must match FIGURES_BASE_DIR in analysis-runner.ts */
+const FIGURES_BASE_DIR = path.join(os.tmpdir(), "apollo-figures");
 
 export async function POST(
   _request: NextRequest,
@@ -95,8 +99,8 @@ export async function POST(
         return internalError("LaTeX template not found");
       }
 
-      // Fetch sections and citations for assembly
-      const [sectionsResult, citationsResult] = await Promise.all([
+      // Fetch sections, citations, and figures for assembly
+      const [sectionsResult, citationsResult, figuresResult] = await Promise.all([
         supabase
           .from("sections")
           .select("*")
@@ -106,10 +110,31 @@ export async function POST(
           .from("citations")
           .select("*")
           .eq("project_id", id),
+        supabase
+          .from("figures")
+          .select("*")
+          .eq("project_id", id),
       ]);
 
       const sections = (sectionsResult.data ?? []) as Section[];
       const citations = (citationsResult.data ?? []) as Citation[];
+      const figures = (figuresResult.data ?? []) as Figure[];
+
+      // Resolve figure files: map relative path → absolute disk path (only if file exists)
+      const figureFiles: Record<string, string> = {};
+      for (const fig of figures) {
+        if (!fig.file_url) continue;
+        // file_url is "figures/{project_id}/{analysis_id}/{filename}"
+        // Disk path is FIGURES_BASE_DIR/{project_id}/{analysis_id}/{filename}
+        const relAfterFigures = fig.file_url.replace(/^figures\//, "");
+        const diskPath = path.join(FIGURES_BASE_DIR, relAfterFigures);
+        try {
+          await stat(diskPath);
+          figureFiles[fig.file_url] = diskPath;
+        } catch {
+          // File doesn't exist on disk — will cause a non-fatal warning during compile
+        }
+      }
 
       // Assemble thesis content (metadata + chapter files + BibTeX)
       const { tex, bib, chapterFiles, warnings: texWarnings } = assembleThesisContent(
@@ -172,6 +197,7 @@ export async function POST(
             watermark: isWatermark,
             bibContent: bib,
             chapterFiles,
+            figureFiles,
           })
       );
 

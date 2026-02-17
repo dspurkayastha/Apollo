@@ -62,6 +62,7 @@ export async function POST(
         file_url: fileUrl,
         row_count: generated.rowCount,
         columns_json: columnsJson,
+        rows_json: generated.rows,
       })
       .select("*")
       .single();

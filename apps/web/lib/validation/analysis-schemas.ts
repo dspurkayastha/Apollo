@@ -27,13 +27,32 @@ export const analysisCreateSchema = z.object({
   }),
 });
 
+export const figurePreferencesSchema = z.object({
+  chart_type: z.enum([
+    "auto", "bar", "box", "scatter", "line", "forest",
+    "kaplan-meier", "heatmap", "violin",
+  ]).default("auto"),
+  colour_scheme: z.enum(["default", "greyscale", "colourblind-safe"]).default("default"),
+  include_table: z.boolean().default(true),
+}).optional();
+
+export const analysisRunSchema = analysisCreateSchema.extend({
+  figure_preferences: figurePreferencesSchema,
+});
+
 export type AnalysisCreateInput = z.infer<typeof analysisCreateSchema>;
+export type FigurePreferences = z.infer<typeof figurePreferencesSchema>;
 
 export const autoDetectSchema = z.object({
   dataset_id: z.string().uuid(),
 });
 
 export type AutoDetectInput = z.infer<typeof autoDetectSchema>;
+
+export interface SuggestedFigure {
+  chart_type: string;
+  description: string;
+}
 
 export interface AnalysisRecommendation {
   analysis_type: AnalysisType;
@@ -46,7 +65,21 @@ export interface AnalysisRecommendation {
     event?: string;
   };
   confidence: "high" | "medium" | "low";
+  suggested_figures?: SuggestedFigure[];
 }
+
+/** Required parameters per analysis type — used for pre-flight validation */
+export const REQUIRED_PARAMS: Record<AnalysisType, readonly string[]> = {
+  descriptive: [],                    // group is optional
+  "chi-square": ["outcome", "predictor"],
+  "t-test": ["outcome", "group"],
+  correlation: ["outcome", "predictor"],
+  survival: ["time", "event"],        // group is optional
+  roc: ["outcome", "predictor"],
+  logistic: ["outcome"],              // predictor is optional (falls back to all other cols)
+  kruskal: ["outcome", "group"],
+  "meta-analysis": [],                // validates column names (study, effect_size, se) in R
+};
 
 /** Timeout per analysis type in milliseconds */
 export const ANALYSIS_TIMEOUTS: Record<AnalysisType, number> = {

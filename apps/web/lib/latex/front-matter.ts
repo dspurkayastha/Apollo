@@ -10,7 +10,7 @@ export function generateFrontMatterLatex(project: Project): string {
   const meta = project.metadata_json ?? {};
   const lines: string[] = [];
 
-  lines.push("%% Front matter metadata — auto-generated from project settings");
+  lines.push("%% Front matter metadata -- auto-generated from project settings");
   lines.push(`%% Project: ${project.id}`);
   lines.push(`%% Generated: ${new Date().toISOString()}`);
   lines.push("");

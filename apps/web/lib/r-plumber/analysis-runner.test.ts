@@ -83,7 +83,10 @@ describe("runAnalysis", () => {
       warnings: [],
     });
 
-    const result = await runAnalysis(mockAnalysis, []);
+    const result = await runAnalysis(mockAnalysis, [
+      { bmi: 25, sex: "M" },
+      { bmi: 22, sex: "F" },
+    ]);
 
     expect(result.figures_urls).toHaveLength(1);
     expect(result.figures_urls[0]).toContain("figures/");
@@ -91,8 +94,25 @@ describe("runAnalysis", () => {
 
   it("throws for unknown analysis type", async () => {
     const badAnalysis = { ...mockAnalysis, analysis_type: "nonexistent" };
-    await expect(runAnalysis(badAnalysis, [])).rejects.toThrow(
-      "Unknown analysis type"
+    await expect(
+      runAnalysis(badAnalysis, [{ bmi: 25, sex: "M" }])
+    ).rejects.toThrow("Unknown analysis type");
+  });
+
+  it("throws when dataset rows are empty", async () => {
+    await expect(runAnalysis(mockAnalysis, [])).rejects.toThrow(
+      "dataset has no rows"
     );
+  });
+
+  it("throws when required parameters are missing", async () => {
+    const chiSquare: Analysis = {
+      ...mockAnalysis,
+      analysis_type: "chi-square",
+      parameters_json: { confidence_level: 0.95 },
+    };
+    await expect(
+      runAnalysis(chiSquare, [{ bmi: 25, sex: "M" }])
+    ).rejects.toThrow("missing required parameters: outcome, predictor");
   });
 });
