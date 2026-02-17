@@ -1,0 +1,1805 @@
+Go through the file /docs/Review.md, and find all  areas where my choice is reqd ,eg pricing, latex round trip options , etc etc and ask me questions to clarify those decision points [a previous chat went through and created a Decision_points.md in /docs/ , refer to that as well , but remember that file is not exhaustive.] Include your best choice recommendations for each decision point. Allow discussions for each question.
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+check again for Decision points.md
+
+---
+
+I know that the one time cost per thesis that students are paying is 18 to 20k. Keeping that in mind, what pricing model makes sense? what if a student doesnt have one time investements, and wants to pay over few months? better to allow EMI or do a monthly subscription? where to gate monthly? Professionals can pay more, and can be routed to the paper writing, and articles line of things in addition to theses, but if aiming for a PhD type of thesis, it will require much more model qouta, and hence much more tokens and price with proportional profits calculated. The addon plan can be a monthly addon plan which the student uses to refine the thesis, after his guides comments, generate new figures etc? and needs pricing at par with monthly model, and allow access for a month. Sandbox should allow user specific Title, Frontmatter, and Intro. so that the user gets a taste . It should be watermarked. Project creation limit can be implemented better as a one active project per licence?
+
+---
+
+Why would i give out theses in such low amount? wont it signal poor quality?    
+     wouldnt it better placed at 75% of market? Also i would offer both, monthly, with minimum commitment and phase gating, and one time , no gate. Also addon shpould be scoped as you suggest.
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+I agree to the 14999/4999 model but i have a few quereies. 1. what is to stop a student who works on one thesis, completes it,then activetes another project and completes that with one licence? 2. Monthyl plan total cast needs to be margoinal;ly more so as to incentivise one time payments?
+
+---
+
+The licence binding to a thesis has some potential issues. what if the student enters the metadata wrong? or something changes in the synopsis in the middle? edge cases may arise. For the monthly premium I am happy with 10%
+
+---
+
+What does Ingest do ? how is different from what is happening now from end user perspective?
+
+---
+
+Splitting phase 6 is a good idea, but there are issues in the data analysis pipeline. Generation of dataset, with frontend displaying head for review, Adequate planning of REquired analysis on the basis of synopsis obectives , not just possible and feasible calculations as pper genertaed datasets (this is what is happening now), Adequate and appropriate figures generation needs to happen, and figures and tables number gating in final QC needs to be allowed and should happen
+
+---
+
+This is close but needs a crucial adjustment. Along with objectives, the ROL should also inform dataset generation for correct plausible numbers. Also not all analyses need to be picture perfect statitically significant.
+
+---
+
+Matching the analysis Plan is a good and appropriate idea, but a minimum gating is required. lets pin figures for results section at 5, and tables at 7 minimum for phase QC and final QC
+
+---
+
+Demographics doesnt need to be confined to a singular table, and a single figure. may be split logically.
+
+---
+
+The pdf download allowed after phase 6b is good, but download needs to be also allowed for the sandbox demo for students to see and share (marketing). Watermark should be "Apollo" in brand font (?Playfair Display)
+
+---
+
+Licensed individuals beyond phase 6b should not have DRAFT watermark across the page, that will create friction in getting approval. Suggest an alternate way to denote work in progress, (maybe very faint branding watermark, or a footer saying "Apollo" or?)
+
+---
+
+QC gates         │ Hard ceiling: +15% of soft max; Hard floor: −15% of soft min is wrong, Hard floor is = soft minimum. Correct that.
+
+---
+
+yes, save it
+
+---
+
+now check the Review.md and Decisions.md files, and create a full plan to mitigate all issues based on the decisions taken. Ask any claryfying questions as necessary. Ask for any installs as necessary. Install upstash Redis mcp for that job, and tell me what is required from me. Think ultra hard to create the plan, audit and find all lacunae in your plan and present the final audited fixed plan to me . Ensure to include a step 0 in the plan to Write down the plan as /docs/Mitigation_plan.md
+
+---
+
+Upstash, inngest, R2 all accounts exist, but i need help from you to supply the tokens, emails, etc etc Ask for  specific stuff and I shall provide. Provide assistance in terms of what creds to get where
+
+---
+
+UPSTASH_REDIS_REST_URL="https://patient-kid-40113.upstash.io"UPSTASH_REDIS_REST                                                                        
+     _TOKEN="REDACTED"                                                                                                                                  
+     account email: dshome45215@gmail.com   REDACTED                                                                                                                               
+     Items 7,8,9,10 exist in .env.local        items 5,6 : i need more help
+
+---
+
+what to do now? I will answer the razorpay and stripe questions later
+
+---
+
+[Image: source: REDACTED 2026-02-17 at 6.55.14 PM.png]
+
+---
+
+now what?
+
+---
+
+[Image: source: REDACTED 2026-02-17 at 6.57.41 PM.png]
+
+---
+
+REDACTED   REDACTED
+
+---
+
+<task-notification>
+<task-id>aca2873</task-id>
+<status>completed</status>
+<summary>Agent "Build comprehensive mitigation plan" completed</summary>
+<result>Let me now carefully enumerate all findings. I have read all required documents thoroughly. Let me now compile the comprehensive mitigation plan.
+
+Here is the complete mitigation plan document:
+
+---
+
+# Apollo Mitigation Plan
+
+**Date**: 17 February 2026
+**Source**: Cross-reference of `docs/REVIEW.md` (136 findings) and `docs/DECISIONS.md` (owner decisions)
+**Status**: IMPLEMENTATION BLUEPRINT
+
+---
+
+## Table of Contents
+
+1. [Finding Enumeration and Counting](#finding-enumeration)
+2. [Phase 1: Critical Safety](#phase-1-critical-safety)
+3. [Phase 2: Infrastructure Foundation](#phase-2-infrastructure-foundation)
+4. [Phase 3: Pricing and Licence System Overhaul](#phase-3-pricing-and-licence-system-overhaul)
+5. [Phase 4: Editor Migration (CodeMirror 6)](#phase-4-editor-migration)
+6. [Phase 5: AI Pipeline Overhaul](#phase-5-ai-pipeline-overhaul)
+7. [Phase 6: Phase 6a/6b Restructure and Analysis Pipeline](#phase-6-phase-6a6b-restructure)
+8. [Phase 7: Phase 11 Final QC and Completion Flow](#phase-7-phase-11-final-qc)
+9. [Phase 8: Frontend Integration and Polish](#phase-8-frontend-integration-and-polish)
+10. [Phase 9: Privacy and Compliance](#phase-9-privacy-and-compliance)
+11. [Phase 10: Docker Hardening](#phase-10-docker-hardening)
+12. [Phase 11: Cleanup and Testing](#phase-11-cleanup-and-testing)
+13. [Cross-Phase Dependencies](#cross-phase-dependencies)
+14. [Items Decided to Skip vs Defer](#skip-vs-defer)
+15. [Items Needing External Input](#external-input)
+
+---
+
+## Finding Enumeration
+
+### Part I: Infrastructure-Level (14 findings)
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| I-1 | CI-blocking lint error (`prefer-const` in `auto-resolve.ts`) | P0 |
+| I-2 | 51 files uncommitted (data loss risk) | P0 |
+| I-3 | `processed_webhooks` table missing (webhook idempotency) | P1 |
+| I-4 | Razorpay replay protection missing (5-min timestamp check) | P1 |
+| I-5 | Docker `seccomp:unconfined` instead of proper profile | P1 |
+| I-6 | Per-analysis-type runtime limits not enforced (15s-60s) | P1 |
+| I-7 | PII scrubbing not wired into Sentry `beforeSend` | P1 |
+| I-8 | 15 lint warnings (unused vars, missing alts, unused imports) | P1 |
+| I-9 | Velocity rules missing (>5 licences/30 days hold) | P2 |
+| I-10 | Queue fairness (round-robin) missing -- FIFO only | P2 |
+| I-11 | PWA mobile-optimised pages missing | P2 |
+| I-12 | LaTeX container network isolation deviation | P2 |
+| I-13 | AppArmor profile for R container missing | P2 |
+| I-14 | Full database migration files not tracked in git | P2 |
+
+### Part II: Business Logic (47 findings)
+
+**A. AI Integration (15)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| A1 | Phase 9 (References) prompt missing | P1 |
+| A2 | Phase 6a/6b conflated into single Phase 6 | P1 |
+| A3 | Previous section context truncated to 3,000 chars | P0 |
+| A4 | No Unicode avoidance in COMMON_RULES | P1 |
+| A5 | Word count targets disagree across 3 files | P0 |
+| A6 | Synopsis parse prompt duplicated with different schemas | P2 |
+| A7 | Refine, dataset, synopsis bypass token budget | P0 |
+| A8 | Input + output tokens conflated in budget | P1 |
+| A9 | `messages_json` always empty (no multi-turn) | P2 |
+| A10 | Review is purely rule-based, no AI | P1 |
+| A11 | M&M section check requires 8 but prompt mandates 12 | P1 |
+| A12 | Opus model routing unimplemented (both branches return Sonnet) | P2 |
+| A13 | No retry configuration on Anthropic client | P1 |
+| A14 | Multiple standalone Anthropic instances bypass singleton | P2 |
+| A15 | Redaction runs only on input, not AI output | P2 |
+
+**B. Citation Pipeline (5)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| B1 | Orphan cite keys without DB records bypass Tier D stripping | P0 |
+| B2 | No retry logic for CrossRef/PubMed API failures | P1 |
+| B3 | Re-resolve Strategy 2 lacks title verification | P1 |
+| B4 | Pre-seeded references not persisted to DB | P2 |
+| B5 | Timeout budget mismatch for ROL (15s vs 30+ refs) | P2 |
+
+**C. LaTeX Pipeline (12)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| C1 | Round-trip destroys inline math (`$p < 0.05$`) | P0 |
+| C2 | `\footnote{}`, `\url{}`, `\textsuperscript{}` destroyed | P0 |
+| C3 | `\label{}` stripped permanently (cross-references break) | P1 |
+| C4 | Phase 10 (Appendices) generated but template never `\input`s them | P0 |
+| C5 | Abbreviations never injected into compiled thesis | P1 |
+| C6 | `front-matter.ts` is dead code | P2 |
+| C7 | `mathrsfs` package not installed in Docker | P0 |
+| C8 | Local compile mode ignores watermark | P2 |
+| C9 | PDF storage ephemeral (`os.tmpdir()`) | P1 |
+| C10 | Warning budget (<=20) not enforced in code | P2 |
+| C11 | Concurrent compilation TOCTOU race | P2 |
+| C12 | Brace-checking logic has subtle bug for `\\{` | P2 |
+
+**D. R Analysis and Figures (8)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| D1 | R2 storage not wired for figures (ephemeral tmpdir) | P0 |
+| D2 | PDF figure preview impossible in UI | P1 |
+| D3 | No figure download endpoint | P1 |
+| D4 | Descriptive analysis produces no figure | P2 |
+| D5 | No minimum figure/table enforcement | P1 |
+| D6 | Subfigure support absent (no `subcaption` package) | P2 |
+| D7 | In-memory semaphore queue promotion bug | P0 |
+| D8 | Chart type/colour scheme not exposed in UI | P2 |
+
+**E. Phase Transitions (13)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| E1 | Inngest overwrites auto-generated content -- DATA LOSS | P0 |
+| E2 | Phase 11 approval skips QC verification | P0 |
+| E3 | `canAdvancePhase` section status check is dead code | P1 |
+| E4 | Refine route bypasses token budget | P0 |
+| E5 | Refine can un-approve sections (inconsistent state) | P1 |
+| E6 | QC word count targets disagree with other files | P0 |
+| E7 | Undefined references check passes when no compile log | P1 |
+| E8 | Phase 6a/6b not separated | P1 |
+| E9 | No Phase 1->2 identity binding | P2 |
+| E10 | Generation lacks phase sequence enforcement | P2 |
+| E11 | `phases_completed` can have duplicates | P2 |
+| E12 | Spelling fix doesn't update `rich_content_json` | P2 |
+| E13 | Duplicated AMERICAN_TO_BRITISH dictionary | P2 |
+
+**F. Cross-Cutting (5)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| F1 | Semaphore is in-memory only (not durable) | P1 |
+| F2 | Word count targets disagree across 3 locations (alias of A5/E6) | P0 |
+| F3 | No Unicode warning in AI prompts | P1 |
+| F4 | Token tracking incomplete (refine, dataset, synopsis, auto-detect) | P0 |
+| F5 | No global error handling strategy | P2 |
+
+### Part III: Frontend-Backend Wiring (26 findings)
+
+**Unwired/Dead Routes (11)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| W1 | `/review` route called only internally, not standalone UI action | Low |
+| W2 | Compilation history never displayed | Medium |
+| W3 | Final QC check not triggered (no QC button) | P0 |
+| W4 | QC auto-fix not triggered (no fix button) | P0 |
+| W5 | Export PDF route -- ExportMenu not rendered in workspace | Medium |
+| W6 | Export DOCX route -- ExportMenu not rendered in workspace | Medium |
+| W7 | Export Source route -- ExportMenu not rendered in workspace | Medium |
+| W8 | Export Stats route -- ExportMenu not rendered in workspace | Medium |
+| W9 | Licences GET -- may work but no explicit frontend fetch | Low |
+| W10 | Licence transfer UI missing entirely | Medium |
+| W11 | Dataset download button not found in DatasetUpload | Medium |
+
+**Missing PLAN Features (3)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| M1 | User Settings/Profile page not found | Low |
+| M2 | Persistent notification centre (only toasts) | Medium |
+| M3 | Onboarding tour component exists but not rendered | Low |
+
+**Workspace Issues (5)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| C-III-1 | Duplicate CitationSearchDialog | Low |
+| C-III-2 | Editor mode toggle visible when non-editable | Low |
+| C-III-3 | Mobile tab resets on phase change | Low |
+| C-III-4 | Phase 11 has no dedicated UI | P0 |
+| C-III-5 | ExportMenu not in workspace (only in ThesisCompletion) | Medium |
+
+**Cross-Cutting Frontend (5)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| X1 | No loading state for phase navigation | Low |
+| X2 | No React error boundary in workspace | Medium |
+| X3 | No offline support (PWA shell only) | Low |
+| X4 | Checkout page hardcodes prices | Low |
+| X5 | PostHog opt-out only in dev | Low |
+
+**Dead Code (2)**
+
+| ID | Description | Review Priority |
+|----|-------------|----------------|
+| DC-1 | `phase-stepper.tsx` deprecated, not imported | Low |
+| DC-2 | `app-sidebar.tsx` exists alongside `glass-sidebar.tsx` | Low |
+
+### Part IV: Security, Monetization, and Architecture (49 findings)
+
+**IV-A: Authentication and Security (9)**
+
+| ID | Description | Review Severity |
+|----|-------------|----------------|
+| IV-A1 | Middleware missing routes (`/api/checkout`, `/api/synopsis`, etc.) | MEDIUM |
+| IV-A2 | IDOR on GET/PATCH/DELETE `/api/projects/[id]` (RLS fallback only) | CRITICAL |
+| IV-A3 | Role escalation via direct Supabase client (user can set role to admin) | HIGH |
+| IV-A4 | XSS via `dangerouslySetInnerHTML` in `title-page-preview.tsx` | MEDIUM |
+| IV-A5 | Header injection in DOCX Content-Disposition | LOW |
+| IV-A6 | Rate limiting only on generate -- refine, auto-detect, synopsis unprotected | HIGH |
+| IV-A7 | File size not enforced on R2 signed URL | MEDIUM |
+| IV-A8 | Dataset upload no file size check (OOM risk) | MEDIUM |
+| IV-A9 | DEV_LICENCE_BYPASS has no production guard | HIGH |
+
+**IV-B: Payment and Licence Pipeline (12)**
+
+| ID | Description | Review Severity |
+|----|-------------|----------------|
+| IV-B1 | Webhook race condition: double licence provisioning | CRITICAL |
+| IV-B2 | Professional plan provisions 1 licence instead of 3 | HIGH |
+| IV-B3 | No licence expiry enforcement (monthly = perpetual) | HIGH |
+| IV-B4 | Missing licence gates on generate, refine, compile, auto-detect, etc. | HIGH |
+| IV-B5 | No plan-based feature differentiation (Professional === Student) | HIGH |
+| IV-B6 | Hidden "addon" plan at Rs 299 via direct API | MEDIUM |
+| IV-B7 | "Monthly" plans are one-time purchases (no subscriptions) | HIGH |
+| IV-B8 | Pricing inconsistency across landing, FAQ, checkout | MEDIUM |
+| IV-B9 | Non-atomic licence attachment (licence consumed but project stays sandbox) | MEDIUM |
+| IV-B10 | Unlimited project creation | MEDIUM |
+| IV-B11 | Checkout does not validate project_id ownership | HIGH |
+| IV-B12 | Razorpay client-side success handler timing guess redirect | MEDIUM |
+
+**IV-C: RLS and Data Isolation (6)**
+
+| ID | Description | Review Severity |
+|----|-------------|----------------|
+| IV-C1 | Admin Supabase client used in 35+ routes (bypasses RLS) | HIGH |
+| IV-C2 | IDOR on GET `/api/projects/[id]/share` (admin client, no ownership check) | CRITICAL |
+| IV-C3 | Upload signed-url: no project ownership verification | CRITICAL |
+| IV-C4 | Missing UPDATE RLS policies on datasets and compilations | MEDIUM |
+| IV-C5 | RLS tests incomplete (no per-user isolation with mock JWTs) | MEDIUM |
+| IV-C6 | Review system provides PDF URL that reviewers cannot access | HIGH |
+
+**IV-D: Data Privacy and DPDP Act (12)**
+
+| ID | Description | Review Severity |
+|----|-------------|----------------|
+| IV-D1 | Metadata sent unredacted to Claude API | CRITICAL |
+| IV-D2 | Synopsis unredacted in dataset generation route | CRITICAL |
+| IV-D3 | Previously approved sections with PII sent to AI | CRITICAL |
+| IV-D4 | No privacy policy page | CRITICAL |
+| IV-D5 | No terms of service page | CRITICAL |
+| IV-D6 | No account deletion flow | CRITICAL |
+| IV-D7 | No consent for AI processing | CRITICAL |
+| IV-D8 | Zero data retention policies implemented | CRITICAL |
+| IV-D9 | Edge Sentry config missing PII stripping | HIGH |
+| IV-D10 | No PII scanning on dataset upload | HIGH |
+| IV-D11 | Audit log retains PII after project deletion (no CASCADE) | HIGH |
+| IV-D12 | Cookie consent: no banner or opt-in mechanism | HIGH |
+
+**IV-E: Architecture and Reliability (12)**
+
+| ID | Description | Review Severity |
+|----|-------------|----------------|
+| IV-E1 | In-memory state must move to Redis (semaphore + rate limiter) | CRITICAL |
+| IV-E2 | PDF storage must move to R2 | CRITICAL |
+| IV-E3 | Stale compilation blocks project forever | CRITICAL |
+| IV-E4 | AI generation should move to Inngest | HIGH |
+| IV-E5 | Singleton Supabase admin client (per-call overhead) | HIGH |
+| IV-E6 | N+1 citation upserts (30+ sequential DB calls) | MEDIUM |
+| IV-E7 | PDF viewer: mobile performance (100+ canvas elements) | MEDIUM |
+| IV-E8 | Bundle size concerns (Three.js, mermaid, xlsx, pdfjs) | MEDIUM |
+| IV-E9 | Health check endpoint missing | HIGH |
+| IV-E10 | Environment variable validation missing | CRITICAL |
+| IV-E11 | Offline/connectivity handling | MEDIUM |
+| IV-E12 | Business model observations (pricing structure) | N/A |
+
+**Remaining Part IV items (LOW severity) (10)**
+
+| ID | Description | Review Severity |
+|----|-------------|----------------|
+| IV-L1 | Content-Disposition header injection | LOW |
+| IV-L2 | Origin header in share URLs | LOW |
+| IV-L3 | No rate limit on review comments | LOW |
+| IV-L4 | No limit on review token generation | LOW |
+| IV-L5 | Mermaid innerHTML (mitigated by strict mode) | LOW |
+| IV-L6 | `processed_webhooks` no RLS (intentional) | LOW |
+| IV-L7 | `review_comments` INSERT only via admin (intentional) | LOW |
+| IV-L8 | Licence transfer doesn't check project progress | LOW |
+| IV-L9 | Preview PDF serves watermarked PDFs (acceptable) | LOW |
+| IV-L10 | `checkLicenceGate` inconsistent with `DEV_LICENCE_BYPASS` | LOW |
+
+**Total: 14 + 47 + 26 + 49 = 136 findings (verified)**
+
+---
+
+## Phase 1: Critical Safety
+
+*Priority: IMMEDIATE. Complete before any user testing.*
+*Estimated effort: 2-3 days*
+
+### 1.1 Commit and Push All Uncommitted Work
+
+| Review ID | I-2 |
+|-----------|-----|
+| **Description** | 51 modified + 17 untracked files sitting on local only. Single point of failure. |
+| **Decision** | N/A -- no decision needed, this is operational hygiene |
+| **Mitigation** | Fix lint error (I-1) first, then commit all files, push to remote |
+| **Dependencies** | I-1 must be fixed first to pass CI |
+
+### 1.2 Fix CI-Blocking Lint Error
+
+| Review ID | I-1 |
+|-----------|-----|
+| **Description** | `let tier` should be `const` in `lib/citations/auto-resolve.ts:151` |
+| **Decision** | N/A |
+| **Mitigation** | Change `let tier` to `const tier`. Single character fix. |
+| **Dependencies** | None. Blocks I-2. |
+
+### 1.3 IDOR Fixes -- Explicit Ownership Checks
+
+| Review IDs | IV-A2, IV-C2, IV-C3 |
+|------------|----------------------|
+| **Description** | `GET/PATCH/DELETE /api/projects/[id]` rely on RLS only (no explicit `user_id` check). `GET /api/projects/[id]/share` uses admin client with no ownership check -- leaks review tokens. `POST /api/upload/signed-url` has no project ownership verification. |
+| **Decision** | N/A -- security fixes are non-negotiable |
+| **Mitigation** | (a) Add `.eq("user_id", authResult.user.id)` to all project CRUD routes. (b) Add ownership check before returning share/review tokens. (c) Verify user owns `projectId` before generating R2 signed URL. |
+| **Dependencies** | None |
+
+### 1.4 Role Escalation Prevention
+
+| Review ID | IV-A3 |
+|-----------|-------|
+| **Description** | `users` UPDATE RLS policy allows setting own `role` to `admin` via Supabase anon key |
+| **Decision** | N/A |
+| **Mitigation** | Alter RLS policy to `WITH CHECK (clerk_user_id = auth.jwt()->>'sub' AND role = OLD.role)`. This prevents role changes via direct Supabase calls. |
+| **Dependencies** | Requires Supabase migration |
+
+### 1.5 DEV_LICENCE_BYPASS Production Guard
+
+| Review ID | IV-A9, IV-L10 |
+|-----------|---------------|
+| **Description** | `DEV_LICENCE_BYPASS` env var has no `NODE_ENV` guard. If set in production, all licence requirements are bypassed. |
+| **Decision** | N/A |
+| **Mitigation** | In `transitions.ts:44`, add: `const devBypass = process.env.NODE_ENV !== "production" && process.env.DEV_LICENCE_BYPASS === "true"` |
+| **Dependencies** | None |
+
+### 1.6 Inngest Content Overwrite Fix (Data Loss)
+
+| Review ID | E1 |
+|-----------|-----|
+| **Description** | When Phase 0 is approved, Inngest fires `thesisPhaseWorkflow` which creates an empty Phase 1 draft section via `upsert`, overwriting any auto-generated content. |
+| **Decision** | DECISIONS.md Section 7.1: "Fix the content-overwrite bug and use Inngest as the primary orchestrator" |
+| **Mitigation** | Change the Inngest `upsert` to use `ignoreDuplicates: true` or add a conditional: only create the section if one does not already exist. Alternatively, switch to `INSERT ... ON CONFLICT DO NOTHING`. |
+| **Dependencies** | None |
+
+### 1.7 Webhook Race Condition (Double Provisioning)
+
+| Review ID | IV-B1, I-3 |
+|-----------|------------|
+| **Description** | `provisionLicence` succeeds but `markEventProcessed` fails = duplicate licence on retry. No `processed_webhooks` table exists. |
+| **Decision** | N/A -- security/financial fix |
+| **Mitigation** | (a) Create `processed_webhooks` table via migration. (b) Use `INSERT ... ON CONFLICT DO NOTHING RETURNING id` as the FIRST step in both webhook handlers. If no row returned, event already processed -- return 200 immediately. (c) Wrap provisioning + event marking in a Supabase RPC transaction. |
+| **Dependencies** | I-14 (migration tracking) is related but not blocking |
+
+### 1.8 PII Redaction for AI Calls
+
+| Review IDs | IV-D1, IV-D2, IV-D3 |
+|------------|----------------------|
+| **Description** | Metadata (candidate_name, guide_name, registration_no) sent unredacted to Claude. Synopsis unredacted in dataset generation. Previously approved sections with PII (Phase 1 front matter) sent as context. |
+| **Decision** | DECISIONS.md Section 6.1: medical data handling with warnings |
+| **Mitigation** | (a) Create `sanitiseMetadataForAI()` that strips candidate_name, guide_name, hod_name, registration_no from metadata before sending to Claude. (b) Apply `redactPII()` in `datasets/generate.ts` before AI call. (c) Strip PII from Phase 1 content when used as context for subsequent phases. |
+| **Dependencies** | None |
+
+### 1.9 Sentry Edge PII Stripping
+
+| Review IDs | IV-D9, I-7 |
+|------------|------------|
+| **Description** | `sentry.edge.config.ts` has no `beforeSend` hook. Client and server configs correctly strip PII but edge does not. |
+| **Decision** | N/A |
+| **Mitigation** | Add `beforeSend` hook to `sentry.edge.config.ts` matching the pattern in client/server configs. Add `maskAllInputs: true` to Sentry replay config. |
+| **Dependencies** | None |
+
+### 1.10 Checkout Ownership Validation
+
+| Review ID | IV-B11 |
+|-----------|--------|
+| **Description** | `POST /api/checkout` passes `project_id` from request body without verifying user owns that project |
+| **Decision** | N/A |
+| **Mitigation** | Add ownership check: query project by ID and verify `user_id` matches authenticated user before creating payment order. |
+| **Dependencies** | None |
+
+---
+
+## Phase 2: Infrastructure Foundation
+
+*Priority: Before public beta. Complete within 1 week after Phase 1.*
+*Estimated effort: 5-7 days*
+
+### 2.1 Upstash Redis for Semaphore and Rate Limiter
+
+| Review IDs | IV-E1, F1, D7, IV-A6 |
+|------------|----------------------|
+| **Description** | Semaphore and rate limiter use in-memory `Map`. Not durable across restarts, not shared across instances. Semaphore queue promotion bug: `resolve` callbacks are no-ops. Rate limiting only on generate route. |
+| **Decision** | DECISIONS.md Section 7.2: "Move from in-memory Map to Upstash Redis. Free tier covers the use case. Fixes the queue promotion bug." |
+| **Mitigation** | (a) Add `@upstash/redis` dependency. (b) Rewrite `semaphore.ts` to use Redis SET/GET with TTL for active jobs and Redis LIST for queues. This inherently fixes the queue promotion bug since promotion becomes an atomic Redis operation. (c) Rewrite `rate-limit.ts` to use Redis sorted sets with sliding window. (d) Apply rate limiting to all AI-consuming routes: generate, refine, auto-detect, synopsis parse, dataset generate. |
+| **Dependencies** | Need Upstash Redis account + connection string in env vars |
+
+### 2.2 R2 Storage for PDFs and Figures
+
+| Review IDs | IV-E2, C9, D1 |
+|------------|---------------|
+| **Description** | PDFs and R-generated figures stored in `os.tmpdir()`. Lost on restart/deploy. `pdf_url` and `file_url` become dangling references. |
+| **Decision** | N/A -- already planned in PLAN.md |
+| **Mitigation** | (a) After compile, upload PDF to R2 with key `projects/{projectId}/compilations/{compilationId}.pdf`. (b) Store R2 object key in `compilations.pdf_url`. (c) Serve PDFs via signed URL redirect in `preview.pdf` route. (d) After R analysis, upload figure PDFs to R2 with key `projects/{projectId}/figures/{figureId}.pdf`. (e) Store R2 object key in `figures.file_url`. (f) Add R2 cleanup on project deletion (see Phase 9). |
+| **Dependencies** | R2 bucket must be configured. Existing R2 client code in project. |
+
+### 2.3 Environment Variable Validation
+
+| Review ID | IV-E10 |
+|-----------|--------|
+| **Description** | All env vars accessed via `process.env.X!` (non-null assertion). Missing vars produce cryptic errors. |
+| **Decision** | N/A |
+| **Mitigation** | Create `lib/env.ts` with Zod schema validating all required env vars at import time. Import in `next.config.ts` to fail fast at build/startup. Env vars to validate: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `ANTHROPIC_API_KEY`, `R2_*`, `INNGEST_*`, `RAZORPAY_*`, `STRIPE_*`, `SENTRY_DSN`. |
+| **Dependencies** | None |
+
+### 2.4 Stale Compilation Recovery
+
+| Review ID | IV-E3 |
+|-----------|-------|
+| **Description** | If server crashes during compilation, record stuck at `status: "running"` forever, permanently blocking the project. |
+| **Decision** | DECISIONS.md Section 7.1: Inngest for scheduled tasks including stale job cleanup |
+| **Mitigation** | (a) Add a 5-minute staleness window to the "already running" check in compile route: if running compilation is >5 min old, mark it as `failed` and allow new one. (b) Add Inngest cron function (every 5 minutes) that sweeps and marks stale compilations as failed. |
+| **Dependencies** | 2.1 (Redis -- for durable tracking) is ideal but not strictly required |
+
+### 2.5 Inngest Content Overwrite Fix (Architectural)
+
+| Review IDs | E1 (extended from 1.6) |
+|------------|----------------------|
+| **Description** | Beyond the immediate fix in Phase 1, the Inngest workflow needs architectural redesign per DECISIONS.md. |
+| **Decision** | DECISIONS.md Section 7.1: "Use Inngest as the primary orchestrator for AI generation, compilation, scheduled tasks, phase transition workflows" |
+| **Mitigation** | Refactor `thesisPhaseWorkflow` to: (a) Check if section already exists before creating. (b) Add new Inngest functions for compilation and scheduled cleanup. (c) Add `thesis/compile.requested` handler that manages the compile lifecycle. |
+| **Dependencies** | 2.1 (Redis semaphore) for compile orchestration |
+
+### 2.6 Health Check Endpoint
+
+| Review ID | IV-E9 |
+|-----------|-------|
+| **Description** | No `/api/health` endpoint. Required for Coolify monitoring and load balancers. |
+| **Decision** | N/A |
+| **Mitigation** | Create `app/api/health/route.ts` returning `{ status: "ok", timestamp, version }`. Optionally check Supabase connectivity and Redis availability. |
+| **Dependencies** | None |
+
+### 2.7 Replay Protection for Webhooks
+
+| Review ID | I-4 |
+|-----------|-----|
+| **Description** | No Razorpay replay protection (5-minute timestamp check) |
+| **Decision** | N/A |
+| **Mitigation** | In webhook handlers, compare `event.created_at` with current time. Reject events older than 5 minutes. |
+| **Dependencies** | 1.7 (processed_webhooks table) |
+
+### 2.8 Singleton Supabase Admin Client
+
+| Review ID | IV-E5 |
+|-----------|-------|
+| **Description** | `createAdminSupabaseClient()` creates a new client per call. Wasteful and inconsistent. |
+| **Decision** | N/A |
+| **Mitigation** | Make it a module-level singleton. The admin client is stateless and safe to reuse. |
+| **Dependencies** | None |
+
+### 2.9 Middleware Route Coverage
+
+| Review ID | IV-A1 |
+|-----------|-------|
+| **Description** | `/api/checkout`, `/api/synopsis`, `/api/citations`, `/api/inngest` missing from middleware matchers |
+| **Decision** | N/A |
+| **Mitigation** | Add missing route patterns to `middleware.ts` matcher. Inngest routes may need a separate exemption (like webhooks) if they use their own auth. |
+| **Dependencies** | None |
+
+---
+
+## Phase 3: Pricing and Licence System Overhaul
+
+*Priority: Before public beta. Complete within 1-2 weeks after Phase 2.*
+*Estimated effort: 7-10 days*
+
+### 3.1 Implement New Pricing Structure
+
+| Review IDs | IV-B8, IV-B7, IV-B2, X4 |
+|------------|--------------------------|
+| **Description** | Pricing inconsistency between landing, FAQ, and checkout. "Monthly" plans are one-time. Professional provisions 1 licence not 3. Checkout hardcodes prices. |
+| **Decision** | DECISIONS.md Section 1.1-1.5: Complete new pricing structure defined. Student Rs 14,999 one-time or Rs 5,499/mo x3. Professional Rs 39,999 one-time. Addon Rs 3,999/mo. Sandbox: Phase 0-2 free. |
+| **Mitigation** | (a) Create `lib/pricing/config.ts` as single source of truth for all plan metadata (name, price, features, validity). (b) Update landing page pricing section from config. (c) Update checkout page from config. (d) Update FAQ from config. (e) Update `provisionLicence()` to handle professional plan (multiple licences if decided -- DECISIONS.md says Professional is single licence for PhD, not 3). (f) Implement monthly with 3-month minimum commitment via Razorpay subscription or 3 individual payments. (g) Implement phase gate for monthly (max 4 phases/month). |
+| **Dependencies** | External: Razorpay subscription API setup. External: Legal review of terms for monthly commitment. |
+
+### 3.2 Licence Expiry Enforcement
+
+| Review ID | IV-B3 |
+|-----------|-------|
+| **Description** | `expires_at` set at provisioning but never checked. Monthly subscribers get perpetual access. |
+| **Decision** | DECISIONS.md Section 1.2: One-time has 90-day validity. Monthly has per-month validity. |
+| **Mitigation** | (a) Add `checkLicenceExpiry()` function. (b) Call it in all phase-gated API routes. (c) Add Inngest cron job (daily) to mark expired licences as `expired` status. (d) Show expiry warning in UI when <7 days remaining. |
+| **Dependencies** | 2.1 (Inngest cron for scheduled check) |
+
+### 3.3 Licence Gates on AI/Compute Routes
+
+| Review IDs | IV-B4, IV-B10 |
+|------------|---------------|
+| **Description** | Sandbox users can consume AI tokens for phases they shouldn't access. Generate, refine, compile, auto-detect, dataset generate all ungated. Unlimited project creation. |
+| **Decision** | DECISIONS.md Section 1.5: Sandbox = Phase 0-2 only, one active project per user. DECISIONS.md Section 1.6: One licence = one project. |
+| **Mitigation** | (a) Add `checkLicenceForPhase(projectId, phaseNumber)` utility. (b) Apply to all generate, refine, compile routes. (c) Sandbox: allow generate/refine for phases 0-2 only. (d) Limit sandbox users to 1 active project (check on `POST /api/projects`). (e) Licensed users limited by their licence attachment. |
+| **Dependencies** | 3.2 (expiry enforcement) |
+
+### 3.4 Plan-Based Feature Differentiation
+
+| Review IDs | IV-B5, IV-B6 |
+|------------|--------------|
+| **Description** | Professional === Student in features. Hidden addon at Rs 299. |
+| **Decision** | DECISIONS.md Section 1.3: Professional uses Opus model, higher token quota, 180-day validity. DECISIONS.md Section 1.4: Addon scoped to refine/regenerate figures/recompile only. DECISIONS.md Section 1.7: Hidden Rs 299 addon to be repurposed or removed. |
+| **Mitigation** | (a) Add `plan_type` field checking in route handlers for feature differentiation. (b) Professional: route to Opus for Introduction/Discussion, higher token budget. (c) Addon: only allow refine, figure regeneration, recompile -- block new phase generation. (d) Remove or hide the Rs 299 addon plan from API schema validation. |
+| **Dependencies** | 3.1 (pricing config), Phase 5 (Opus model routing) |
+
+### 3.5 Non-Atomic Licence Attachment Fix
+
+| Review ID | IV-B9 |
+|-----------|-------|
+| **Description** | Licence + project updated in separate calls. Failure leaves inconsistent state. |
+| **Decision** | N/A |
+| **Mitigation** | Wrap licence attachment in a Supabase RPC (database function) that performs both updates atomically in a transaction. |
+| **Dependencies** | Supabase migration |
+
+### 3.6 Velocity Rules
+
+| Review ID | I-9 |
+|-----------|-----|
+| **Description** | No >5 licences/30 days check |
+| **Decision** | N/A -- abuse prevention |
+| **Mitigation** | Add velocity check in checkout route: count licences provisioned for user in last 30 days. If >5, hold for manual review. |
+| **Dependencies** | None |
+
+### 3.7 Watermark System Update
+
+| Review IDs | C8 |
+|------------|-----|
+| **Description** | Local compile mode ignores watermark. |
+| **Decision** | DECISIONS.md Section 8.4: Sandbox = "Apollo" diagonal watermark (Playfair Display). Licensed Phase 2-6a = PDF preview only, no download. Licensed Phase 6b+ = small grey footer "Draft - Generated with Apollo". Completed = clean, no branding. |
+| **Mitigation** | (a) Implement watermark logic based on project status and phase in compile pipeline. (b) For local compile mode, apply watermark via `draftwatermark` package (already in Docker). (c) Add download gate: sandbox can download (watermarked), licensed <6b cannot download, licensed >=6b can download (footer), completed can download (clean). |
+| **Dependencies** | None |
+
+### 3.8 Free Reset Before Phase 4
+
+| Review ID | (from DECISIONS.md Section 1.6) |
+|-----------|--------------------------------|
+| **Description** | New feature: students can reset to Phase 0 once per licence if they haven't passed Phase 4. |
+| **Decision** | DECISIONS.md Section 1.6: "Free reset before Phase 4: clears all generated content, once per licence" |
+| **Mitigation** | Add `POST /api/projects/[id]/reset` route. Verify: licence attached, `current_phase < 4`, `reset_count < 1`. Clear all sections, citations, figures. Reset to Phase 0. Increment `reset_count`. |
+| **Dependencies** | 3.3 (licence gates) |
+
+---
+
+## Phase 4: Editor Migration (CodeMirror 6)
+
+*Priority: Critical for content quality. 2-3 weeks after Phase 3.*
+*Estimated effort: 10-14 days*
+
+### 4.1 CodeMirror 6 as Primary Editor
+
+| Review IDs | C1, C2, C3 |
+|------------|------------|
+| **Description** | Round-trip destroys inline math, `\footnote{}`, `\url{}`, `\textsuperscript{}`, `\label{}`. Fundamental architectural issue with Tiptap/Novel for LaTeX content. |
+| **Decision** | DECISIONS.md Section 2: "CodeMirror 6 as Primary Editor (Modified Option C). Make LaTeX canonical." |
+| **Mitigation** | (a) Upgrade existing `LaTeXSourceView` (CodeMirror) to be the primary editor. (b) Add syntax decorations: LaTeX commands in muted colour, distinct font weight. (c) Add citation chips: `\cite{key}` rendered as inline badges with author/year tooltip. (d) Add math preview: inline `$...$` gets MathJax tooltip. (e) Add WYSIWYG toolbar: Bold = `\textbf{}`, Italic = `\textit{}`, etc. (f) Add atomic ranges for `\section{}`, `\begin{}/\end{}`. (g) Add fold markers for complex environments. |
+| **Dependencies** | None -- CodeMirror already in the project |
+
+### 4.2 DB Schema Change
+
+| Review ID | (from DECISIONS.md Section 2) |
+|-----------|------------------------------|
+| **Description** | `latex_content` becomes canonical. `rich_content_json` deprecated. |
+| **Decision** | DECISIONS.md Section 2: "DB schema change: latex_content becomes canonical; rich_content_json deprecated" |
+| **Mitigation** | (a) Stop writing to `rich_content_json` in section save routes. (b) Migration: ensure `latex_content` is populated for all existing sections. (c) Update `SectionEditor` to use CodeMirror with `latex_content`. (d) Keep `rich_content_json` column for backward compat but mark as deprecated. |
+| **Dependencies** | 4.1 (editor component ready) |
+
+### 4.3 Remove Tiptap Round-Trip Code
+
+| Review IDs | C1, C2, C3, C6 |
+|------------|----------------|
+| **Description** | `latexToTiptap()` and `tiptapToLatex()` are the root cause of content destruction. `front-matter.ts` is dead code. |
+| **Decision** | DECISIONS.md Section 2: "Eliminates: latexToTiptap(), tiptapToLatex(), Novel/Tiptap dependency" |
+| **Mitigation** | (a) Update `assemble.ts` to use `latex_content` directly (no round-trip). Still apply `sanitiseChapterLatex()`, `escapeBareAmpersands()`, `normaliseUnicode()`. (b) Remove `latexToTiptap.ts` and `tiptapToLatex.ts`. (c) Remove `front-matter.ts` (dead code per C6). (d) Remove Novel/Tiptap dependencies from `package.json`. |
+| **Dependencies** | 4.1 (editor ready), 4.2 (schema change), all sections must have `latex_content` populated |
+
+---
+
+## Phase 5: AI Pipeline Overhaul
+
+*Priority: Core product quality. 2-3 weeks, can partly overlap with Phase 4.*
+*Estimated effort: 10-14 days*
+
+### 5.1 Unify Word Count Targets
+
+| Review IDs | A5, E6, F2 |
+|------------|------------|
+| **Description** | `prompts.ts`, `word-count-targets.ts`, and `final-qc.ts` all specify different word count ranges. Introduction is 700-1,200 in prompts, 750-1,200 in word-count-targets, 500-750 in final-qc. |
+| **Decision** | DECISIONS.md Section 4.1-4.2: Canonical ranges defined. Single source of truth. |
+| **Mitigation** | (a) Create `lib/phases/word-count-config.ts` with the canonical ranges from DECISIONS.md: Introduction 1,000-1,400, ROL 3,500-5,000, M&M 1,500-2,500, Discussion 2,000-3,500, Conclusion 500-800, Aims 300-500. (b) Include `soft_min`, `soft_max`, `hard_floor` (= soft_min), `hard_ceiling` (= soft_max * 1.15). (c) Import this config in `prompts.ts`, `word-count-targets.ts` (UI), and `final-qc.ts`. (d) Delete duplicated ranges from all three files. |
+| **Dependencies** | None |
+
+### 5.2 Remove Context Truncation
+
+| Review ID | A3 |
+|-----------|-----|
+| **Description** | Previous section context truncated to 3,000 chars. Discussion gets almost no ROL context. |
+| **Decision** | DECISIONS.md Section 3.4: "No truncation. Discussion receives the full ROL, M&M, and Results as context. Extra input token cost (~Rs 30-50) is negligible at Rs 14,999." |
+| **Mitigation** | In `getPhaseUserMessage()`, remove the `.slice(0, 3000)` truncation. Pass full content of previous sections. |
+| **Dependencies** | None |
+
+### 5.3 Token Budget Enforcement for All AI Routes
+
+| Review IDs | A7, E4, F4 |
+|------------|------------|
+| **Description** | Refine, dataset generation, synopsis parsing, auto-detect all bypass `checkTokenBudget()` and `recordTokenUsage()`. |
+| **Decision** | N/A -- cost control |
+| **Mitigation** | Add `checkTokenBudget()` check and `recordTokenUsage()` recording to: (a) `refine/route.ts` (b) `datasets/generate/route.ts` (c) `synopsis/parse/route.ts` (d) `analyses/auto-detect/route.ts`. Separate input vs output token tracking per A8. |
+| **Dependencies** | None |
+
+### 5.4 Separate Input/Output Token Tracking
+
+| Review ID | A8 |
+|-----------|-----|
+| **Description** | Budget combines input and output tokens, making budget artificially tight. |
+| **Decision** | N/A |
+| **Mitigation** | Update `recordTokenUsage()` to track `input_tokens` and `output_tokens` separately. Budget limits apply to output tokens only. |
+| **Dependencies** | 5.3 |
+
+### 5.5 Add Phase 9 (References) Prompt
+
+| Review ID | A1 |
+|-----------|-----|
+| **Description** | `getPhaseSystemPrompt()` has no `case 9`. References phase either skipped or handled only by BibTeX aggregation. |
+| **Decision** | DECISIONS.md Section 3.1: "AI reviews all BibTeX entries for: duplicates, formatting consistency, missing fields, Vancouver style compliance. Not pure aggregation." |
+| **Mitigation** | Add `REFERENCES_CONSOLIDATION_PROMPT` to `prompts.ts`. Add `case 9` in `getPhaseSystemPrompt()`. The AI validates and consolidates all BibTeX entries, flags issues. |
+| **Dependencies** | None |
+
+### 5.6 AI-Powered Section Review
+
+| Review IDs | A10, A11 |
+|------------|----------|
+| **Description** | `reviewSection()` is purely rule-based regex. No AI evaluation of content quality. M&M check requires 8 sections but prompt mandates 12. |
+| **Decision** | DECISIONS.md Section 3.2: "Claude evaluates content quality before approval: knowledge gaps, logical flow, citation adequacy, methodology rigour. ~2K tokens per review." |
+| **Mitigation** | (a) Rewrite `review-section.ts` to call Claude (Haiku for cost) with a review prompt. (b) Keep basic regex checks as fast pre-flight (British English, word count). (c) AI review evaluates quality dimensions. (d) Unify M&M section count requirement to 12 (NBEMS standard). |
+| **Dependencies** | 5.3 (token budget tracking -- review tokens should be tracked too) |
+
+### 5.7 Opus Model Routing
+
+| Review ID | A12 |
+|-----------|-----|
+| **Description** | Both branches return Sonnet 4.5. Dead conditional. |
+| **Decision** | DECISIONS.md Section 3.3: "Opus for Introduction (Phase 2) and Discussion (Phase 7). Sonnet 4.5 for all other phases." |
+| **Mitigation** | In generate route, route to `claude-opus-4-5-20250610` for phases 2 and 7. Route to `claude-sonnet-4-5-20250514` for all others. Gate Opus behind Professional plan check per 3.4. |
+| **Dependencies** | 3.4 (plan-based feature differentiation) |
+
+### 5.8 Add Unicode Avoidance to COMMON_RULES
+
+| Review IDs | A4, F3 |
+|------------|--------|
+| **Description** | Despite Unicode being a critical BibTeX-breaking issue, COMMON_RULES never warns the AI. |
+| **Decision** | N/A |
+| **Mitigation** | Add rule to `COMMON_RULES` in `prompts.ts`: "NEVER use Unicode characters (em-dash, smart quotes, accented characters). Use LaTeX equivalents: --- for em-dash, `` and '' for quotes, \'{e} for accented characters." |
+| **Dependencies** | None |
+
+### 5.9 Anthropic Client Retry Configuration
+
+| Review ID | A13, A14 |
+|-----------|----------|
+| **Description** | No `maxRetries` or `timeout` on Anthropic client. Multiple standalone instances bypass singleton. |
+| **Decision** | N/A |
+| **Mitigation** | (a) Configure `getAnthropicClient()` with `{ maxRetries: 3, timeout: 120_000 }`. (b) Update `datasets/generate.ts` and `compliance/checker.ts` to use `getAnthropicClient()` instead of `new Anthropic()`. |
+| **Dependencies** | None |
+
+### 5.10 AI Generation via Inngest with Live Preview
+
+| Review ID | IV-E4 |
+|-----------|-------|
+| **Description** | Current long-lived SSE stream is fragile on Indian mobile networks. |
+| **Decision** | DECISIONS.md Section 3.5: "AI generation runs as Inngest background jobs. If student stays on page: live text preview via Supabase Realtime. If student closes tab: generation continues." |
+| **Mitigation** | (a) Create `inngest/functions/ai-generate.ts` that runs AI generation server-side. (b) Write streaming chunks to a Supabase Realtime channel or `sections.streaming_content` column. (c) Change `POST /generate` to enqueue Inngest job, return `job_id`. (d) Frontend subscribes to Realtime channel for live preview. (e) On completion, Inngest function writes final content to `sections.latex_content`. |
+| **Dependencies** | 2.1 (Redis), 2.5 (Inngest architecture) |
+
+### 5.11 Refine Route Token Budget and State Management
+
+| Review IDs | E4, E5 |
+|------------|--------|
+| **Description** | Refine bypasses token budget. Refining an approved section changes status to "review" without rolling back `phases_completed`. |
+| **Decision** | DECISIONS.md Section 4.3: Refine rules defined (shortening, lengthening, ceiling) |
+| **Mitigation** | (a) Add `checkTokenBudget()` and `recordTokenUsage()` to refine route (covered by 5.3). (b) When refining an approved section, either: keep status as "approved" (if changes are cosmetic), or rollback `phases_completed` to remove the phase, or add a separate "refined" status. Decision: rollback `phases_completed` since the content has changed and needs re-approval. |
+| **Dependencies** | 5.3 |
+
+### 5.12 Orphan Cite Key Stripping
+
+| Review ID | B1 |
+|-----------|-----|
+| **Description** | Cite keys with no DB record at all survive as `\cite{key}` in compiled output. Only keys with Tier D records are stripped. |
+| **Decision** | N/A |
+| **Mitigation** | In `assembleThesisContent()`, after collecting all valid cite keys from the citations table, also strip any `\cite{key}` in chapter bodies where `key` has no record in the citations table at all. Add to `stripTierDCitations()` or create a separate pass. |
+| **Dependencies** | None |
+
+### 5.13 Citation Pipeline Improvements
+
+| Review IDs | B2, B3, B5 |
+|------------|------------|
+| **Description** | No retry logic for API failures. Re-resolve lacks title verification. Timeout budget mismatch for ROL. |
+| **Decision** | N/A |
+| **Mitigation** | (a) Add exponential backoff retry (3 attempts) for CrossRef/PubMed calls. (b) In re-resolve route, add Levenshtein title similarity check (0.85 threshold) matching main resolver. (c) Increase resolution timeout for phases with many citations (ROL: 45 seconds instead of 15). |
+| **Dependencies** | None |
+
+### 5.14 Batch Citation Upserts
+
+| Review ID | IV-E6 |
+|-----------|-------|
+| **Description** | N+1 individual upserts per citation. 30+ sequential DB round-trips for ROL. |
+| **Decision** | N/A |
+| **Mitigation** | Collect all citation records and use single `supabase.from("citations").upsert(citationArray)` call. |
+| **Dependencies** | None |
+
+### 5.15 Synopsis Parse Prompt Deduplication
+
+| Review ID | A6 |
+|-----------|-----|
+| **Description** | Two different synopsis parse prompts extracting different fields. |
+| **Decision** | N/A |
+| **Mitigation** | Consolidate into single prompt in `prompts.ts`. Use it from both locations. |
+| **Dependencies** | None |
+
+---
+
+## Phase 6: Phase 6a/6b Restructure and Analysis Pipeline
+
+*Priority: Core feature. 2 weeks after Phase 5.*
+*Estimated effort: 10-14 days*
+
+### 6.1 Split Phase 6 into 6a (Dataset + Analysis Planning) and 6b (Results)
+
+| Review IDs | A2, E8 |
+|------------|--------|
+| **Description** | PLAN specifies 6a/6b as separate phases. Constants collapse them into single Phase 6. Users can generate Results without uploading a dataset. |
+| **Decision** | DECISIONS.md Section 5.1: Detailed 6a and 6b workflow defined. 6a = dataset + AI analysis planning. 6b = execute analyses + generate Results chapter. |
+| **Mitigation** | (a) Update `PHASES` in `constants.ts` to include separate 6a (index 6) and 6b (index 7, shifting all subsequent phases by 1). OR keep numeric IDs 0-11 but add sub-phase logic: Phase 6 has `sub_phase: "a" | "b"`. The latter is less disruptive. (b) Phase 6a approval requires: dataset uploaded OR AI-generated, analysis plan approved. (c) Phase 6b: execute analyses, generate figures/tables, generate Results text. (d) Update `getPhaseSystemPrompt()` for 6a (analysis planning prompt) and 6b (results writing prompt). |
+| **Dependencies** | 5.1 (word count config -- needs 6a/6b entries) |
+
+### 6.2 AI-Driven Analysis Planning
+
+| Review ID | (from DECISIONS.md Section 5.1) |
+|-----------|--------------------------------|
+| **Description** | New feature: AI reads synopsis objectives and ROL to determine required analyses per objective. |
+| **Decision** | DECISIONS.md Section 5.1: "AI determines required analyses per objective (driven by research questions, not just what's statistically possible). Student reviews the analysis plan." |
+| **Mitigation** | (a) Create analysis planning prompt that takes synopsis objectives + ROL content and outputs a structured analysis plan (JSON: analysis_type, variables, expected_output, rationale). (b) Create UI for student to review/modify the plan. (c) Use plan as the source of truth for Phase 6b execution. |
+| **Dependencies** | 6.1 |
+
+### 6.3 AI-Anchored Synthetic Dataset Generation
+
+| Review ID | (from DECISIONS.md Section 5.1) |
+|-----------|--------------------------------|
+| **Description** | When AI generates synthetic dataset, numbers should be anchored to ROL-cited evidence. |
+| **Decision** | DECISIONS.md Section 5.1: "Numbers anchored to ROL-cited evidence. Realistic mix of significant and non-significant results. Plausible outliers and missing data." |
+| **Mitigation** | Update dataset generation prompt to reference ROL findings (means, SDs, prevalence, effect sizes from prior studies). Instruct AI to generate plausible data, not all-significant results. |
+| **Dependencies** | 6.1, 6.2 |
+
+### 6.4 Figure/Table QC Gates
+
+| Review IDs | D5 |
+|------------|-----|
+| **Description** | No validation gate checks for minimum figures or tables. |
+| **Decision** | DECISIONS.md Section 5.3: Minimum 5 figures, 7 tables for Results. Analysis plan match enforced. |
+| **Mitigation** | (a) Add figure/table count check to Phase 6b approval. (b) Add to `finalQC()` checks. (c) Check analysis plan completeness: every planned figure/table must exist. |
+| **Dependencies** | 6.1, 6.2, Phase 7 (Final QC UI) |
+
+### 6.5 Figure Download and Preview
+
+| Review IDs | D2, D3, W11 |
+|------------|-------------|
+| **Description** | No PDF figure preview in UI. No figure download endpoint. No dataset download button. |
+| **Decision** | N/A |
+| **Mitigation** | (a) Create `GET /api/projects/[id]/figures/[fid]/download` route serving figure binary via R2 signed URL. (b) In `FigureGallery`, render PDF figures using `<iframe>` or react-pdf single-page preview instead of BarChart3 placeholder. (c) Add download button to each figure. (d) Wire dataset download button in `DatasetUpload` component to `GET /api/projects/[id]/datasets/[did]/download`. |
+| **Dependencies** | 2.2 (R2 storage for figures) |
+
+### 6.6 Subfigure Support
+
+| Review ID | D6 |
+|-----------|-----|
+| **Description** | Meta-analysis produces two PDFs (forest + funnel). No mechanism to combine as subfigure. |
+| **Decision** | DECISIONS.md Section 8.7: "Add subcaption LaTeX package. Meta-analysis forest + funnel as Figure X(a) and X(b)." |
+| **Mitigation** | (a) Add `subcaption` to `tlmgr install` in `Dockerfile.latex`. (b) In Results chapter generation, when an analysis produces multiple figures, use `\begin{figure}...\begin{subfigure}` environment. (c) Load `subcaption` in `generate-tex.ts` extra packages. |
+| **Dependencies** | 2.2 (R2 for figures), Docker rebuild |
+
+### 6.7 Chart Type and Colour Scheme in UI
+
+| Review ID | D8 |
+|-----------|-----|
+| **Description** | R code supports `chart_type` and `colour_scheme` but not exposed in analysis wizard UI. |
+| **Decision** | DECISIONS.md Section 7.3: "Expose both chart type AND colour scheme in the analysis wizard UI." |
+| **Mitigation** | Add chart type selector (box vs violin, bar vs heatmap, etc.) and colour scheme picker to `AnalysisWizard` component. Pass selections through to R Plumber API. |
+| **Dependencies** | None |
+
+### 6.8 Descriptive Analysis Figure
+
+| Review ID | D4 |
+|-----------|-----|
+| **Description** | Descriptive analysis only produces Table 1. No demographics figure. |
+| **Decision** | DECISIONS.md Section 5.2: "Demographics NOT confined to single Table 1 + single figure. AI logically splits across multiple tables and figures." |
+| **Mitigation** | Update `/descriptive` R endpoint to also produce a demographics bar chart or histogram. Return it in the `figures` array alongside the table. |
+| **Dependencies** | Docker R container rebuild |
+
+### 6.9 Per-Analysis-Type Runtime Limits
+
+| Review ID | I-6 |
+|-----------|-----|
+| **Description** | Semaphore exists but per-type timeouts (15s-60s) not enforced at route level. |
+| **Decision** | N/A |
+| **Mitigation** | Define timeout map: `{ descriptive: 15000, "chi-square": 20000, "t-test": 20000, correlation: 20000, survival: 30000, roc: 30000, logistic: 30000, kruskal: 20000, "meta-analysis": 60000 }`. Apply `AbortSignal.timeout(ms)` or equivalent in `analysis-runner.ts`. |
+| **Dependencies** | 2.1 (Redis semaphore replaces in-memory) |
+
+---
+
+## Phase 7: Phase 11 Final QC and Completion Flow
+
+*Priority: Critical for thesis completion. 1-2 weeks after Phase 6.*
+*Estimated effort: 7-10 days*
+
+### 7.1 Final QC Dashboard Component
+
+| Review IDs | W3, W4, C-III-4 |
+|------------|-----------------|
+| **Description** | Phase 11 (Final QC) has no UI. QC routes exist but never called from frontend. No QC button, no fix button, no dedicated dashboard. |
+| **Decision** | N/A -- blocking gap for thesis completion |
+| **Mitigation** | Create `components/project/final-qc-dashboard.tsx`: (a) Renders when `viewingPhase === 11` (replaces regular editor). (b) "Run Final QC" button calls `POST /api/projects/[id]/qc`. (c) Displays pass/fail for each QC item (word count, citations, compliance, undefined refs, bibliography). (d) "Auto-Fix" button for fixable items calls `POST /api/projects/[id]/qc/fix`. (e) Blocks "Complete Thesis" button if any blocking QC item fails. (f) On all pass: "Complete Thesis" calls approve endpoint which sets `project.status = "completed"`. |
+| **Dependencies** | 5.1 (unified word count targets), 5.12 (orphan cite key stripping) |
+
+### 7.2 Phase 11 Approval Must Check QC
+
+| Review ID | E2 |
+|-----------|-----|
+| **Description** | Users can approve Phase 11 and complete thesis even with blocking QC failures. |
+| **Decision** | N/A |
+| **Mitigation** | In the approve route, when `phaseNumber === 11`: call `finalQC()` and check `overallPass`. If false, return 400 with QC report. Only allow completion if QC passes. |
+| **Dependencies** | 7.1 |
+
+### 7.3 Fix `canAdvancePhase` Dead Code
+
+| Review ID | E3 |
+|-----------|-----|
+| **Description** | Approve route always passes literal `"approved"`, not actual section status. |
+| **Decision** | N/A |
+| **Mitigation** | Pass the actual section status from the database to `canAdvancePhase()`. |
+| **Dependencies** | None |
+
+### 7.4 Undefined References Check Fix
+
+| Review ID | E7 |
+|-----------|-----|
+| **Description** | `checkUndefinedReferences` returns `pass: true` when no compile log exists. |
+| **Decision** | N/A |
+| **Mitigation** | Change to return `status: "warn"` with message "No compile log available -- compile required before final QC" when `compileLog` is null. The check should be blocking: require a recent successful compilation before Phase 11 approval. |
+| **Dependencies** | None |
+
+### 7.5 ThesisCompletion Flow
+
+| Review ID | (from Part III Section D) |
+|-----------|--------------------------|
+| **Description** | `ThesisCompletion` exists but only shown when `project.status === "completed"`. No transition logic. |
+| **Decision** | N/A |
+| **Mitigation** | (a) After Phase 11 approval (QC passed), set `project.status = "completed"` in database. (b) Render `ThesisCompletion` celebration UI. (c) Show `ExportMenu` within ThesisCompletion. |
+| **Dependencies** | 7.1, 7.2 |
+
+### 7.6 Appendices Template Fix
+
+| Review ID | C4 |
+|-----------|-----|
+| **Description** | `assembleThesisContent()` generates `chapters/appendices.tex` but `main.tex` never `\input`s it. |
+| **Decision** | N/A |
+| **Mitigation** | Looking at `templates/main.tex`, the annexures section has placeholder content. The Phase 10 appendices content should be injected into the appropriate `\annexurechapter{}` sections. Update `assembleThesisContent()` to inject appendices content into the annexures placeholders in `main.tex`, OR add `\input{chapters/appendices}` after the annexurematter section. |
+| **Dependencies** | None |
+
+### 7.7 Abbreviations Injection
+
+| Review ID | C5 |
+|-----------|-----|
+| **Description** | `generateAbbreviationsLatex()` exists but never called. User-entered abbreviations never appear in compiled thesis. |
+| **Decision** | N/A |
+| **Mitigation** | In `assembleThesisContent()`, call `generateAbbreviationsLatex()` to produce abbreviation table content. Inject into the `\begin{abbreviations}...\end{abbreviations}` environment in `main.tex`. |
+| **Dependencies** | None |
+
+### 7.8 `mathrsfs` Package in Docker
+
+| Review ID | C7 |
+|-----------|-----|
+| **Description** | `generate-tex.ts` adds `\usepackage{mathrsfs}` but package not installed in Docker. |
+| **Decision** | N/A |
+| **Mitigation** | Add `mathrsfs` to the `tlmgr install` list in `Dockerfile.latex`. |
+| **Dependencies** | Docker image rebuild |
+
+---
+
+## Phase 8: Frontend Integration and Polish
+
+*Priority: Before launch. 1-2 weeks, can overlap with Phase 7.*
+*Estimated effort: 7-10 days*
+
+### 8.1 ExportMenu in Workspace
+
+| Review IDs | W5, W6, W7, W8, C-III-5 |
+|------------|--------------------------|
+| **Description** | ExportMenu exists but only rendered in ThesisCompletion, not during regular editing. |
+| **Decision** | DECISIONS.md Section 8.4: Export access varies by status/phase. Licensed Phase 6b+ gets full export. |
+| **Mitigation** | (a) Add `ExportMenu` to workspace toolbar, gated by licence status and phase. (b) Sandbox: PDF download only (watermarked). (c) Licensed <6b: PDF preview only. (d) Licensed >=6b: full export. (e) Completed: full export, clean. |
+| **Dependencies** | 3.3 (licence gates), 3.7 (watermark system) |
+
+### 8.2 React Error Boundary
+
+| Review ID | X2 |
+|-----------|-----|
+| **Description** | No error boundary in workspace. Crash in any child takes down entire workspace. |
+| **Decision** | N/A |
+| **Mitigation** | Wrap workspace child components in `<ErrorBoundary>` with fallback UI showing error message and "Reload" button. |
+| **Dependencies** | None |
+
+### 8.3 Onboarding Tour
+
+| Review ID | M3 |
+|-----------|-----|
+| **Description** | `tour-overlay.tsx` exists but not rendered in any page/layout. |
+| **Decision** | DECISIONS.md Section 8.3: "Wire up existing tour-overlay.tsx. Show on first visit to workspace. Walk through: editor, pipeline timeline, citation panel, compile button." |
+| **Mitigation** | (a) Import and render `TourOverlay` in workspace layout. (b) Use localStorage flag `tour_completed` to show only once. (c) Define tour steps: editor panel, pipeline timeline, citation panel, compile button, PDF preview. |
+| **Dependencies** | None |
+
+### 8.4 Compilation History in Progress Tab
+
+| Review ID | W2 |
+|-----------|-----|
+| **Description** | Compilation history API route exists but never displayed. |
+| **Decision** | DECISIONS.md Section 8.5: "Show last 3 compilations in the Progress tab." |
+| **Mitigation** | In `ProgressDashboard`, fetch last 3 compilations via `GET /api/projects/[id]/compilations`. Display timestamp, status, warning count. |
+| **Dependencies** | None |
+
+### 8.5 Duplicate CitationSearchDialog
+
+| Review ID | C-III-1 |
+|-----------|---------|
+| **Description** | Rendered in both workspace and SectionEditor. |
+| **Decision** | N/A |
+| **Mitigation** | Remove the instance in SectionEditor. Use workspace-level state consistently. |
+| **Dependencies** | None |
+
+### 8.6 Licence Transfer
+
+| Review ID | W10 |
+|-----------|-----|
+| **Description** | Licence transfer UI missing entirely. |
+| **Decision** | DECISIONS.md Section 8.6: "Admin-only. No self-service transfer UI. Students contact support." |
+| **Mitigation** | No UI needed. Add admin-only transfer endpoint if not already present. Document support process. |
+| **Dependencies** | None |
+
+### 8.7 XSS Fix in Title Page Preview
+
+| Review ID | IV-A4 |
+|-----------|-------|
+| **Description** | `dangerouslySetInnerHTML` in `title-page-preview.tsx` without sanitisation. |
+| **Decision** | N/A |
+| **Mitigation** | Sanitise HTML with `DOMPurify` before setting innerHTML, or replace with React rendering. |
+| **Dependencies** | None |
+
+### 8.8 Content-Disposition Header Fix
+
+| Review ID | IV-A5 |
+|-----------|-------|
+| **Description** | DOCX export interpolates `project.title` in header without encoding. |
+| **Decision** | N/A |
+| **Mitigation** | Encode `project.title` using `encodeURIComponent()` for the filename in Content-Disposition header. |
+| **Dependencies** | None |
+
+### 8.9 Editor Toggle Visibility
+
+| Review ID | C-III-2 |
+|-----------|---------|
+| **Description** | Editor mode toggle visible when section is non-editable. |
+| **Decision** | N/A |
+| **Mitigation** | Hide toggle buttons when `!isEditable` (section is approved/generating). |
+| **Dependencies** | None |
+
+### 8.10 Mobile Tab Reset Fix
+
+| Review ID | C-III-3 |
+|-----------|---------|
+| **Description** | `mobileTab` resets to "edit" on phase change. |
+| **Decision** | N/A |
+| **Mitigation** | Persist `mobileTab` selection across phase changes. Only reset on workspace entry. |
+| **Dependencies** | None |
+
+### 8.11 Phase Navigation Loading State
+
+| Review ID | X1 |
+|-----------|-----|
+| **Description** | No skeleton/spinner when navigating between phases. |
+| **Decision** | N/A |
+| **Mitigation** | Add loading skeleton to editor panel while section data loads after `setViewingPhase()`. |
+| **Dependencies** | None |
+
+### 8.12 File Upload Size Enforcement
+
+| Review IDs | IV-A7, IV-A8 |
+|------------|--------------|
+| **Description** | File size not enforced on R2 signed URLs. Dataset upload has no size check. |
+| **Decision** | N/A |
+| **Mitigation** | (a) Pass `ContentLength` constraint in R2 signed URL generation. (b) Add `MAX_FILE_SIZE` check in dataset upload route before reading FormData. |
+| **Dependencies** | None |
+
+### 8.13 R Plumber Authentication
+
+| Review ID | IV-A8 (Docker) |
+|-----------|----------------|
+| **Description** | Port 8787 accessible to any process that can reach it. No inter-service authentication. |
+| **Decision** | N/A |
+| **Mitigation** | Add shared secret authentication: `X-Service-Auth` header checked by R Plumber. Secret set via env var in both containers. |
+| **Dependencies** | Docker compose update |
+
+### 8.14 Review System PDF Access
+
+| Review ID | IV-C6 |
+|-----------|-------|
+| **Description** | Review system provides PDF URL that reviewers cannot access (requires auth). |
+| **Decision** | N/A |
+| **Mitigation** | Generate a time-limited R2 signed URL for the PDF and include it in the review page. Or serve PDF through the review token authentication path. |
+| **Dependencies** | 2.2 (R2 for PDFs) |
+
+---
+
+## Phase 9: Privacy and Compliance
+
+*Priority: Before GA launch. 1-2 weeks, can partly overlap with Phase 8.*
+*Estimated effort: 7-10 days*
+
+### 9.1 Privacy Policy and Terms of Service Pages
+
+| Review IDs | IV-D4, IV-D5 |
+|------------|--------------|
+| **Description** | Footer links to `/privacy` and `/terms` are dead links. |
+| **Decision** | N/A -- legal requirement |
+| **Mitigation** | (a) Create `/privacy` page with comprehensive privacy policy covering: data collected, AI processing, cross-border transfers, retention, user rights. (b) Create `/terms` page with terms of service. (c) Update footer links. |
+| **Dependencies** | External: Legal counsel review of privacy policy text |
+
+### 9.2 Account Deletion Flow
+
+| Review ID | IV-D6 |
+|-----------|-------|
+| **Description** | No "Delete My Account" endpoint or page. DPDP Act Section 12(1) right to erasure. |
+| **Decision** | DECISIONS.md Section 6.3: "7-day cooling-off period. Mark for deletion, disable login, purge after 7 days." |
+| **Mitigation** | (a) Create `POST /api/account/delete` that marks account for deletion with `deletion_requested_at` timestamp. (b) Disable login for marked accounts. (c) Add Inngest cron job (daily) to purge accounts where `deletion_requested_at + 7 days < now()`. (d) Cascade delete: all projects, sections, citations, figures, datasets, AI conversations, audit logs. (e) Delete R2 objects (PDFs, figures, datasets). (f) Delete Clerk user. (g) Add "Delete Account" button in settings/profile area. |
+| **Dependencies** | 2.2 (R2 cleanup), External: support email for cancellation requests |
+
+### 9.3 AI Processing Consent
+
+| Review ID | IV-D7 |
+|-----------|-------|
+| **Description** | No consent flow informing users their content will be processed by US-based AI services. |
+| **Decision** | N/A -- legal requirement |
+| **Mitigation** | (a) Add consent checkbox at project creation: "I understand my thesis content will be processed by AI services hosted outside India for generation purposes." (b) Store consent timestamp in `users` table. (c) Display consent in privacy policy. |
+| **Dependencies** | 9.1 (privacy policy must exist first) |
+
+### 9.4 Cookie Consent Banner
+
+| Review ID | IV-D12 |
+|-----------|--------|
+| **Description** | No cookie consent banner. PostHog analytics opt-out only. |
+| **Decision** | N/A -- legal requirement |
+| **Mitigation** | Add cookie consent banner. PostHog should be opt-in: initialise only after consent. Store consent preference in cookie/localStorage. |
+| **Dependencies** | None |
+
+### 9.5 Medical Data Warning at Synopsis Upload
+
+| Review ID | IV-D (from DECISIONS.md Section 6.1) |
+|-----------|--------------------------------------|
+| **Description** | Students may upload synopsis or datasets containing patient data. |
+| **Decision** | DECISIONS.md Section 6.1: "Warning banner at synopsis upload. Lightweight AI scan flagging potential patient identifiers." |
+| **Mitigation** | (a) Add warning banner at synopsis upload step reminding students to anonymise patient data. (b) Implement lightweight AI scan (Haiku) on synopsis text flagging potential PII (names, MRNs, DOBs). (c) Show flagged items for student review before proceeding. |
+| **Dependencies** | None |
+
+### 9.6 Dataset PII Scanner
+
+| Review ID | IV-D10 |
+|-----------|--------|
+| **Description** | Governance doc claims "Validate for PII patterns on upload" but no implementation. |
+| **Decision** | DECISIONS.md Section 6.1 implies this |
+| **Mitigation** | On dataset upload, scan column names and sample values for PII patterns (names, phone numbers, Aadhaar, MRNs). Flag for student review. |
+| **Dependencies** | None |
+
+### 9.7 Audit Log Cascade Delete
+
+| Review ID | IV-D11 |
+|-----------|--------|
+| **Description** | `audit_log.project_id` is not `ON DELETE CASCADE`. Audit logs with PII persist after project deletion. |
+| **Decision** | N/A |
+| **Mitigation** | Add migration: `ALTER TABLE audit_log ADD CONSTRAINT fk_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`. |
+| **Dependencies** | Supabase migration |
+
+### 9.8 Data Retention Auto-Purge
+
+| Review ID | IV-D8 |
+|-----------|-------|
+| **Description** | Governance doc defines schedules (90-day AI conversations, 2-year audit logs). None implemented. |
+| **Decision** | DECISIONS.md Section 6.2: "Deferred to post-launch. Governance doc schedules remain the target but implementation is not a launch blocker." |
+| **Mitigation** | DEFERRED. Track as post-launch task. When implemented: Inngest cron jobs for periodic purge. |
+| **Dependencies** | N/A (deferred) |
+
+### 9.9 R2 Cleanup on Project Deletion
+
+| Review IDs | (IV-D, implied) |
+|------------|-----------------|
+| **Description** | No R2 file cleanup when project is deleted. PDFs, figures, datasets persist as orphans. |
+| **Decision** | N/A |
+| **Mitigation** | In project deletion handler, list and delete all R2 objects with prefix `projects/{projectId}/`. |
+| **Dependencies** | 2.2 (R2 storage must be active) |
+
+### 9.10 AI Output PII Check
+
+| Review IDs | A15, IV-D (implied) |
+|------------|---------------------|
+| **Description** | Redaction runs only on input. AI output could hallucinate PII. |
+| **Decision** | N/A |
+| **Mitigation** | Apply `redactPII()` to AI-generated content before storing. Flag if PII patterns detected in output. |
+| **Dependencies** | None |
+
+---
+
+## Phase 10: Docker Hardening
+
+*Priority: Before GA launch. 3-5 days, can overlap with Phase 9.*
+*Estimated effort: 3-5 days*
+
+### 10.1 Docker Seccomp Profile
+
+| Review ID | I-5 |
+|-----------|-----|
+| **Description** | `seccomp:unconfined` instead of proper seccomp profile on containers. |
+| **Decision** | N/A |
+| **Mitigation** | Create `docker/seccomp-latex.json` and `docker/seccomp-r.json` with restricted syscall sets. Apply in `docker-compose.yml` via `security_opt: ["seccomp:./docker/seccomp-latex.json"]`. |
+| **Dependencies** | Testing on Hetzner VPS |
+
+### 10.2 AppArmor Profile for R Container
+
+| Review ID | I-13 |
+|-----------|------|
+| **Description** | R container has no AppArmor profile. |
+| **Decision** | N/A |
+| **Mitigation** | Create AppArmor profile restricting R container to: read /thesis, write /tmp, network access to host only. Apply in `docker-compose.yml`. |
+| **Dependencies** | Testing on Hetzner VPS (AppArmor must be available) |
+
+### 10.3 LaTeX Container Network Isolation
+
+| Review ID | I-12 |
+|-----------|------|
+| **Description** | LaTeX container has port 3001 exposed. PLAN requires `--network=none`. |
+| **Decision** | N/A |
+| **Mitigation** | Review whether LaTeX container needs any network access. If not, set `network_mode: none` in docker-compose. If it needs to receive compilation requests, use internal Docker network only (not exposed ports). |
+| **Dependencies** | None |
+
+### 10.4 Add `mathrsfs` and `subcaption` to Dockerfile
+
+| Review IDs | C7, D6 |
+|------------|--------|
+| **Description** | `mathrsfs` package used but not installed. `subcaption` needed for subfigures. |
+| **Decision** | DECISIONS.md Section 8.7 (subcaption) |
+| **Mitigation** | Add `mathrsfs` and `subcaption` to `tlmgr install` in `Dockerfile.latex`. Rebuild image. |
+| **Dependencies** | None |
+
+---
+
+## Phase 11: Cleanup and Testing
+
+*Priority: Before GA launch. 1 week, final phase.*
+*Estimated effort: 5-7 days*
+
+### 11.1 Fix All Lint Warnings
+
+| Review ID | I-8 |
+|-----------|-----|
+| **Description** | 15 lint warnings: unused vars (7), missing alt props (3), unused imports (5). |
+| **Decision** | N/A |
+| **Mitigation** | Fix all 15 items listed in Part I Section 5. Remove unused imports, add `alt` props, change `let` to `const` or remove unused variables. |
+| **Dependencies** | None |
+
+### 11.2 Remove Dead Code
+
+| Review IDs | C6, DC-1, DC-2 |
+|------------|----------------|
+| **Description** | `front-matter.ts` is dead code (removed in Phase 4). `phase-stepper.tsx` deprecated. `app-sidebar.tsx` may be unused. |
+| **Decision** | N/A |
+| **Mitigation** | (a) Delete `phase-stepper.tsx`. (b) Investigate `app-sidebar.tsx` -- if unused, delete. (c) After Phase 4, delete `front-matter.ts`, `latexToTiptap.ts`, `tiptapToLatex.ts`. |
+| **Dependencies** | Phase 4 (editor migration must be complete before removing round-trip code) |
+
+### 11.3 Deduplicate AMERICAN_TO_BRITISH Dictionary
+
+| Review ID | E13 |
+|-----------|-----|
+| **Description** | Same dictionary in `review-section.ts`, `final-qc.ts`, and QC fix route. Missing medical terms. |
+| **Decision** | N/A |
+| **Mitigation** | (a) Create `lib/i18n/british-english.ts` with comprehensive dictionary. (b) Add medical terms: gynecology/gynaecology, hematology/haematology, edema/oedema, diarrhea/diarrhoea, leukocyte/leucocyte, anemia/anaemia, hemorrhage/haemorrhage. (c) Import from all three locations. |
+| **Dependencies** | None |
+
+### 11.4 Fix `phases_completed` Duplicates
+
+| Review ID | E11 |
+|-----------|-----|
+| **Description** | No deduplication when appending to `phases_completed` array. |
+| **Decision** | N/A |
+| **Mitigation** | Before appending, check if phase already exists in array. Use `Array.from(new Set([...existing, newPhase]))`. |
+| **Dependencies** | None |
+
+### 11.5 Spelling Fix Should Update Both Columns
+
+| Review ID | E12 |
+|-----------|-----|
+| **Description** | QC auto-fix for spelling only updates `latex_content`, not `rich_content_json`. |
+| **Decision** | N/A -- moot after Phase 4 |
+| **Mitigation** | After Phase 4 (CodeMirror migration), `rich_content_json` is deprecated, so this fix is automatically resolved. If Phase 4 is not yet complete when this is reached, update both columns. |
+| **Dependencies** | Phase 4 |
+
+### 11.6 Warning Budget Enforcement
+
+| Review ID | C10 |
+|-----------|-----|
+| **Description** | CLAUDE.md says "<=20 warnings tolerated" but not enforced in code. |
+| **Decision** | N/A |
+| **Mitigation** | In compile route, after compilation, count warnings. If >20, set compilation status to `failed` with message "Exceeded warning budget". |
+| **Dependencies** | None |
+
+### 11.7 Brace-Checking Bug Fix
+
+| Review ID | C12 |
+|-----------|-----|
+| **Description** | Fails for `\\{` (double backslash + brace). |
+| **Decision** | N/A |
+| **Mitigation** | Update the brace-checking logic in `validate.ts` to properly handle `\\{` (escaped backslash before literal brace). |
+| **Dependencies** | None |
+
+### 11.8 Pre-Seeded References Persistence
+
+| Review ID | B4 |
+|-----------|-----|
+| **Description** | Pre-seeded references only in AI prompt, not persisted to DB. |
+| **Decision** | N/A |
+| **Mitigation** | Persist pre-seeded PubMed references to citations table as Tier A (they have DOIs) before generation. This ensures they survive even if AI truncates the BibTeX trailer. |
+| **Dependencies** | None |
+
+### 11.9 Database Migration Tracking
+
+| Review ID | I-14 |
+|-----------|------|
+| **Description** | Only 3 incremental migrations found. Core schema may have drift. |
+| **Decision** | N/A |
+| **Mitigation** | Export current Supabase schema as baseline migration. Ensure all future schema changes go through migration files tracked in git. |
+| **Dependencies** | None |
+
+### 11.10 RLS Test Enhancement
+
+| Review ID | IV-C5 |
+|-----------|-------|
+| **Description** | RLS tests only verify data exists, not per-user isolation. |
+| **Decision** | N/A |
+| **Mitigation** | Add RLS tests that create two users, create data for each, and verify User A cannot access User B's data via the Supabase client with User A's JWT. |
+| **Dependencies** | None |
+
+### 11.11 Missing UPDATE RLS Policies
+
+| Review ID | IV-C4 |
+|-----------|-------|
+| **Description** | `datasets` and `compilations` tables missing UPDATE policy. `review_comments` missing INSERT policy. |
+| **Decision** | N/A |
+| **Mitigation** | Add appropriate RLS policies via migration. |
+| **Dependencies** | Supabase migration |
+
+### 11.12 Bundle Size Optimization
+
+| Review ID | IV-E8 |
+|-----------|-------|
+| **Description** | Three.js (~600KB), mermaid (~1.8MB), xlsx (~600KB) in bundles. |
+| **Decision** | N/A |
+| **Mitigation** | (a) Verify Three.js is loaded with `next/dynamic({ ssr: false })` (auth page only). (b) Lazy-load mermaid. (c) Dynamic import xlsx in dataset parser. (d) Self-host PDF.js worker in `/public/` instead of unpkg CDN. |
+| **Dependencies** | None |
+
+### 11.13 PDF Viewer Mobile Performance
+
+| Review ID | IV-E7 |
+|-----------|-------|
+| **Description** | Thumbnail view creates 100+ `<Page>` components simultaneously. |
+| **Decision** | N/A |
+| **Mitigation** | Implement virtualisation with `react-window` or `react-virtuoso` for thumbnail grid. Only render visible pages. |
+| **Dependencies** | None |
+
+### 11.14 `messages_json` Population
+
+| Review ID | A9 |
+|-----------|-----|
+| **Description** | `ai_conversations.messages_json` always empty. No multi-turn capability. |
+| **Decision** | N/A -- low priority |
+| **Mitigation** | When generating, store the full message array in `messages_json`. Useful for debugging and potential future multi-turn refinement. |
+| **Dependencies** | None |
+
+### 11.15 Phase Sequence Enforcement for Generation
+
+| Review ID | E10 |
+|-----------|-----|
+| **Description** | Can generate content for any phase regardless of current phase. Only approval enforces sequence. |
+| **Decision** | N/A |
+| **Mitigation** | Add check in generate route: `if (requestedPhase > project.current_phase + 1) return 400`. Allow generating for current phase and one ahead. |
+| **Dependencies** | None |
+
+### 11.16 Remaining Low-Severity Items
+
+| Review IDs | IV-L1 through IV-L10, X3, X5, I-11, M1, M2, W1, W9 |
+|------------|------------------------------------------------------|
+| **Description** | Various low-priority items |
+| **Decisions and Mitigations** | |
+
+- **IV-L1** (Content-Disposition header injection): Fixed in 8.8.
+- **IV-L2** (Origin header in share URLs): Low risk. Add origin validation if needed.
+- **IV-L3** (No rate limit on review comments): Add basic rate limit (10/min).
+- **IV-L4** (No limit on review token generation): Add limit (5 active tokens per project).
+- **IV-L5** (Mermaid innerHTML): Mitigated by strict mode. No action needed.
+- **IV-L6** (processed_webhooks no RLS): Intentional. No action needed.
+- **IV-L7** (review_comments INSERT via admin): Intentional. No action needed.
+- **IV-L8** (Licence transfer doesn't check progress): Admin-only per DECISIONS.md 8.6. Acceptable.
+- **IV-L9** (Watermarked PDFs in preview): Acceptable per DECISIONS.md 8.4.
+- **IV-L10** (checkLicenceGate inconsistent with DEV_LICENCE_BYPASS): Fixed in 1.5.
+- **X3** (No offline PWA cache): Low priority. Add basic service worker caching for app shell.
+- **X5** (PostHog opt-out only): Fixed in 9.4 (cookie consent).
+- **I-11** (PWA mobile pages): DECISIONS.md Section 8.1: "Responsive design is sufficient. No dedicated mobile-specific routes needed." **DECIDED TO SKIP.**
+- **M1** (User Settings page): DECISIONS.md Section 8.8: "Deferred to post-launch. Clerk handles profile/password." **DECIDED TO DEFER.**
+- **M2** (Notification centre): DECISIONS.md Section 8.2: "Toast only (sonner). No persistent notification centre or Web Push." **DECIDED TO SKIP.**
+- **W1** (Review route internal only): Low impact. No action needed.
+- **W9** (Licences GET wiring): Verify it works via direct fetch. If functional, no action needed.
+
+---
+
+## Cross-Phase Dependencies
+
+```
+Phase 1 (Critical Safety)
+    |
+    v
+Phase 2 (Infrastructure Foundation)
+    |  - Redis (2.1) blocks: Phase 6 (6.9 per-type timeouts), Phase 5 (5.10 Inngest)
+    |  - R2 (2.2) blocks: Phase 6 (6.5 figure download), Phase 8 (8.14 review PDF), Phase 9 (9.2 deletion, 9.9 cleanup)
+    |  - Inngest fix (2.5) blocks: Phase 5 (5.10 AI via Inngest)
+    |
+    v
+Phase 3 (Pricing & Licences)
+    |  - Licence gates (3.3) blocks: Phase 8 (8.1 export gating)
+    |  - Plan differentiation (3.4) blocks: Phase 5 (5.7 Opus routing)
+    |
+    v (can run in parallel from here)
+Phase 4 (Editor Migration)          Phase 5 (AI Pipeline)
+    |                                    |
+    |  - 4.3 depends on 4.1 + 4.2       |  - 5.7 depends on 3.4
+    |  - 11.2, 11.5 depend on 4.x       |  - 5.10 depends on 2.1 + 2.5
+    |                                    |  - 5.11 depends on 5.3
+    v                                    v
+Phase 6 (6a/6b Restructure)
+    |  - 6.1 depends on 5.1 (word count config)
+    |  - 6.5 depends on 2.2 (R2)
+    |  - 6.6 depends on Docker rebuild (Phase 10)
+    |  - 6.9 depends on 2.1 (Redis)
+    |
+    v
+Phase 7 (Final QC)
+    |  - 7.1 depends on 5.1 (word counts), 5.12 (orphan cite keys)
+    |  - 7.6 depends on nothing (template fix)
+    |
+    v
+Phase 8 (Frontend Polish)         Phase 9 (Privacy)           Phase 10 (Docker)
+    |                                  |                           |
+    |  - 8.1 depends on 3.3, 3.7      |  - 9.2 depends on 2.2    |  - 10.4 blocks 6.6
+    |  - 8.14 depends on 2.2          |  - 9.3 depends on 9.1    |
+    |                                  |                           |
+    v                                  v                           v
+Phase 11 (Cleanup & Testing)
+    |  - 11.2 depends on Phase 4
+    |  - 11.5 depends on Phase 4
+```
+
+---
+
+## Items Decided to Skip
+
+These items were explicitly decided NOT to implement:
+
+| Review ID | Description | Decision Reference | Rationale |
+|-----------|-------------|-------------------|-----------|
+| I-11 | PWA mobile-optimised pages | DECISIONS.md 8.1 | "Responsive design is sufficient" |
+| M2 | Persistent notification centre | DECISIONS.md 8.2 | "Toast only (sonner)" |
+| E9 | Phase 1->2 identity binding (candidate name hash) | DECISIONS.md 5.4 | "Current auth flow is sufficient" |
+| W10 | Self-service licence transfer UI | DECISIONS.md 8.6 | "Admin-only. Students contact support" |
+| M1 | User Settings/Profile page | DECISIONS.md 8.8 | "Deferred to post-launch. Clerk handles it" |
+
+---
+
+## Items Decided to Defer (Post-Launch)
+
+| Review ID | Description | Decision Reference | When |
+|-----------|-------------|-------------------|------|
+| IV-D8 | Data retention auto-purge (90-day AI, 2-year audit) | DECISIONS.md 6.2 | Post-launch |
+| M1 | User Settings/Profile page | DECISIONS.md 8.8 | Post-launch |
+| IV-E12 | Business model pricing restructure observations | DECISIONS.md 1.x | Superseded by new pricing |
+| I-10 | Queue fairness (round-robin) | N/A | Post-launch, Redis semaphore naturally enables this |
+| X3 | Offline PWA cache strategy | N/A | Post-launch |
+
+---
+
+## Items Needing External Input
+
+| Item | External Dependency | Who | Blocking Phase |
+|------|-------------------|-----|----------------|
+| Razorpay subscription API | Subscription billing for monthly plans (Rs 5,499/mo x3 minimum) | Razorpay dashboard setup | Phase 3 |
+| Stripe USD pricing | International student pricing TBD | Product owner decision | Phase 3 |
+| Privacy policy text | Legal review of DPDP Act compliant privacy policy | Legal counsel | Phase 9 |
+| Terms of Service text | Legal review | Legal counsel | Phase 9 |
+| AI processing consent language | Legal review of cross-border data transfer disclosure | Legal counsel | Phase 9 |
+| Upstash Redis account | Free tier account creation + connection string | DevOps / owner | Phase 2 |
+| Hetzner VPS AppArmor | Verify AppArmor kernel module is available | DevOps | Phase 10 |
+| Seccomp profiles | Test seccomp profiles on Hetzner VPS (may differ from dev) | DevOps | Phase 10 |
+| Professional plan scope | PhD thesis workflow details (longer, more complex) | Product owner | Phase 3 |
+| Monthly commitment enforcement | Razorpay EMI or manual 3-payment tracking? | Product owner + Razorpay | Phase 3 |
+
+---
+
+## Summary Statistics
+
+| Metric | Count |
+|--------|-------|
+| **Total findings in REVIEW.md** | **136** |
+| **Mapped to mitigation actions** | **136** |
+| **Decided to skip (no action)** | **5** |
+| **Decided to defer (post-launch)** | **5** |
+| **Needing external input** | **10** |
+| **Implementation phases** | **11** |
+| **Estimated total effort** | **10-14 weeks** |
+
+---
+
+*This document is the authoritative mitigation plan. It cross-references every finding in `docs/REVIEW.md` with decisions from `docs/DECISIONS.md` and assigns each to a specific implementation phase with dependencies and sequencing.*
+
+---
+
+### Critical Files for Implementation
+
+- `/Users/devs/Downloads/Apollo/apps/web/lib/phases/transitions.ts` - Core phase transition logic; DEV_LICENCE_BYPASS guard, canAdvancePhase fix, licence gate integration
+- `/Users/devs/Downloads/Apollo/apps/web/lib/inngest/functions/thesis-workflow.ts` - Content overwrite bug (E1), Inngest architectural redesign for AI generation and scheduled tasks
+- `/Users/devs/Downloads/Apollo/apps/web/lib/compute/semaphore.ts` - Queue promotion bug (D7), full rewrite to Upstash Redis
+- `/Users/devs/Downloads/Apollo/apps/web/lib/qc/final-qc.ts` - Word count target unification (A5/E6/F2), undefined refs check fix (E7), figure/table QC gates
+- `/Users/devs/Downloads/Apollo/apps/web/lib/latex/assemble.ts` - Orphan cite key stripping (B1), appendices injection (C4), abbreviations injection (C5), removal of Tiptap round-trip dependency</result>
+<usage>total_tokens: 94564
+tool_uses: 18
+duration_ms: 535028</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/aca2873.output
+
+---
+
+lets finish the decision points which requier my inpputs ie Razorpay subscription setup decision                  │ Phase 3  │
+  ├───────────────────────────────────────────────────────┼──────────┤
+  │ Stripe USD pricing                                    │ Phase 3  │
+  ├───────────────────────────────────────────────────────┼──────────┤
+  │ Legal text approach (AI draft / lawyer / placeholder) │ Phase 9 , ask your questions
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me go through the conversation chronologically to capture all important details.
+
+1. **Initial Request**: User asked me to go through `/docs/Review.md` and find all decision points requiring their input, reference `/docs/Decision_points.md`, include recommendations, and allow discussions.
+
+2. **Finding Decision_points.md**: Initially couldn't find it with basic glob patterns. User asked me to check again. Found it at `/Users/devs/Downloads/Apollo/docs/Decision_points.md` after broader search.
+
+3. **Decision Point Discussions**: Went through 30 decision points across 8 categories, having detailed discussions with the user on each:
+
+   **Pricing & Business Model:**
+   - User context: Students currently pay Rs 18-20K for thesis writing services
+   - User rejected 25% of market pricing as signaling poor quality, wanted 75% of market
+   - Final: Student one-time Rs 14,999, Monthly Rs 5,499/mo × 3 min (10% premium)
+   - Professional: Rs 39,999 one-time for PhD thesis
+   - Addon: Rs 3,999/mo (refinement scoped)
+   - Sandbox: Phase 0-2, watermarked, 1 active project
+   - Licence binding: To project container permanently, metadata always editable
+   - Free reset before Phase 4, new licence required after
+   - User corrected: Hard floor = soft minimum (not -15%)
+
+   **Editor Architecture:**
+   - CodeMirror 6 as primary editor (Modified Option C)
+   - Eliminates Tiptap/Novel entirely
+
+   **AI Pipeline:**
+   - Phase 9: AI consolidation
+   - AI-powered section review
+   - Opus for Introduction + Discussion
+   - Full content context (no truncation)
+   - Inngest + live preview for generation (user asked what Inngest does, I explained SSE vs background jobs)
+
+   **Word Count:**
+   - User provided specific ranges: Introduction 1,000-1,400, ROL 3,500-5,000, Discussion 2,000-3,500
+   - Hard floor = soft minimum, Hard ceiling = soft max × 1.15
+   - AI aims for higher end
+
+   **Phase Structure:**
+   - Phase 6 split into 6a/6b
+   - User raised critical issues: analysis should be objective-driven not dataset-driven, ROL should inform dataset generation, not all analyses need to be significant
+   - Demographics: AI-planned split across multiple tables/figures
+   - Figure/table QC gates: 5 figures, 7 tables minimum
+   - Identity binding: Skip
+
+   **Privacy:**
+   - Warning banner + AI scan for medical data
+   - Data retention: Defer
+   - Account deletion: 7-day cooling-off
+
+   **Infrastructure:**
+   - Inngest as primary orchestrator
+   - Upstash Redis for semaphore/rate limiter
+   - Chart options: Expose both type + colour scheme
+
+   **UI/UX:**
+   - Responsive design sufficient (no mobile pages)
+   - Toast only notifications
+   - Wire up onboarding tour
+   - Export: Sandbox gets Apollo diagonal watermark (Playfair Display), Licensed 6b+ gets footer "Draft · Generated with Apollo", Completed is clean
+   - User specifically said: no DRAFT watermark across page for licensed users (creates friction with guides)
+   - Compilation history: last 3
+   - Licence transfer: Admin-only
+   - Subfigures: Add subcaption
+   - Settings page: Defer
+
+4. **File Creation - DECISIONS.md**: Wrote complete decision log to `/Users/devs/Downloads/Apollo/docs/DECISIONS.md`
+
+5. **Mitigation Plan Request**: User asked for comprehensive plan covering all issues from Review.md based on decisions. Asked to install Upstash Redis MCP.
+
+6. **Infrastructure Setup:**
+   - Read `.claude/settings.json`, `.mcp.json`, `.env.example`, `.env.local`
+   - Explored codebase infrastructure via agent
+   - Updated `.mcp.json` with Upstash MCP server config
+   - Added Upstash Redis env vars to `.env.example`
+   - User provided credentials:
+     - UPSTASH_REDIS_REST_URL: `https://patient-kid-40113.upstash.io`
+     - UPSTASH_REDIS_REST_TOKEN: `REDACTED`
+     - Upstash email: `dshome45215@gmail.com`
+     - Upstash API key: `REDACTED`
+   - Helped user find Inngest keys via screenshots
+   - User provided: INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY
+   - Updated `.env.local` with all credentials
+   - R2 items 7-10 already in `.env.local`
+
+7. **Mitigation Plan Creation:**
+   - Launched Plan agent for comprehensive cross-reference of all 136 findings
+   - Agent produced massive output (103K tokens, 1451 lines)
+   - Extracted plan content via Bash agent
+   - Copied to `/Users/devs/Downloads/Apollo/docs/Mitigation_plan.md`
+   - Plan covers 11 phases, 136 findings mapped, 10-14 weeks estimated effort
+
+8. **Current Work**: User asked to finish the remaining decision points (Razorpay, Stripe USD, Legal text) before starting implementation. They also requested a conversation summary.
+
+Key errors/corrections:
+- User corrected QC hard floor: should be = soft minimum, not soft minimum × 0.85
+- User rejected low pricing (25% of market) as signaling poor quality
+- User clarified Phase 6 analysis should be objective+ROL driven, not dataset-driven
+- User clarified demographics shouldn't be confined to single table+figure
+- User said licensed draft PDFs shouldn't have DRAFT watermark (creates friction with guides)
+
+Summary:
+1. Primary Request and Intent:
+   The user asked me to review `/docs/REVIEW.md` (a 1,274-line, 136-finding codebase audit) and `/docs/Decision_points.md` (20 previously identified decision points), find ALL areas requiring the user's input (pricing, architecture, workflow, compliance, etc.), ask clarifying questions with recommendations, and allow discussions for each. After resolving decisions, the user asked me to create a comprehensive mitigation plan for all 136 issues based on the decisions taken, install Upstash Redis MCP, help with credential setup, and write the plan to `/docs/Mitigation_plan.md`. The user's final request was to finish the 3 remaining decision points (Razorpay subscriptions, Stripe USD pricing, Legal text approach) before starting Phase 1 implementation.
+
+2. Key Technical Concepts:
+   - Apollo: AI-powered thesis generation SaaS for Indian medical PG students
+   - 12-phase GOLD Standard methodology pipeline (Phase 0-11)
+   - Next.js 15 App Router, TypeScript, Supabase, Clerk auth, Cloudflare R2
+   - LaTeX compilation pipeline (pdflatex + bibtex in Docker)
+   - Tiptap/Novel rich-text editor → CodeMirror 6 migration (LaTeX canonical)
+   - Inngest for durable background jobs + live preview via Supabase Realtime
+   - Upstash Redis for semaphore/rate limiting (replacing in-memory Map)
+   - Claude Sonnet 4.5 / Opus model routing for AI generation
+   - Razorpay (INR) + Stripe (USD) payment processing
+   - DPDP Act compliance (Indian data privacy law)
+   - Phase 6a/6b split: synopsis objectives + ROL → analysis plan → ROL-anchored dataset → results
+   - Watermark system: sandbox (Apollo diagonal, Playfair Display), licensed draft (footer), completed (clean)
+   - Word count QC: hard floor = soft minimum, hard ceiling = soft max × 1.15
+
+3. Files and Code Sections:
+   - `/Users/devs/Downloads/Apollo/docs/REVIEW.md` (read, 1274 lines)
+     - Complete 4-part codebase audit with 136 findings across infrastructure, business logic, frontend wiring, security/monetization
+     - Source of all issues that need mitigation
+   
+   - `/Users/devs/Downloads/Apollo/docs/Decision_points.md` (read, 139 lines)
+     - 20 previously identified decision points from a prior conversation
+     - I found 10 additional points from deeper REVIEW.md analysis (30 total)
+   
+   - `/Users/devs/Downloads/Apollo/docs/DECISIONS.md` (created, 269 lines)
+     - Complete decision log covering all 30 decision points
+     - 8 categories: Pricing, Editor, AI Pipeline, Word Count, Phase Structure, Privacy, Infrastructure, UI/UX
+     - Authoritative record of all product decisions
+   
+   - `/Users/devs/Downloads/Apollo/docs/Mitigation_plan.md` (created, 1451 lines)
+     - 11-phase implementation blueprint mapping all 136 findings to specific mitigations
+     - Includes finding enumeration, phase-by-phase actions, cross-phase dependencies, skip/defer lists, external input requirements
+     - Summary: 136 findings mapped, 5 skipped, 5 deferred, 10 needing external input, 10-14 weeks estimated
+   
+   - `/Users/devs/Downloads/Apollo/.mcp.json` (modified)
+     - Added Upstash MCP server configuration with user's credentials
+     - Email: `dshome45215@gmail.com`, API key: `REDACTED`
+     - File is gitignored (confirmed via `.gitignore` check)
+   
+   - `/Users/devs/Downloads/Apollo/apps/web/.env.local` (modified)
+     - Added Inngest keys: `REDACTED`, `REDACTED`
+     - Uncommented and set Upstash Redis: `UPSTASH_REDIS_REST_URL=https://patient-kid-40113.upstash.io`, `REDACTED`
+     - Also contains: Clerk, Supabase, R2, Anthropic API keys (pre-existing)
+   
+   - `/Users/devs/Downloads/Apollo/apps/web/.env.example` (modified)
+     - Added `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` placeholders
+
+4. Errors and Fixes:
+   - **Decision_points.md not found initially**: Glob patterns `docs/*ecision*` and `docs/**/*ecision*` returned nothing. Fixed by using broader pattern `**/*ecision*.*` which found it buried among node_modules results.
+   - **User corrected QC hard floor**: I proposed hard floor = soft minimum × 0.85 (-15% margin). User corrected: "Hard floor is = soft minimum. Correct that." Fixed in DECISIONS.md.
+   - **User rejected 25% pricing**: I recommended Rs 4,999 (25% of market). User said "Why would I give out theses in such low amount? Won't it signal poor quality?" and wanted 75% of market. Adjusted to Rs 14,999.
+   - **User corrected Phase 6 analysis pipeline**: I proposed basic 6a/6b split. User said analysis planning should be driven by synopsis objectives + ROL evidence, not just dataset columns. Also said "not all analyses need to be picture perfect statistically significant." Revised to include ROL-anchored dataset generation with realistic mixed significance.
+   - **User corrected demographics scope**: I proposed "1 figure + 1 table per objective". User said "Demographics doesn't need to be confined to a singular table, and a single figure. May be split logically." Changed to AI-planned split.
+   - **User rejected DRAFT watermark on licensed PDFs**: I proposed "DRAFT" watermark. User said "Licensed individuals beyond phase 6b should not have DRAFT watermark across the page, that will create friction in getting approval." Changed to subtle footer line: "Draft · Generated with Apollo".
+   - **Agent output too large to read**: The Plan agent output was 103K tokens. Had to use a Bash agent to extract the markdown content from the output file. Extracted to `/private/tmp/apollo-mitigation-plan.md` then copied to project.
+
+5. Problem Solving:
+   - Resolved all 30 decision points through iterative Q&A with the user
+   - Helped user navigate Inngest dashboard (two screenshots) to find Event Key and Signing Key
+   - Installed and configured Upstash Redis MCP server
+   - Set up all environment variables for Upstash Redis and Inngest
+   - Created comprehensive mitigation plan covering all 136 review findings with phase ordering and dependencies
+   - Outstanding: 3 decision points still need resolution (Razorpay, Stripe USD, Legal text)
+
+6. All User Messages:
+   - "Go through the file /docs/Review.md, and find all areas where my choice is reqd, eg pricing, latex round trip options, etc etc and ask me questions to clarify those decision points [a previous chat went through and created a Decision_points.md in /docs/, refer to that as well, but remember that file is not exhaustive.] Include your best choice recommendations for each decision point. Allow discussions for each question."
+   - "check again for Decision points.md"
+   - "I know that the one time cost per thesis that students are paying is 18 to 20k. Keeping that in mind, what pricing model makes sense? what if a student doesnt have one time investements, and wants to pay over few months? better to allow EMI or do a monthly subscription? where to gate monthly? Professionals can pay more, and can be routed to the paper writing, and articles line of things in addition to theses, but if aiming for a PhD type of thesis, it will require much more model qouta, and hence much more tokens and price with proportional profits calculated. The addon plan can be a monthly addon plan which the student uses to refine the thesis, after his guides comments, generate new figures etc? and needs pricing at par with monthly model, and allow access for a month. Sandbox should allow user specific Title, Frontmatter, and Intro. so that the user gets a taste. It should be watermarked. Project creation limit can be implemented better as a one active project per licence?"
+   - "I agree to the 14999/4999 model but i have a few quereies. 1. what is to stop a student who works on one thesis, completes it, then activetes another project and completes that with one licence? 2. Monthly plan total cost needs to be marginally more so as to incentivise one time payments?"
+   - "The licence binding to a thesis has some potential issues. what if the student enters the metadata wrong? or something changes in the synopsis in the middle? edge cases may arise. For the monthly premium I am happy with 10%"
+   - "Why would i give out theses in such low amount? wont it signal poor quality? wouldnt it better placed at 75% of market? Also i would offer both, monthly, with minimum commitment and phase gating, and one time, no gate. Also addon should be scoped as you suggest."
+   - "Splitting phase 6 is a good idea, but there are issues in the data analysis pipeline. Generation of dataset, with frontend displaying head for review, Adequate planning of Required analysis on the basis of synopsis objectives, not just possible and feasible calculations as per generated datasets (this is what is happening now), Adequate and appropriate figures generation needs to happen, and figures and tables number gating in final QC needs to be allowed and should happen"
+   - "This is close but needs a crucial adjustment. Along with objectives, the ROL should also inform dataset generation for correct plausible numbers. Also not all analyses need to be picture perfect statistically significant."
+   - "Matching the analysis Plan is a good and appropriate idea, but a minimum gating is required. lets pin figures for results section at 5, and tables at 7 minimum for phase QC and final QC"
+   - "Demographics doesnt need to be confined to a singular table, and a single figure. may be split logically."
+   - "Licensed individuals beyond phase 6b should not have DRAFT watermark across the page, that will create friction in getting approval. Suggest an alternate way to denote work in progress, (maybe very faint branding watermark, or a footer saying 'Apollo' or?)"
+   - "QC gates Hard ceiling: +15% of soft max; Hard floor: −15% of soft min is wrong, Hard floor is = soft minimum. Correct that."
+   - "yes, save it" (referring to saving DECISIONS.md)
+   - "now check the Review.md and Decisions.md files, and create a full plan to mitigate all issues based on the decisions taken. Ask any claryfying questions as necessary. Ask for any installs as necessary. Install upstash Redis mcp for that job, and tell me what is required from me. Think ultra hard to create the plan, audit and find all lacunae in your plan and present the final audited fixed plan to me. Ensure to include a step 0 in the plan to Write down the plan as /docs/Mitigation_plan.md"
+   - "What does Ingest do? how is different from what is happening now from end user perspective?"
+   - "Upstash, inngest, R2 all accounts exist, but i need help from you to supply the tokens, emails, etc etc. Ask for specific stuff and I shall provide. Provide assistance in terms of what creds to get where"
+   - "UPSTASH_REDIS_REST_URL=https://patient-kid-40113.upstash.io REDACTED account email: dshome45215@gmail.com REDACTED Items 7,8,9,10 exist in .env.local items 5,6 : i need more help"
+   - "what to do now? I will answer the razorpay and stripe questions later" (with Inngest dashboard screenshot)
+   - "now what?" (with second Inngest dashboard screenshot showing keys)
+   - "REDACTED REDACTED"
+   - "lets finish the decision points which require my inputs ie Razorpay subscription setup decision Phase 3, Stripe USD pricing Phase 3, Legal text approach Phase 9, ask your questions"
+
+7. Pending Tasks:
+   - Resolve 3 remaining decision points: (1) Razorpay subscription setup, (2) Stripe USD pricing, (3) Legal text approach
+   - Update DECISIONS.md with these final decisions
+   - Update Mitigation_plan.md Phase 3 and Phase 9 with the resolved details
+   - Begin Phase 1 (Critical Safety) implementation after all decisions are resolved
+
+8. Current Work:
+   The user's most recent message was: "lets finish the decision points which require my inputs ie Razorpay subscription setup decision Phase 3, Stripe USD pricing Phase 3, Legal text approach Phase 9, ask your questions"
+   
+   I need to ask the user three questions:
+   1. **Razorpay subscriptions**: Can their Razorpay account do recurring subscriptions for Rs 5,499/month? Or should Stripe handle all subscriptions with Razorpay for one-time INR only?
+   2. **Stripe USD pricing**: What is the USD equivalent for international students? (Rs 14,999 ≈ $180 at current rates, but pricing may differ)
+   3. **Legal text**: Should I draft DPDP Act-compliant text for them to review, create placeholder pages, or will they provide the text themselves?
+
+9. Optional Next Step:
+   Ask the user the three remaining decision point questions about Razorpay subscription setup, Stripe USD pricing, and legal text approach. The user explicitly said: "lets finish the decision points which require my inputs ie Razorpay subscription setup decision Phase 3, Stripe USD pricing Phase 3, Legal text approach Phase 9, ask your questions"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+A
+
+---
+
+lets start phase 1
+
+---
+
+[Request interrupted by user for tool use]

@@ -3,12 +3,14 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 172,
+  "checkpoints_count": 194,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
+    ".mcp.json",
     "agent-guidance/lessons.md",
     "apps/web/.env.example",
+    "apps/web/.env.local",
     "apps/web/app/(dashboard)/checkout/page.tsx",
     "apps/web/app/(dashboard)/dashboard/page.tsx",
     "apps/web/app/(dashboard)/layout.tsx",
@@ -236,6 +238,8 @@
     "docker/docker-compose.yml",
     "docker/plumber.R",
     "docker/watermark.sh",
+    "docs/DECISIONS.md",
+    "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
     "supabase/migrations/016_create_abbreviations.sql",
@@ -390,13 +394,20 @@
       "context": "/bd/84f5776d75/20/context.md",
       "content_hash": "/bd/84f5776d75/20/content_hash.txt",
       "prompt": "/bd/84f5776d75/20/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/21/metadata.json",
+      "transcript": "/bd/84f5776d75/21/full.jsonl",
+      "context": "/bd/84f5776d75/21/context.md",
+      "content_hash": "/bd/84f5776d75/21/content_hash.txt",
+      "prompt": "/bd/84f5776d75/21/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 81202,
-    "cache_creation_tokens": 5592024,
-    "cache_read_tokens": 216507141,
-    "output_tokens": 441014,
-    "api_call_count": 2284
+    "input_tokens": 81365,
+    "cache_creation_tokens": 6101350,
+    "cache_read_tokens": 226026337,
+    "output_tokens": 470179,
+    "api_call_count": 2395
   }
 }
