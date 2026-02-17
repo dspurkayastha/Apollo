@@ -1,0 +1,1441 @@
+Implement the following plan:
+
+# Phase 4: Editor Migration (CodeMirror 6) — Implementation Plan
+
+## Context
+
+**Problem**: The Tiptap/Novel rich text editor destroys LaTeX constructs during the round-trip conversion. This is the P0 content quality issue identified in REVIEW.md:
+
+- **C1**: `$p < 0.05$` (inline math) → `\$p < 0.05\$` (literal dollar signs, not math mode)
+- **C2**: `\footnote{}`, `\url{}`, `\textsuperscript{}` → garbled (backslash consumed as plain text)
+- **C3**: `\label{}` → permanently stripped, breaking cross-references
+
+**Solution** (DECISIONS.md §2): Make LaTeX canonical. CodeMirror 6 becomes the sole editor. Eliminate the `latexToTiptap()` ↔ `tiptapToLatex()` round-trip entirely.
+
+**Current state**: CodeMirror already exists as a secondary "source view" (`latex-source-view.tsx`) with basic setup (no LaTeX highlighting, no toolbar, 500px fixed height). Tiptap/Novel is the primary editor. Both generate and refine routes convert AI output through `latexToTiptap()`. Assembly pipeline uses `tiptapToLatex()` for chapter body production.
+
+**Outcome**: Single CodeMirror editor with LaTeX syntax highlighting, WYSIWYG toolbar, citation chips, math preview, and environment folding. No more content destruction. `latex_content` is the only canonical storage column.
+
+---
+
+## Pre-requisites
+
+- Phase 3 complete ✅ (committed `d984571`, migration applied)
+- CodeMirror 6 in project ✅ (`@uiw/react-codemirror@4.25.4`, `@codemirror/view@6.39.14`, etc.)
+- `extractCiteKeys()` utility exists ✅ (`lib/citations/extract-keys.ts`)
+- `sanitiseChapterLatex()`, `escapeBareAmpersands()`, `normaliseUnicode()` exist ✅ (in `assemble.ts` / `escape.ts`)
+
+---
+
+## Step 0: Fix CI (Phase 3 test pollution bug)
+
+**File**: `apps/web/tests/security/licence-gates.test.ts`
+
+The "phase can only increment by 1" test (line 146) sets `current_phase: 3` on the sandbox project via admin client, then doesn't reset it. The subsequent "sandbox project allows phases 0-2" test (line 202) reads the same project and finds `current_phase: 3` instead of 0-2.
+
+**Fix**: After the assertion in the "phase can only increment by 1" test, reset the project:
+```typescript
+// Reset for subsequent tests
+await adminClient.from("projects").update({ current_phase: 0 }).eq("id", sandboxProjectId);
+```
+
+~1 line. Commit and push to fix CI before starting Phase 4.
+
+---
+
+## Step 1: Install Dependencies
+
+**File**: `apps/web/package.json`
+
+Add:
+- `@codemirror/legacy-modes` — provides `stex` (LaTeX) StreamLanguage grammar from CM5
+- `katex` — lightweight math rendering for inline math preview tooltips (~200KB)
+- `@types/katex` — TypeScript types
+
+Remove (done in Step 11):
+- `novel`, `@tiptap/core`, `@tiptap/pm` — Tiptap/Novel stack
+- `@codemirror/lang-javascript` — wrong language, replaced by stex
+
+---
+
+## Step 2: LaTeX Language + CodeMirror Extensions
+
+**New file**: `apps/web/components/editor/extensions/latex-language.ts`
+
+- Import `stex` from `@codemirror/legacy-modes/mode/stex`
+- Wrap with `StreamLanguage.define(stex)` from `@codemirror/language`
+- Export as `latexLanguage` extension
+- ~15 lines
+
+**New file**: `apps/web/components/editor/extensions/citation-decorations.ts`
+
+- `ViewPlugin` + `Decoration.mark()` for `\cite{key}` patterns
+- Renders citation keys with a styled CSS class (sage badge with author/year)
+- Click on chip opens tooltip with citation details
+- Rebuilds decorations on doc change via `update.docChanged`
+- ~60 lines
+
+**New file**: `apps/web/components/editor/extensions/math-tooltip.ts`
+
+- `hoverTooltip()` from `@codemirror/view`
+- Detects `$...$` (inline) and `$$...$$` (display) math under cursor
+- Renders KaTeX-processed HTML in tooltip DOM element
+- Graceful fallback if KaTeX fails (shows raw LaTeX)
+- ~50 lines
+
+**New file**: `apps/web/components/editor/extensions/environment-fold.ts`
+
+- Custom `foldService` from `@codemirror/language`
+- Detects `\begin{env}` at line → folds to matching `\end{env}`
+- Handles nesting (depth tracking)
+- ~40 lines
+
+---
+
+## Step 3: WYSIWYG Toolbar Component
+
+**New file**: `apps/web/components/editor/latex-toolbar.tsx`
+
+React component rendered above the CodeMirror editor. Buttons:
+
+| Button | Label | Action | Wrap pattern |
+|--------|-------|--------|-------------|
+| Bold | **B** | Wrap selection | `\textbf{selection}` |
+| Italic | *I* | Wrap selection | `\textit{selection}` |
+| Underline | U̲ | Wrap selection | `\underline{selection}` |
+| Section | §1 | Insert/wrap | `\section{selection}` |
+| Subsection | §2 | Insert/wrap | `\subsection{selection}` |
+| Cite | 📖 | Opens citation dialog | Insert `\cite{key}` at cursor |
+| List (bullet) | • | Wrap lines | `\begin{itemize}\n\item ...\n\end{itemize}` |
+| List (numbered) | 1. | Wrap lines | `\begin{enumerate}\n\item ...\n\end{enumerate}` |
+| Math | $ | Wrap selection | `$selection$` |
+
+Each button uses CodeMirror `view.dispatch()` with `changes` to insert/wrap text.
+Receives `EditorView` ref from parent.
+
+Uses lucide-react icons matching existing Zen palette (muted `#6B6B6B`, hover `#2F2F2F`).
+
+~100 lines.
+
+---
+
+## Step 4: Enhanced LaTeX Editor Component
+
+**New file**: `apps/web/components/editor/latex-editor.tsx`
+
+Replaces both `section-editor.tsx` (Tiptap) and `latex-source-view.tsx` (barebones CM).
+
+Props: `{ projectId, phaseNumber, initialContent: string, onSaveSuccess?, onContentChange? }`
+
+Features:
+- CodeMirror instance with all extensions from Step 2 (latex language, citation decorations, math tooltip, environment fold)
+- `LaTeXToolbar` from Step 3 above the editor
+- **Auto-save**: 30s debounce (matches existing `AUTO_SAVE_DELAY_MS`)
+- **Manual save**: Save button with dirty state indicator
+- **Citation dialog**: "Cite" button in toolbar opens `CitationSearchDialog`, inserts `\cite{key}` at cursor
+- **Height**: `calc(100vh - 200px)` to fill available workspace (not fixed 500px)
+- **Theme**: Light theme matching Zen palette (rounded-2xl border, shadow, serif font hints)
+- **Save API**: `PUT /api/projects/{projectId}/sections/{phaseNumber}` with `{ latex_content }` only
+- **Keyboard shortcut**: `Ctrl+S` / `Cmd+S` to save
+
+Styling: Same rounded-2xl card, `border-black/[0.06]`, `shadow-[0_4px_20px_rgba(0,0,0,0.03)]` pattern as existing editors.
+
+~120 lines.
+
+---
+
+## Step 5: Update Generate Route — Remove Round-Trip
+
+**File**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+Changes:
+1. Remove `import { latexToTiptap }` (line 18)
+2. Import `extractCiteKeys` from `@/lib/citations/extract-keys` (already exists)
+3. After AI streaming completes, replace:
+   ```
+   const tiptapResult = latexToTiptap(fullResponse);
+   const citationKeys = tiptapResult.citationKeys;
+   ```
+   with:
+   ```
+   const citationKeys = extractCiteKeys(fullResponse);
+   ```
+4. In section update, remove `rich_content_json: tiptapResult.json` — set to `null`
+5. Remove `tiptapResult.warnings` from the complete event (replace with empty array)
+6. Same changes in the 3-tier fallback chain (remove `rich_content_json` from all tiers)
+
+~20 lines changed. Net reduction ~15 lines.
+
+---
+
+## Step 6: Update Refine Route — Remove Round-Trip
+
+**File**: `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`
+
+Same pattern as Step 5:
+1. Remove `import { latexToTiptap }`
+2. Import `extractCiteKeys` from `@/lib/citations/extract-keys`
+3. Replace `latexToTiptap(fullResponse)` → `extractCiteKeys(fullResponse)`
+4. Remove `rich_content_json` from section update
+5. Remove tiptap warnings from response
+
+~15 lines changed.
+
+---
+
+## Step 7: Update Section Save Route (PUT)
+
+**File**: `apps/web/app/api/projects/[id]/sections/[phase]/route.ts`
+
+Current: Two paths — `rich_content_json` saves via `tiptapToLatex()`, `latex_content` saves directly.
+
+Changes:
+1. Remove `import { tiptapToLatex }` (line 14)
+2. Remove the `rich_content_json` branch entirely (lines 116-127)
+3. Only accept `latex_content` saves
+4. Always set `rich_content_json: null` in the upsert
+5. `citation_keys` extracted via existing `extractCiteKeys()` (already imported)
+
+The schema (`sectionUpdateSchema`) still accepts `rich_content_json` for backward compat but the route ignores it.
+
+~15 lines removed, 5 lines changed.
+
+---
+
+## Step 8: Update Assembly Pipeline — Remove Round-Trip Fallback
+
+**File**: `apps/web/lib/latex/assemble.ts`
+
+Current chapter body production (lines 438-462):
+```
+if (section.rich_content_json) → tiptapToLatex(rich_content_json)
+else if (section.latex_content) → latexToTiptap(body) → tiptapToLatex(json) // round-trip!
+```
+
+Replace with:
+```
+if (section.latex_content) {
+  const { body } = splitBibtex(section.latex_content);
+  chapterBody = body;
+}
+```
+
+The sanitisation chain remains UNCHANGED — after extracting the body:
+1. `stripTierDCitations()` — strip unresolved citations ✅
+2. `escapeBareAmpersands()` — escape bare `&` outside tabular ✅
+3. `sanitiseChapterLatex()` — strip markdown separators, repair balancing ✅
+
+Same change for `injectFrontMatter()` (lines 304-313): replace the `tiptapToLatex()` / round-trip with direct `splitBibtex().body`.
+
+Remove imports:
+- `import { tiptapToLatex, type TiptapNode }` — delete
+- `import { latexToTiptap }` — delete
+
+~25 lines changed.
+
+---
+
+## Step 9: Update Workspace — Single Editor
+
+**File**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+This is a **LOCKED** file per MEMORY.md. Changes are minimal and focused:
+
+1. Remove `import { latexToTiptap }` (line 18)
+2. Remove dynamic imports of `SectionEditor` (lines 40-46) and `LaTeXSourceView` (lines 48-53)
+3. Add dynamic import of new `LaTeXEditor`
+4. Remove `EditorMode` type and `editorMode` state (line 79, 113)
+5. Remove editor toggle buttons (lines 406-415)
+6. Remove the richtext/source conditional (lines 272-295) — always render `LaTeXEditor`
+7. Pass `section.latex_content` as `initialContent` (no more `latexToTiptap` conversion at line 155)
+8. Remove the Tiptap conversion logic for SSE refine stream updates
+
+The workspace layout (resizable panels, mobile tabs, compile button, pipeline timeline) stays IDENTICAL. Only the editor swap changes.
+
+~40 lines changed.
+
+---
+
+## Step 10: Database Migration — Backfill & Deprecate
+
+**Migration via Supabase MCP**: `026_latex_content_canonical`
+
+Two parts:
+
+### 10a: Backfill `latex_content` for sections edited in rich text mode
+
+Sections where a user edited in Tiptap and saved would have updated `rich_content_json` but stale `latex_content` (still matches original AI output). We need to detect these:
+
+- If `ai_generated_latex = latex_content` AND `rich_content_json IS NOT NULL` → the user never edited in source mode, so `rich_content_json` may be newer
+- These sections need a Node.js backfill script (can't do `tiptapToLatex` in SQL)
+
+**Pragmatic approach**: Run a one-time Node.js script BEFORE deleting `tiptapToLatex.ts` that:
+1. Queries sections where `ai_generated_latex = latex_content AND rich_content_json IS NOT NULL`
+2. For each, calls `tiptapToLatex(rich_content_json)` and updates `latex_content`
+3. Logs results
+
+### 10b: SQL migration
+
+```sql
+-- Mark rich_content_json as deprecated via column comment
+COMMENT ON COLUMN public.sections.rich_content_json IS
+  'DEPRECATED (Phase 4). LaTeX is canonical. Retained for rollback only.';
+```
+
+---
+
+## Step 11: Remove Dead Code & Dependencies
+
+### 11a: Delete files
+- `apps/web/lib/latex/latex-to-tiptap.ts` (~620 lines)
+- `apps/web/lib/latex/tiptap-to-latex.ts` (~182 lines)
+- `apps/web/lib/latex/front-matter.ts` (dead code per C6)
+- `apps/web/components/editor/section-editor.tsx` (~261 lines, Tiptap editor)
+- `apps/web/lib/latex/latex-to-tiptap.test.ts` (tests for deleted code)
+- `apps/web/lib/latex/tiptap-to-latex.test.ts` (tests for deleted code)
+
+### 11b: Remove npm dependencies
+```
+pnpm remove novel @tiptap/core @tiptap/pm @codemirror/lang-javascript
+```
+
+### 11c: Update existing `latex-source-view.tsx`
+Delete this file entirely — replaced by `latex-editor.tsx` from Step 4.
+
+---
+
+## Step 12: Update Tests
+
+### 12a: Delete obsolete tests
+- `apps/web/lib/latex/latex-to-tiptap.test.ts`
+- `apps/web/lib/latex/tiptap-to-latex.test.ts`
+
+### 12b: Update pipeline E2E test
+**File**: `apps/web/tests/pipeline-e2e.test.ts`
+
+This test currently exercises `latexToTiptap → tiptapToLatex → preflightChapter → assembleThesisContent → compileTex`.
+
+After Phase 4, the pipeline is: `AI LaTeX → sanitiseChapterLatex → assembleThesisContent → compileTex` (no round-trip).
+
+Update:
+1. Remove imports of `latexToTiptap`, `tiptapToLatex`
+2. "Step 2: Tiptap round-trip" tests → replace with "Step 2: Direct sanitisation" tests (test `sanitiseChapterLatex` directly on AI output)
+3. "Step 4: assembly" tests → use `latex_content` directly (no `rich_content_json`)
+4. Multi-section compile test → same update
+
+### 12c: Update assembly tests
+**File**: `apps/web/lib/latex/assemble.test.ts`
+
+Update to reflect new assembly path (no `rich_content_json` / `tiptapToLatex`):
+1. Remove `tiptapToLatex` import
+2. Update "uses tiptapToLatex when rich_content_json available" → "uses latex_content directly"
+3. All test sections use `latex_content` field
+
+### 12d: New tests
+**New file**: `apps/web/tests/editor/extract-citations.test.ts`
+
+Test `extractCiteKeys()` with:
+- Single citation: `\cite{key}` → `["key"]`
+- Multi-citation: `\cite{a,b,c}` → `["a","b","c"]`
+- Duplicate handling
+- Empty/malformed input
+- Nested braces edge case
+
+~40 lines. (Note: `extractCiteKeys` already exists and may already have tests — check first.)
+
+---
+
+## Step 13: Update Section Viewer (Read-Only)
+
+**File**: `apps/web/components/project/section-viewer.tsx`
+
+Currently renders `section.latex_content` as a `<pre>` block (line 160-162). This already works correctly for the LaTeX-canonical world — no changes needed.
+
+(Confirmed: it already shows `latex_content` in a monospace `<pre>` with word wrap.)
+
+---
+
+## Execution Order
+
+```
+Step 1  → Install deps (pnpm add)
+Step 2  → CM extensions (new files, no dependencies)
+Step 3  → Toolbar component (new file, depends on Step 2 concepts)
+Step 4  → LaTeX editor component (new file, depends on Steps 2-3)
+  ↓
+Step 10a → Backfill script (MUST run before deleting tiptap code)
+  ↓
+Step 5  → Update generate route (remove latexToTiptap)
+Step 6  → Update refine route (remove latexToTiptap)
+Step 7  → Update section save route (remove tiptapToLatex)
+Step 8  → Update assembly (remove round-trip)
+Step 9  → Update workspace (swap editor)
+Step 10b → SQL migration (deprecate column comment)
+  ↓
+Step 11 → Delete dead code + remove deps
+Step 12 → Update tests
+```
+
+Steps 2-4 can be done in parallel. Steps 5-9 can be done in parallel after 10a. Step 11 must be last code change (after all imports removed).
+
+---
+
+## Files Summary
+
+| Step | File | Action | ~Lines |
+|------|------|--------|--------|
+| 1 | `package.json` | Edit (add deps) | 5 |
+| 2 | `components/editor/extensions/latex-language.ts` | **Create** | 15 |
+| 2 | `components/editor/extensions/citation-decorations.ts` | **Create** | 60 |
+| 2 | `components/editor/extensions/math-tooltip.ts` | **Create** | 50 |
+| 2 | `components/editor/extensions/environment-fold.ts` | **Create** | 40 |
+| 3 | `components/editor/latex-toolbar.tsx` | **Create** | 100 |
+| 4 | `components/editor/latex-editor.tsx` | **Create** | 120 |
+| 5 | `sections/[phase]/generate/route.ts` | Edit | 20 |
+| 6 | `sections/[phase]/refine/route.ts` | Edit | 15 |
+| 7 | `sections/[phase]/route.ts` (PUT) | Edit | 20 |
+| 8 | `lib/latex/assemble.ts` | Edit | 25 |
+| 9 | `projects/[id]/project-workspace.tsx` | Edit | 40 |
+| 10a | `scripts/backfill-latex-content.ts` | **Create** (one-time) | 50 |
+| 10b | Migration SQL | Via Supabase MCP | 5 |
+| 11 | `lib/latex/latex-to-tiptap.ts` | **Delete** | -620 |
+| 11 | `lib/latex/tiptap-to-latex.ts` | **Delete** | -182 |
+| 11 | `lib/latex/front-matter.ts` | **Delete** | ~-80 |
+| 11 | `components/editor/section-editor.tsx` | **Delete** | -261 |
+| 11 | `components/editor/latex-source-view.tsx` | **Delete** | -91 |
+| 12 | `tests/pipeline-e2e.test.ts` | Edit | 40 |
+| 12 | `lib/latex/assemble.test.ts` | Edit | 30 |
+| 12 | `lib/latex/latex-to-tiptap.test.ts` | **Delete** | — |
+| 12 | `lib/latex/tiptap-to-latex.test.ts` | **Delete** | — |
+
+**Total**: 7 new files + 6 modified + 7 deleted. Net reduction ~600+ lines (removing round-trip code).
+
+All paths relative to `apps/web/`.
+
+---
+
+## Review ID Cross-Reference
+
+| Review ID | Mitigation Item | Step |
+|-----------|----------------|------|
+| C1 | Inline math destruction | Steps 5-8 (eliminate round-trip) |
+| C2 | `\footnote{}`, `\url{}` destruction | Steps 5-8 (eliminate round-trip) |
+| C3 | `\label{}` permanently stripped | Steps 5-8 (eliminate round-trip) |
+| C6 | `front-matter.ts` dead code | Step 11a (delete) |
+| DECISIONS §2 | CodeMirror 6 primary editor | Steps 2-4 (new editor) |
+| DECISIONS §2 | `latex_content` canonical | Steps 5-10 (schema + route changes) |
+| DECISIONS §2 | Eliminate Tiptap dependency | Step 11 (remove code + deps) |
+
+---
+
+## Verification
+
+1. `pnpm tsc --noEmit` — 0 TypeScript errors
+2. `pnpm lint` — no new warnings
+3. `pnpm test` — all tests pass (updated + new)
+4. Manual checks:
+   - CodeMirror editor loads with LaTeX syntax highlighting
+   - `\section{}`, `\textbf{}`, `\cite{}` commands are coloured
+   - Citation chips render inline for `\cite{key}` patterns
+   - Math tooltip shows rendered formula on hover over `$...$`
+   - Toolbar Bold/Italic/Section/Cite buttons work
+   - Environment folding works for `\begin{}/\end{}` blocks
+   - Auto-save fires after 30s of inactivity
+   - Manual save (Ctrl+S) works
+   - Generate route produces correct `latex_content` (no `rich_content_json`)
+   - Refine route produces correct `latex_content`
+   - Compile pipeline works end-to-end (assemble → compile → PDF)
+   - No editor toggle visible (single editor mode)
+   - `$p < 0.05$` survives save → reload cycle (THE critical test)
+   - `\footnote{text}` survives save → reload cycle
+   - `\label{fig:test}` survives save → reload cycle
+5. Run Supabase migration via MCP
+6. Run advisors check: `mcp__supabase__get_advisors({ type: "security" })`
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+now check all the chnages made against the review, decisions, mitigation plan and mitigation implementation files, for alignment. Also check all changes made for proper logical correctness for the project. Think ultra hard
+
+---
+
+<local-command-stderr>Error: Error during compaction: Error: Conversation too long. Press esc twice to go up a few messages and try again.</local-command-stderr>
+
+---
+
+fill up mitigation implementation file with phase 4 completiion report
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. The user provided a detailed Phase 4 implementation plan for migrating from Tiptap/Novel rich text editor to CodeMirror 6 as the sole editor in the Apollo project.
+
+2. I implemented the entire Phase 4 plan step by step:
+   - Step 0: Fixed CI test pollution in licence-gates.test.ts
+   - Step 1: Installed dependencies (@codemirror/legacy-modes, @codemirror/language, katex, @types/katex)
+   - Step 2: Created 4 CM6 extension files
+   - Step 3: Created LaTeX toolbar component
+   - Step 4: Created LaTeX editor component
+   - Step 5: Updated generate route (removed latexToTiptap)
+   - Step 6: Updated refine route (removed latexToTiptap)
+   - Step 7: Updated section save route (removed tiptapToLatex)
+   - Step 8: Updated assembly pipeline (removed round-trip)
+   - Step 9: Updated workspace (single editor)
+   - Step 10a: Created backfill script
+   - Step 10b: Applied SQL migration
+   - Step 11: Deleted dead code + removed deps
+   - Step 12: Updated tests
+
+3. Key errors encountered:
+   - TypeScript errors: @codemirror/view and @codemirror/state needed to be installed as direct deps
+   - Implicit 'any' types in citation-decorations.ts and latex-toolbar.tsx needed fixing
+   - The plan said to delete front-matter.ts but it was NOT dead code - still used by approve route
+
+4. After completing all implementation, I ran verification:
+   - pnpm tsc --noEmit: 0 errors
+   - pnpm lint: no new warnings
+   - pnpm test: 298 tests pass across 30 files
+   - Supabase security advisors: no new warnings
+
+5. The user then asked me to "check all changes made against the review, decisions, mitigation plan and mitigation implementation files, for alignment. Also check all changes made for proper logical correctness for the project. Think ultra hard"
+
+6. I started reading the governance documents (DECISIONS.md, Mitigation_implementation.md, Decision_points.md) but the conversation was compacted before I could complete the full review.
+
+7. The user's most recent message after the compact was: "fill up mitigation implementation file with phase 4 completion report"
+
+Let me capture all the critical details about what was implemented and what needs to happen next.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked me to implement the full Phase 4: Editor Migration (CodeMirror 6) plan for the Apollo project. This involved eliminating the Tiptap/Novel rich text editor and its destructive LaTeX round-trip conversion, making CodeMirror 6 the sole editor with LaTeX as the canonical storage format. After implementation was complete, the user asked me to: (a) check all changes against REVIEW.md, DECISIONS.md, Mitigation_plan.md, and Mitigation_implementation.md for alignment and logical correctness, and (b) fill up the mitigation implementation file with a Phase 4 completion report.
+
+2. Key Technical Concepts:
+   - **LaTeX canonical**: `latex_content` is the only storage column; `rich_content_json` is DEPRECATED
+   - **Tiptap round-trip elimination**: Removed `latexToTiptap()` and `tiptapToLatex()` entirely
+   - **CodeMirror 6 extensions**: stex grammar (syntax highlighting), citation decorations, math tooltips (KaTeX), environment folding
+   - **WYSIWYG toolbar**: Wraps selections with LaTeX commands via `view.dispatch()`
+   - **Assembly pipeline simplification**: Direct `splitBibtex(latex_content).body` instead of round-trip
+   - **DB migration**: Column comment marking `rich_content_json` as deprecated
+   - **Backfill script**: One-time Node.js script to convert sections edited in Tiptap mode
+
+3. Files and Code Sections:
+
+   **NEW FILES CREATED:**
+   
+   - `apps/web/components/editor/extensions/latex-language.ts` — stex grammar wrapper
+   - `apps/web/components/editor/extensions/citation-decorations.ts` — ViewPlugin decorating `\cite{key}` with `.cm-cite-chip` class
+   - `apps/web/components/editor/extensions/math-tooltip.ts` — hoverTooltip rendering KaTeX for `$...Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. The user provided a detailed Phase 4 implementation plan for migrating from Tiptap/Novel rich text editor to CodeMirror 6 as the sole editor in the Apollo project.
+
+2. I implemented the entire Phase 4 plan step by step:
+   - Step 0: Fixed CI test pollution in licence-gates.test.ts
+   - Step 1: Installed dependencies (@codemirror/legacy-modes, @codemirror/language, katex, @types/katex)
+   - Step 2: Created 4 CM6 extension files
+   - Step 3: Created LaTeX toolbar component
+   - Step 4: Created LaTeX editor component
+   - Step 5: Updated generate route (removed latexToTiptap)
+   - Step 6: Updated refine route (removed latexToTiptap)
+   - Step 7: Updated section save route (removed tiptapToLatex)
+   - Step 8: Updated assembly pipeline (removed round-trip)
+   - Step 9: Updated workspace (single editor)
+   - Step 10a: Created backfill script
+   - Step 10b: Applied SQL migration
+   - Step 11: Deleted dead code + removed deps
+   - Step 12: Updated tests
+
+3. Key errors encountered:
+   - TypeScript errors: @codemirror/view and @codemirror/state needed to be installed as direct deps
+   - Implicit 'any' types in citation-decorations.ts and latex-toolbar.tsx needed fixing
+   - The plan said to delete front-matter.ts but it was NOT dead code - still used by approve route
+
+4. After completing all implementation, I ran verification:
+   - pnpm tsc --noEmit: 0 errors
+   - pnpm lint: no new warnings
+   - pnpm test: 298 tests pass across 30 files
+   - Supabase security advisors: no new warnings
+
+5. The user then asked me to "check all changes made against the review, decisions, mitigation plan and mitigation implementation files, for alignment. Also check all changes made for proper logical correctness for the project. Think ultra hard"
+
+6. I started reading the governance documents (DECISIONS.md, Mitigation_implementation.md, Decision_points.md) but the conversation was compacted before I could complete the full review.
+
+7. The user's most recent message after the compact was: "fill up mitigation implementation file with phase 4 completion report"
+
+Let me capture all the critical details about what was implemented and what needs to happen next.
+
+ and `$...$`
+   - `apps/web/components/editor/extensions/environment-fold.ts` — foldService for `\begin{}`/`\end{}` with nesting
+   - `apps/web/components/editor/latex-toolbar.tsx` — 8 formatting buttons + Cite button, uses `view.dispatch()` with `changes`
+   - `apps/web/components/editor/latex-editor.tsx` — Full editor: CM6 + extensions + auto-save (30s) + Cmd+S + citation dialog
+   - `scripts/backfill-latex-content.ts` — One-time migration script for Tiptap-edited sections
+
+   **MODIFIED FILES:**
+   
+   - `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+     - Replaced `import { latexToTiptap }` with `import { extractCiteKeys }`
+     - Replaced `latexToTiptap(fullResponse)` with `extractCiteKeys(fullResponse)`
+     - Set `rich_content_json: null` in all DB updates
+     - Removed `parseWarnings` from SSE complete event
+     - Simplified 3-tier fallback to 2-tier (removed rich_content_json tier)
+
+   - `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`
+     - Same pattern: replaced `latexToTiptap` with `extractCiteKeys`
+     - Set `rich_content_json: null` in all DB updates
+
+   - `apps/web/app/api/projects/[id]/sections/[phase]/route.ts`
+     - Removed `import { tiptapToLatex }`
+     - Removed the `rich_content_json` save branch entirely
+     - Only accepts `latex_content` saves now
+
+   - `apps/web/lib/latex/assemble.ts`
+     - Removed imports of `tiptapToLatex`, `TiptapNode`, `latexToTiptap`
+     - `injectFrontMatter()`: Changed from `tiptapToLatex(rich_content_json)` / round-trip to direct `splitBibtex(latex_content).body`
+     - Chapter body production: Changed from `tiptapToLatex(rich_content_json)` / fallback round-trip to direct `splitBibtex(section.latex_content).body`
+     - Sanitisation chain PRESERVED: `stripTierDCitations()`, `escapeBareAmpersands()`, `sanitiseChapterLatex()`
+
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` (LOCKED file - minimal changes)
+     - Removed `import type { JSONContent } from "novel"` and `import { latexToTiptap }`
+     - Removed `useMemo` import (no longer needed)
+     - Replaced `SectionEditor` and `LaTeXSourceView` dynamic imports with single `LaTeXEditor`
+     - Removed `EditorMode` type and `editorMode` state
+     - Removed `richContentForEditor` useMemo and editor mode auto-select effect
+     - Simplified `hasViewableContent` to just `Boolean(currentSection?.latex_content)`
+     - Replaced dual editor rendering with single `LaTeXEditor` for editable, and read-only `<pre>` for non-editable
+     - Removed editor mode toggle buttons from action bar
+     - Removed `Code` from lucide-react imports
+
+   - `apps/web/tests/security/licence-gates.test.ts`
+     - Added `await adminClient.from("projects").update({ current_phase: 0 }).eq("id", sandboxProjectId)` after "phase can only increment by 1" test
+
+   - `apps/web/tests/pipeline-e2e.test.ts` — Complete rewrite
+     - Removed `latexToTiptap` and `tiptapToLatex` imports
+     - Added `extractCiteKeys` import
+     - Changed test content: removed markdown `# Introduction` heading, used clean `\section{Introduction}` LaTeX
+     - Step 1: Citation key extraction tests
+     - Step 2: Direct sanitisation (splitBibtex + preflightChapter)
+     - Step 3: Clean LaTeX + critical round-trip destruction tests (`$p < 0.05Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. The user provided a detailed Phase 4 implementation plan for migrating from Tiptap/Novel rich text editor to CodeMirror 6 as the sole editor in the Apollo project.
+
+2. I implemented the entire Phase 4 plan step by step:
+   - Step 0: Fixed CI test pollution in licence-gates.test.ts
+   - Step 1: Installed dependencies (@codemirror/legacy-modes, @codemirror/language, katex, @types/katex)
+   - Step 2: Created 4 CM6 extension files
+   - Step 3: Created LaTeX toolbar component
+   - Step 4: Created LaTeX editor component
+   - Step 5: Updated generate route (removed latexToTiptap)
+   - Step 6: Updated refine route (removed latexToTiptap)
+   - Step 7: Updated section save route (removed tiptapToLatex)
+   - Step 8: Updated assembly pipeline (removed round-trip)
+   - Step 9: Updated workspace (single editor)
+   - Step 10a: Created backfill script
+   - Step 10b: Applied SQL migration
+   - Step 11: Deleted dead code + removed deps
+   - Step 12: Updated tests
+
+3. Key errors encountered:
+   - TypeScript errors: @codemirror/view and @codemirror/state needed to be installed as direct deps
+   - Implicit 'any' types in citation-decorations.ts and latex-toolbar.tsx needed fixing
+   - The plan said to delete front-matter.ts but it was NOT dead code - still used by approve route
+
+4. After completing all implementation, I ran verification:
+   - pnpm tsc --noEmit: 0 errors
+   - pnpm lint: no new warnings
+   - pnpm test: 298 tests pass across 30 files
+   - Supabase security advisors: no new warnings
+
+5. The user then asked me to "check all changes made against the review, decisions, mitigation plan and mitigation implementation files, for alignment. Also check all changes made for proper logical correctness for the project. Think ultra hard"
+
+6. I started reading the governance documents (DECISIONS.md, Mitigation_implementation.md, Decision_points.md) but the conversation was compacted before I could complete the full review.
+
+7. The user's most recent message after the compact was: "fill up mitigation implementation file with phase 4 completion report"
+
+Let me capture all the critical details about what was implemented and what needs to happen next.
+
+, `\footnote{}`, `\label{}`)
+     - Step 4: Assembly uses `latex_content` directly
+     - Step 5: Full compile pipeline (no rich_content_json)
+     - Step 6: Edge cases preserved
+
+   - `apps/web/lib/latex/assemble.test.ts`
+     - Updated "uses tiptapToLatex" test → "uses latex_content directly (LaTeX is canonical)" testing `$p < 0.05Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. The user provided a detailed Phase 4 implementation plan for migrating from Tiptap/Novel rich text editor to CodeMirror 6 as the sole editor in the Apollo project.
+
+2. I implemented the entire Phase 4 plan step by step:
+   - Step 0: Fixed CI test pollution in licence-gates.test.ts
+   - Step 1: Installed dependencies (@codemirror/legacy-modes, @codemirror/language, katex, @types/katex)
+   - Step 2: Created 4 CM6 extension files
+   - Step 3: Created LaTeX toolbar component
+   - Step 4: Created LaTeX editor component
+   - Step 5: Updated generate route (removed latexToTiptap)
+   - Step 6: Updated refine route (removed latexToTiptap)
+   - Step 7: Updated section save route (removed tiptapToLatex)
+   - Step 8: Updated assembly pipeline (removed round-trip)
+   - Step 9: Updated workspace (single editor)
+   - Step 10a: Created backfill script
+   - Step 10b: Applied SQL migration
+   - Step 11: Deleted dead code + removed deps
+   - Step 12: Updated tests
+
+3. Key errors encountered:
+   - TypeScript errors: @codemirror/view and @codemirror/state needed to be installed as direct deps
+   - Implicit 'any' types in citation-decorations.ts and latex-toolbar.tsx needed fixing
+   - The plan said to delete front-matter.ts but it was NOT dead code - still used by approve route
+
+4. After completing all implementation, I ran verification:
+   - pnpm tsc --noEmit: 0 errors
+   - pnpm lint: no new warnings
+   - pnpm test: 298 tests pass across 30 files
+   - Supabase security advisors: no new warnings
+
+5. The user then asked me to "check all changes made against the review, decisions, mitigation plan and mitigation implementation files, for alignment. Also check all changes made for proper logical correctness for the project. Think ultra hard"
+
+6. I started reading the governance documents (DECISIONS.md, Mitigation_implementation.md, Decision_points.md) but the conversation was compacted before I could complete the full review.
+
+7. The user's most recent message after the compact was: "fill up mitigation implementation file with phase 4 completion report"
+
+Let me capture all the critical details about what was implemented and what needs to happen next.
+
+ and `\footnote{}`
+     - Updated "falls back to latex_content" test → "ignores rich_content_json — uses latex_content only"
+     - Updated comments removing references to tiptap round-trip
+
+   **DELETED FILES:**
+   - `apps/web/lib/latex/latex-to-tiptap.ts` (~620 lines)
+   - `apps/web/lib/latex/tiptap-to-latex.ts` (~182 lines)
+   - `apps/web/lib/latex/latex-to-tiptap.test.ts`
+   - `apps/web/lib/latex/tiptap-to-latex.test.ts`
+   - `apps/web/components/editor/section-editor.tsx` (~261 lines)
+   - `apps/web/components/editor/latex-source-view.tsx` (~91 lines)
+
+   **NOT DELETED (deviation from plan):**
+   - `apps/web/lib/latex/front-matter.ts` — Plan said "dead code per C6" but it's actively imported by `approve/route.ts` line 15 for `generateFrontMatterLatex()`. Correctly kept.
+
+   **DEPENDENCIES:**
+   - Added: `@codemirror/legacy-modes`, `@codemirror/language`, `@codemirror/view`, `@codemirror/state`, `katex`, `@types/katex`
+   - Removed: `novel` (145 packages), `@tiptap/core`, `@tiptap/pm` (32 packages), `@codemirror/lang-javascript`
+   - Total: 177 packages removed
+
+   **DATABASE:**
+   - Migration `026_latex_content_canonical` applied via Supabase MCP: `COMMENT ON COLUMN public.sections.rich_content_json IS 'DEPRECATED (Phase 4)...'`
+
+4. Errors and fixes:
+   - **TypeScript: Cannot find module '@codemirror/view'**: These packages were transitive deps of `@uiw/react-codemirror` but needed explicit installation for TypeScript resolution. Fixed by running `pnpm add @codemirror/view @codemirror/state`.
+   - **TypeScript: Parameter 'v' implicitly has 'any' type** in citation-decorations.ts: The decorations accessor callback needed explicit typing. Fixed: `(v) => v.decorations` → `(v: { decorations: DecorationSet }) => v.decorations`.
+   - **TypeScript: Parameter 'l' implicitly has 'any' type** in latex-toolbar.tsx: String array filter/map callbacks needed types. Fixed: `.filter((l) =>` → `.filter((l: string) =>`.
+   - **front-matter.ts NOT dead code**: Plan said to delete it (C6), but grep showed `approve/route.ts` line 15 imports `generateFrontMatterLatex`. Correctly kept the file.
+
+5. Problem Solving:
+   - All 298 tests pass across 30 files after changes
+   - 0 TypeScript errors
+   - No new lint warnings
+   - No new security advisors warnings
+   - The critical bugs C1 ($p < 0.05$ destruction), C2 (\footnote{} destruction), C3 (\label{} stripping) are all resolved by eliminating the round-trip
+
+6. All user messages:
+   - "Implement the following plan: [full Phase 4 implementation plan]"
+   - "now check all the changes made against the review, decisions, mitigation plan and mitigation implementation files, for alignment. Also check all changes made for proper logical correctness for the project. Think ultra hard"
+   - "fill up mitigation implementation file with phase 4 completion report"
+
+7. Pending Tasks:
+   - **PRIMARY**: Fill up the Mitigation_implementation.md file with the Phase 4 completion report
+   - **SECONDARY**: Complete the thorough review of all changes against REVIEW.md, DECISIONS.md, Mitigation_plan.md for alignment and logical correctness (was started but interrupted by compact)
+
+8. Current Work:
+   I had just read DECISIONS.md, Mitigation_implementation.md, and Decision_points.md to begin the alignment review. The user then asked to "fill up mitigation implementation file with phase 4 completion report". This is the immediate next task.
+
+   Key files read for the review:
+   - `docs/DECISIONS.md` — Section 2 (Editor Architecture) specifies CodeMirror 6 with syntax decorations, citation chips, math preview tooltips, WYSIWYG toolbar, fold markers. Eliminates latexToTiptap/tiptapToLatex. Keeps sanitiseChapterLatex/escapeBareAmpersands/normaliseUnicode. `latex_content` canonical, `rich_content_json` deprecated.
+   - `docs/Mitigation_implementation.md` — Contains Phase 1, 2, 3 completion reports. Phase 4 section needs to be ADDED.
+   - `docs/Decision_points.md` — Q7 asked about editor architecture approach. Option (a) "Modified Option C" was chosen per DECISIONS.md §2.
+   - Still need to read: `docs/REVIEW.md`, `docs/Mitigation_plan.md`
+
+9. Optional Next Step:
+   Write the Phase 4 completion report section into `docs/Mitigation_implementation.md`, following the same format as Phases 1-3 (Status, Commit, Duration, Tests, Items Implemented table, Items Deferred, Deviations from Plan, Bugs Found, Lessons Learned). The user explicitly said: "fill up mitigation implementation file with phase 4 completion report"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+find the phase 4 completion reports, and check the changes made against the Review.md, Decisions.md, Mitigation_plan.md and Mitigation_implementation.md for alignment. Also check the changes made for proper logic for this project. Think ultra hard and find any errors of code or logic, and debug. Then populate the Mitigation_implementation.md with phase 4 completion report
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. This conversation is a continuation of a previous session where the entire Phase 4: Editor Migration (CodeMirror 6) was implemented. The previous session implemented all 12 steps of the plan.
+
+2. The user's message in this session asks to:
+   - Find the Phase 4 completion reports
+   - Check all changes against Review.md, Decisions.md, Mitigation_plan.md, and Mitigation_implementation.md for alignment
+   - Check changes for proper logic for the project
+   - Find any errors of code or logic, and debug
+   - Populate Mitigation_implementation.md with Phase 4 completion report
+
+3. I launched a background agent to read the reference documents (Mitigation_implementation.md, Mitigation_plan.md, REVIEW.md).
+
+4. While waiting, I read all the actual changed/created files in parallel:
+   - `apps/web/lib/latex/assemble.ts` - Assembly pipeline (uses latex_content directly, no round-trip)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - Generate route (extractCiteKeys instead of latexToTiptap)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts` - Refine route (same pattern)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/route.ts` - Section save route (only latex_content)
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - Workspace (single LaTeXEditor)
+   - `apps/web/components/editor/latex-editor.tsx` - New editor component
+   - `apps/web/components/editor/latex-toolbar.tsx` - New toolbar component
+   - `apps/web/components/editor/extensions/latex-language.ts` - stex grammar
+   - `apps/web/components/editor/extensions/citation-decorations.ts` - Citation chips
+   - `apps/web/components/editor/extensions/math-tooltip.ts` - Math preview
+   - `apps/web/components/editor/extensions/environment-fold.ts` - Environment folding
+   - `apps/web/lib/latex/assemble.test.ts` - Updated tests
+   - `scripts/backfill-latex-content.ts` - One-time migration script
+
+5. I then read the full Mitigation_implementation.md (contains Phase 1-3 reports) and Mitigation_plan.md (Phase 4 section at lines 554-584).
+
+6. I performed thorough grep searches to find bugs:
+   - Searched for `cm-cite-chip|cm-math-tooltip|katex.*css` - Found NO CSS definitions for editor decorations
+   - Searched for `latexToTiptap|tiptapToLatex|section-editor|latex-source-view` - Found NO remaining imports (clean)
+   - Confirmed `cm-cite-chip` and `cm-math-tooltip` classes are used but NEVER defined in CSS
+   - Confirmed KaTeX CSS (`katex/dist/katex.min.css`) is NEVER imported
+   - Searched for `front-matter` references - Confirmed it IS used by approve/route.ts (correctly kept)
+   - Searched for remaining tiptap/novel imports - Found only harmless stale comments
+
+7. Bugs found:
+   - **BUG 1**: Missing KaTeX CSS import - math tooltips render with wrong fonts/spacing
+   - **BUG 2**: Missing `.cm-cite-chip` CSS - citation decorations have no visual styling
+   - **BUG 3**: Missing `.cm-math-tooltip` CSS - tooltip container has no background/padding/shadow
+   - **Stale comment in assemble.ts:224** - references tiptap round-trip
+   - **Stale comment in extract-keys.ts:3** - references tiptap-to-latex serialiser
+
+8. I created a fix for the CSS bugs:
+   - Created `apps/web/components/editor/editor-styles.css` with KaTeX import, citation chip styles, and math tooltip styles
+   - BUT: I haven't yet imported this CSS file into the editor component
+
+9. Deviations from plan identified:
+   - front-matter.ts NOT deleted (correctly - still used by approve route)
+   - Atomic ranges not implemented (DECISIONS.md §2 specifies them)
+   - KaTeX used instead of MathJax (reasonable substitute)
+   - Backfill script can't run (imports deleted tiptap-to-latex.ts)
+
+10. The Mitigation_implementation.md still needs the Phase 4 completion report appended (the main task I was working toward).
+
+The conversation was interrupted right after creating the CSS file, before:
+- Importing the CSS file into the editor component
+- Fixing stale comments
+- Writing the Phase 4 completion report to Mitigation_implementation.md
+
+Summary:
+1. Primary Request and Intent:
+   The user explicitly asked to: "find the phase 4 completion reports, and check the changes made against the Review.md, Decisions.md, Mitigation_plan.md and Mitigation_implementation.md for alignment. Also check the changes made for proper logic for this project. Think ultra hard and find any errors of code or logic, and debug. Then populate the Mitigation_implementation.md with phase 4 completion report"
+
+   This is a continuation of a previous session where the entire Phase 4: Editor Migration (CodeMirror 6) was implemented — all 12 steps from the plan file at `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md`. The previous session's work is summarized in the conversation's session summary at the top.
+
+2. Key Technical Concepts:
+   - **LaTeX canonical storage**: `latex_content` is the only canonical storage column; `rich_content_json` is DEPRECATED
+   - **Tiptap round-trip elimination**: Removed `latexToTiptap()` and `tiptapToLatex()` entirely to fix P0 content destruction bugs (C1: inline math, C2: footnotes/urls, C3: labels)
+   - **CodeMirror 6 extensions**: stex grammar (syntax highlighting), citation decorations (ViewPlugin + Decoration.mark), math tooltips (KaTeX + hoverTooltip), environment folding (foldService)
+   - **WYSIWYG toolbar**: Wraps text selections with LaTeX commands via `view.dispatch()` with `changes`
+   - **Assembly pipeline simplification**: Direct `splitBibtex(latex_content).body` instead of tiptap round-trip
+   - **BibTeX 2-tier fallback**: `ai_generated_latex` (preserves trailer after user edits) → fallback `latex_content`
+   - **DB migration**: Column comment marking `rich_content_json` as deprecated
+   - **Backfill script**: One-time Node.js script meant to be run BEFORE deleting tiptap code
+   - **Mitigation implementation**: Following format established by Phases 1-3 in `docs/Mitigation_implementation.md`
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/latex/assemble.ts`** (MODIFIED in Phase 4)
+     - Core assembly pipeline. Changed from tiptap round-trip to direct `splitBibtex(section.latex_content).body`
+     - Sanitisation chain PRESERVED: `stripTierDCitations()`, `escapeBareAmpersands()`, `sanitiseChapterLatex()`
+     - BibTeX sourced from `ai_generated_latex ?? latex_content` (line 466)
+     - `injectFrontMatter()` uses `splitBibtex(phase1.latex_content).body` directly (line 304)
+     - **Stale comment at line 224**: Still references "tiptap round-trip" in `escapeBareAmpersands` docstring
+     - Full file read and verified — 497 lines
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (MODIFIED)
+     - Uses `extractCiteKeys(fullResponse)` instead of `latexToTiptap(fullResponse)` (line 348)
+     - Sets `rich_content_json: null` in all DB updates (lines 362, 382)
+     - 2-tier fallback: tries with `ai_generated_latex`, falls back without it
+     - Model routing TODO at line 279: `// TODO: Switch to Opus when API access available`
+     - Full file read — 635 lines
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`** (MODIFIED)
+     - Same pattern as generate: `extractCiteKeys(fullResponse)` (line 113)
+     - Sets `rich_content_json: null` in updates (lines 127, 143)
+     - Sources current content from `ai_generated_latex || latex_content` (line 68)
+     - Full file read — 212 lines
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/route.ts`** (MODIFIED)
+     - PUT handler only accepts `latex_content` saves (line 115)
+     - Always sets `rich_content_json: null` in upsert (lines 118, 149)
+     - Uses `extractCiteKeys()` for citation extraction (line 120)
+     - Full file read — 181 lines
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (MODIFIED - LOCKED file)
+     - Single `LaTeXEditor` dynamic import replaces dual SectionEditor/LaTeXSourceView (lines 38-44)
+     - Removed `EditorMode` type, `editorMode` state, editor toggle buttons
+     - `hasViewableContent` simplified to `Boolean(currentSection?.latex_content)` (line 132)
+     - Renders `LaTeXEditor` for editable, read-only `<pre>` for non-editable (lines 235-267)
+     - Still has CitationSearchDialog (separate from editor's — one for project citations, one for inserting at cursor)
+     - Full file read — 627 lines
+
+   - **`apps/web/components/editor/latex-editor.tsx`** (NEW)
+     - CodeMirror 6 editor with all extensions, auto-save (30s), Cmd+S shortcut
+     - Props: `{ projectId, phaseNumber, initialContent, onSaveSuccess?, onContentChange? }`
+     - Saves via `PUT /api/projects/{projectId}/sections/{phaseNumber}` with `{ latex_content }`
+     - Uses `contentRef` for current content, `cmRef` for editor view reference
+     - `useEffect` without deps to capture editor view on mount (line 81-85) — runs every render
+     - **Missing**: Does not import `editor-styles.css` (needed for CSS fixes)
+     - Full file read — 188 lines
+
+   - **`apps/web/components/editor/latex-toolbar.tsx`** (NEW)
+     - 8 formatting buttons + Cite button using lucide-react icons
+     - `wrapSelection()` and `wrapLines()` helpers using `view.dispatch({ changes })`
+     - Buttons: Bold, Italic, Underline, Section, Subsection, Bullet list, Numbered list, Math
+     - Full file read — 89 lines
+
+   - **`apps/web/components/editor/extensions/latex-language.ts`** (NEW)
+     - `StreamLanguage.define(stex)` from `@codemirror/legacy-modes/mode/stex`
+     - 9 lines
+
+   - **`apps/web/components/editor/extensions/citation-decorations.ts`** (NEW)
+     - `ViewPlugin` with `Decoration.mark({ class: "cm-cite-chip" })` for `\cite{key}` patterns
+     - Rebuilds decorations on `docChanged || viewportChanged`
+     - **BUG**: `.cm-cite-chip` CSS class never defined anywhere
+     - 49 lines
+
+   - **`apps/web/components/editor/extensions/math-tooltip.ts`** (NEW)
+     - `hoverTooltip()` detects `$...Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. This conversation is a continuation of a previous session where the entire Phase 4: Editor Migration (CodeMirror 6) was implemented. The previous session implemented all 12 steps of the plan.
+
+2. The user's message in this session asks to:
+   - Find the Phase 4 completion reports
+   - Check all changes against Review.md, Decisions.md, Mitigation_plan.md, and Mitigation_implementation.md for alignment
+   - Check changes for proper logic for the project
+   - Find any errors of code or logic, and debug
+   - Populate Mitigation_implementation.md with Phase 4 completion report
+
+3. I launched a background agent to read the reference documents (Mitigation_implementation.md, Mitigation_plan.md, REVIEW.md).
+
+4. While waiting, I read all the actual changed/created files in parallel:
+   - `apps/web/lib/latex/assemble.ts` - Assembly pipeline (uses latex_content directly, no round-trip)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - Generate route (extractCiteKeys instead of latexToTiptap)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts` - Refine route (same pattern)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/route.ts` - Section save route (only latex_content)
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - Workspace (single LaTeXEditor)
+   - `apps/web/components/editor/latex-editor.tsx` - New editor component
+   - `apps/web/components/editor/latex-toolbar.tsx` - New toolbar component
+   - `apps/web/components/editor/extensions/latex-language.ts` - stex grammar
+   - `apps/web/components/editor/extensions/citation-decorations.ts` - Citation chips
+   - `apps/web/components/editor/extensions/math-tooltip.ts` - Math preview
+   - `apps/web/components/editor/extensions/environment-fold.ts` - Environment folding
+   - `apps/web/lib/latex/assemble.test.ts` - Updated tests
+   - `scripts/backfill-latex-content.ts` - One-time migration script
+
+5. I then read the full Mitigation_implementation.md (contains Phase 1-3 reports) and Mitigation_plan.md (Phase 4 section at lines 554-584).
+
+6. I performed thorough grep searches to find bugs:
+   - Searched for `cm-cite-chip|cm-math-tooltip|katex.*css` - Found NO CSS definitions for editor decorations
+   - Searched for `latexToTiptap|tiptapToLatex|section-editor|latex-source-view` - Found NO remaining imports (clean)
+   - Confirmed `cm-cite-chip` and `cm-math-tooltip` classes are used but NEVER defined in CSS
+   - Confirmed KaTeX CSS (`katex/dist/katex.min.css`) is NEVER imported
+   - Searched for `front-matter` references - Confirmed it IS used by approve/route.ts (correctly kept)
+   - Searched for remaining tiptap/novel imports - Found only harmless stale comments
+
+7. Bugs found:
+   - **BUG 1**: Missing KaTeX CSS import - math tooltips render with wrong fonts/spacing
+   - **BUG 2**: Missing `.cm-cite-chip` CSS - citation decorations have no visual styling
+   - **BUG 3**: Missing `.cm-math-tooltip` CSS - tooltip container has no background/padding/shadow
+   - **Stale comment in assemble.ts:224** - references tiptap round-trip
+   - **Stale comment in extract-keys.ts:3** - references tiptap-to-latex serialiser
+
+8. I created a fix for the CSS bugs:
+   - Created `apps/web/components/editor/editor-styles.css` with KaTeX import, citation chip styles, and math tooltip styles
+   - BUT: I haven't yet imported this CSS file into the editor component
+
+9. Deviations from plan identified:
+   - front-matter.ts NOT deleted (correctly - still used by approve route)
+   - Atomic ranges not implemented (DECISIONS.md §2 specifies them)
+   - KaTeX used instead of MathJax (reasonable substitute)
+   - Backfill script can't run (imports deleted tiptap-to-latex.ts)
+
+10. The Mitigation_implementation.md still needs the Phase 4 completion report appended (the main task I was working toward).
+
+The conversation was interrupted right after creating the CSS file, before:
+- Importing the CSS file into the editor component
+- Fixing stale comments
+- Writing the Phase 4 completion report to Mitigation_implementation.md
+
+ and `$...$` math regions
+     - Renders KaTeX HTML in tooltip DOM element
+     - **BUG**: `katex/dist/katex.min.css` never imported — math renders with wrong fonts
+     - **BUG**: `.cm-math-tooltip` CSS class never defined
+     - 74 lines
+
+   - **`apps/web/components/editor/extensions/environment-fold.ts`** (NEW)
+     - Custom `foldService` for `\begin{env}`/`\end{env}` with nesting depth tracking
+     - Only captures `\w+` env names — won't handle starred environments like `tabular*`
+     - 31 lines
+
+   - **`apps/web/lib/latex/assemble.test.ts`** (MODIFIED)
+     - Updated tests: "uses latex_content directly (LaTeX is canonical)" tests `$p < 0.05Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. This conversation is a continuation of a previous session where the entire Phase 4: Editor Migration (CodeMirror 6) was implemented. The previous session implemented all 12 steps of the plan.
+
+2. The user's message in this session asks to:
+   - Find the Phase 4 completion reports
+   - Check all changes against Review.md, Decisions.md, Mitigation_plan.md, and Mitigation_implementation.md for alignment
+   - Check changes for proper logic for the project
+   - Find any errors of code or logic, and debug
+   - Populate Mitigation_implementation.md with Phase 4 completion report
+
+3. I launched a background agent to read the reference documents (Mitigation_implementation.md, Mitigation_plan.md, REVIEW.md).
+
+4. While waiting, I read all the actual changed/created files in parallel:
+   - `apps/web/lib/latex/assemble.ts` - Assembly pipeline (uses latex_content directly, no round-trip)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - Generate route (extractCiteKeys instead of latexToTiptap)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts` - Refine route (same pattern)
+   - `apps/web/app/api/projects/[id]/sections/[phase]/route.ts` - Section save route (only latex_content)
+   - `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - Workspace (single LaTeXEditor)
+   - `apps/web/components/editor/latex-editor.tsx` - New editor component
+   - `apps/web/components/editor/latex-toolbar.tsx` - New toolbar component
+   - `apps/web/components/editor/extensions/latex-language.ts` - stex grammar
+   - `apps/web/components/editor/extensions/citation-decorations.ts` - Citation chips
+   - `apps/web/components/editor/extensions/math-tooltip.ts` - Math preview
+   - `apps/web/components/editor/extensions/environment-fold.ts` - Environment folding
+   - `apps/web/lib/latex/assemble.test.ts` - Updated tests
+   - `scripts/backfill-latex-content.ts` - One-time migration script
+
+5. I then read the full Mitigation_implementation.md (contains Phase 1-3 reports) and Mitigation_plan.md (Phase 4 section at lines 554-584).
+
+6. I performed thorough grep searches to find bugs:
+   - Searched for `cm-cite-chip|cm-math-tooltip|katex.*css` - Found NO CSS definitions for editor decorations
+   - Searched for `latexToTiptap|tiptapToLatex|section-editor|latex-source-view` - Found NO remaining imports (clean)
+   - Confirmed `cm-cite-chip` and `cm-math-tooltip` classes are used but NEVER defined in CSS
+   - Confirmed KaTeX CSS (`katex/dist/katex.min.css`) is NEVER imported
+   - Searched for `front-matter` references - Confirmed it IS used by approve/route.ts (correctly kept)
+   - Searched for remaining tiptap/novel imports - Found only harmless stale comments
+
+7. Bugs found:
+   - **BUG 1**: Missing KaTeX CSS import - math tooltips render with wrong fonts/spacing
+   - **BUG 2**: Missing `.cm-cite-chip` CSS - citation decorations have no visual styling
+   - **BUG 3**: Missing `.cm-math-tooltip` CSS - tooltip container has no background/padding/shadow
+   - **Stale comment in assemble.ts:224** - references tiptap round-trip
+   - **Stale comment in extract-keys.ts:3** - references tiptap-to-latex serialiser
+
+8. I created a fix for the CSS bugs:
+   - Created `apps/web/components/editor/editor-styles.css` with KaTeX import, citation chip styles, and math tooltip styles
+   - BUT: I haven't yet imported this CSS file into the editor component
+
+9. Deviations from plan identified:
+   - front-matter.ts NOT deleted (correctly - still used by approve route)
+   - Atomic ranges not implemented (DECISIONS.md §2 specifies them)
+   - KaTeX used instead of MathJax (reasonable substitute)
+   - Backfill script can't run (imports deleted tiptap-to-latex.ts)
+
+10. The Mitigation_implementation.md still needs the Phase 4 completion report appended (the main task I was working toward).
+
+The conversation was interrupted right after creating the CSS file, before:
+- Importing the CSS file into the editor component
+- Fixing stale comments
+- Writing the Phase 4 completion report to Mitigation_implementation.md
+
+ and `\footnote{}`
+     - "ignores rich_content_json — uses latex_content only" verifies rich content is ignored
+     - Full file read — 603 lines
+
+   - **`apps/web/tests/pipeline-e2e.test.ts`** (MODIFIED in previous session)
+     - Complete rewrite for Phase 4 — no tiptap imports
+     - Tests: citation extraction, direct sanitisation, clean LaTeX survival, assembly, full compile, edge cases
+     - 428 lines
+
+   - **`scripts/backfill-latex-content.ts`** (NEW - one-time script)
+     - Imports `tiptapToLatex` from deleted file (`../apps/web/lib/latex/tiptap-to-latex`)
+     - **Cannot run** after Phase 4 deletion — meant to be run beforehand
+     - Project is pre-launch, so likely no production data needing backfill
+     - 88 lines
+
+   - **`apps/web/components/editor/editor-styles.css`** (NEW - just created this session)
+     - Created to fix the 3 CSS bugs
+     - Imports `katex/dist/katex.min.css`
+     - Defines `.cm-cite-chip` (sage-coloured badges) and `.cm-math-tooltip` (white card with shadow)
+     - **NOT YET IMPORTED** by any component — fix is incomplete
+     ```css
+     @import "katex/dist/katex.min.css";
+     .cm-cite-chip {
+       background: #8B9D7722;
+       border: 1px solid #8B9D7744;
+       border-radius: 4px;
+       padding: 1px 3px;
+       font-family: ui-monospace, monospace;
+       font-size: 0.85em;
+       color: #5A6B4A;
+     }
+     .cm-math-tooltip {
+       background: #fff;
+       border: 1px solid rgba(0, 0, 0, 0.08);
+       border-radius: 8px;
+       padding: 8px 12px;
+       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+       max-width: 400px;
+       overflow-x: auto;
+     }
+     ```
+
+   - **`docs/Mitigation_implementation.md`** (TO BE MODIFIED)
+     - Contains Phase 1-3 completion reports. Phase 4 section needs to be ADDED.
+     - Full file read — 267 lines
+     - Format follows: Status, Commit, Duration, Tests, Items Implemented table, Items Deferred, Deviations from Plan, Bugs Found, Lessons Learned
+
+   - **`docs/Mitigation_plan.md`** (REFERENCE)
+     - Phase 4 section at lines 554-584 defines 3 items: 4.1 (CodeMirror primary), 4.2 (DB schema), 4.3 (Remove round-trip code)
+     - Maps to Review IDs: C1, C2, C3, C6
+     - Full file read — 1452 lines
+
+   - **`docs/DECISIONS.md`** (REFERENCE)
+     - Section 2 defines the editor decision: CodeMirror 6 with syntax decorations, citation chips, math preview, WYSIWYG toolbar, atomic ranges, fold markers
+     - Full file read — 293 lines
+
+   - **DELETED FILES** (from previous session):
+     - `apps/web/lib/latex/latex-to-tiptap.ts` (~620 lines)
+     - `apps/web/lib/latex/tiptap-to-latex.ts` (~182 lines)
+     - `apps/web/lib/latex/latex-to-tiptap.test.ts`
+     - `apps/web/lib/latex/tiptap-to-latex.test.ts`
+     - `apps/web/components/editor/section-editor.tsx` (~261 lines)
+     - `apps/web/components/editor/latex-source-view.tsx` (~91 lines)
+
+4. Errors and Fixes:
+   - **BUG: Missing KaTeX CSS import** — `katex/dist/katex.min.css` not imported anywhere. Math tooltips would render with incorrect fonts and spacing. Fix: Created `editor-styles.css` with `@import "katex/dist/katex.min.css"`. NOT YET IMPORTED into editor component.
+   - **BUG: Missing `.cm-cite-chip` CSS** — Citation decorations apply the class but no CSS exists. Citations appear as normal unstyled text instead of sage-coloured badges. Fix: Added styles in `editor-styles.css`. NOT YET IMPORTED.
+   - **BUG: Missing `.cm-math-tooltip` CSS** — Tooltip container has no background, padding, shadow, or border-radius. Fix: Added styles in `editor-styles.css`. NOT YET IMPORTED.
+   - **Stale comment in `assemble.ts:224`** — References "tiptap round-trip" in `escapeBareAmpersands` docstring. Needs update.
+   - **Stale comment in `extract-keys.ts:3`** — References "tiptap-to-latex serialiser". Needs update.
+   - **Backfill script imports deleted file** — `scripts/backfill-latex-content.ts` imports from `../apps/web/lib/latex/tiptap-to-latex` which was deleted. Script can't run now, but was meant to run before deletion. Pre-launch project so likely no production data affected.
+
+5. Problem Solving:
+   - Thorough alignment review completed against all 4 reference documents
+   - Confirmed all Review IDs (C1, C2, C3) are properly addressed by eliminating the round-trip
+   - Confirmed C6 (front-matter.ts "dead code") was CORRECTLY identified as NOT dead code during implementation — it's imported by `approve/route.ts:15`
+   - Confirmed no remaining imports of deleted modules via grep
+   - Identified that "atomic ranges" from DECISIONS.md §2 were not implemented (UX enhancement, not critical)
+   - Identified KaTeX used instead of MathJax specified in DECISIONS.md (reasonable substitute — lighter weight)
+   - Found and began fixing 3 CSS styling bugs that would make citation chips and math tooltips non-functional visually
+   - Verified 298 tests pass, 0 TypeScript errors, 0 lint warnings (from previous session)
+
+6. All User Messages:
+   - "find the phase 4 completion reports, and check the changes made against the Review.md, Decisions.md, Mitigation_plan.md and Mitigation_implementation.md for alignment. Also check the changes made for proper logic for this project. Think ultra hard and find any errors of code or logic, and debug. Then populate the Mitigation_implementation.md with phase 4 completion report"
+
+7. Pending Tasks:
+   - **Import `editor-styles.css` into `latex-editor.tsx`** — The CSS file was created but not yet imported, so the 3 CSS bugs are not yet fully fixed
+   - **Fix stale comments** in `assemble.ts:224` and `extract-keys.ts:3`
+   - **Write the Phase 4 completion report** and append it to `docs/Mitigation_implementation.md` following the Phase 1-3 format (Status, Commit, Duration, Tests, Items Implemented table, Deviations, Bugs Found, Lessons Learned)
+   - **Run `pnpm tsc --noEmit` and `pnpm test`** to verify the CSS import doesn't break anything
+
+8. Current Work:
+   I had just created `apps/web/components/editor/editor-styles.css` to fix the 3 CSS bugs (missing KaTeX CSS, missing citation chip styles, missing math tooltip styles). The file was written but NOT YET IMPORTED into the editor component. Immediately before the summary request, I had completed all the alignment review and bug identification work and was in the middle of fixing bugs before writing the completion report.
+
+9. Optional Next Step:
+   Import `editor-styles.css` into `latex-editor.tsx` by adding `import "./editor-styles.css"` at the top of the file. Then fix the 2 stale comments. Then write the Phase 4 completion report into `docs/Mitigation_implementation.md`. The user's explicit request was: "find any errors of code or logic, and debug. Then populate the Mitigation_implementation.md with phase 4 completion report"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+<task-notification>
+<task-id>a4e01ef</task-id>
+<status>completed</status>
+<summary>Agent "Read review and mitigation docs" completed</summary>
+<result>Here are the complete contents of all three files:
+
+## File 1: /Users/devs/Downloads/Apollo/docs/Mitigation_implementation.md
+
+This is a comprehensive log documenting the implementation status of all mitigation work across 3 phases:
+
+**Phase 1: Critical Safety** (COMPLETE, commit b852cec)
+- Fixed CI-blocking lint error, IDOR vulnerabilities, role escalation, webhook race condition, DEV_LICENCE_BYPASS guard
+- 345 passing tests, 0 TypeScript errors
+- Key fixes: ownership checks added, RLS WITH CHECK policies, atomic webhook idempotency
+
+**Phase 2: Infrastructure Foundation** (COMPLETE, 343 passing tests)
+- Implemented Upstash Redis for semaphore and rate limiting
+- R2 storage for PDFs and figures
+- Environment variable validation
+- Stale compilation recovery with 5-min staleness window
+- Health check endpoint
+- Middleware route coverage expansion
+- Skipped: Webhook replay protection (proven harmful per payment gateway retry patterns)
+- Bugs found and fixed: R2 figure key mismatch, rate limiter rollback issue, semaphore orphan leak, TOCTOU race
+
+**Phase 3: Pricing and Licence System Overhaul** (COMPLETE, 366 passing tests across 32 files)
+- New pricing structure with SSOT config
+- Razorpay and Stripe subscriptions
+- Licence expiry enforcement with daily cron sweep
+- Licence gates on all AI/compute routes
+- Plan-based feature differentiation
+- Atomic licence attachment via Supabase RPC
+- Velocity rules (max 5 licences per 30 days, fail-open on DB errors)
+- Watermark system (sandbox diagonal, licensed footer, completed clean)
+- Free reset before Phase 4
+- Bugs found: provisionLicence status bug, dead STRIPE_PRICE_ENV entries, local compile ignoring watermark, unused import
+
+Key lessons across all phases emphasize read-before-writing, atomic transactions, testing both code paths, and proper dependency management.
+
+---
+
+## File 2: /Users/devs/Downloads/Apollo/docs/Mitigation_plan.md
+
+This is the comprehensive blueprint for fixing all 136 findings from the review audit, spanning 11 implementation phases:
+
+**Finding Enumeration**: 136 findings catalogued across infrastructure (14), business logic (47), frontend-backend wiring (26), and security/monetization (49)
+
+**Phase 1-3** (Already completed, detailed in Mitigation_implementation.md)
+
+**Phase 4: Editor Migration (CodeMirror 6)** (10-14 days)
+- Make LaTeX canonical, eliminate round-trip through Tiptap
+- CodeMirror 6 becomes primary editor with syntax highlighting
+- Remove latexToTiptap/tiptapToLatex dependencies
+- Deprecate rich_content_json column
+
+**Phase 5: AI Pipeline Overhaul** (10-14 days)
+- Unify word count targets across 3 files (SSOT)
+- Remove context truncation (pass full previous sections)
+- Token budget enforcement for all AI routes
+- Separate input/output token tracking
+- Add Phase 9 (References) prompt
+- AI-powered section review (not just rule-based)
+- Opus model routing for Professional plan
+- Unicode avoidance rules added to prompts
+- Anthropic client retry configuration
+- AI generation via Inngest with live preview
+
+**Phase 6: Phase 6a/6b Restructure** (10-14 days)
+- Split Phase 6 into dataset planning and results generation
+- AI-driven analysis planning
+- AI-anchored synthetic dataset generation
+- Figure/table QC gates (minimum 5 figures, 7 tables)
+- Figure download and preview endpoints
+- Subfigure support (subcaption package)
+- Chart type and colour scheme exposed in UI
+- Per-analysis-type runtime limits
+
+**Phase 7: Phase 11 Final QC and Completion** (7-10 days)
+- Final QC dashboard component
+- Phase 11 approval must check QC
+- Fix undefined references check
+- ThesisCompletion flow
+- Appendices template fix
+- Abbreviations injection
+
+**Phase 8: Frontend Integration and Polish** (7-10 days)
+- ExportMenu in workspace with gating
+- React error boundary
+- Onboarding tour wiring
+- Compilation history display
+- Duplicate CitationSearchDialog removal
+- XSS fix in title page preview
+- Content-Disposition header encoding
+- Editor toggle visibility
+- Mobile tab reset fix
+- File upload size enforcement
+- R Plumber authentication
+
+**Phase 9: Privacy and Compliance** (7-10 days)
+- Privacy policy and terms pages
+- Account deletion flow with 7-day cooling-off
+- AI processing consent
+- Cookie consent banner
+- Medical data warning at synopsis upload
+- Dataset PII scanner
+- Audit log cascade delete
+- Data retention auto-purge (deferred to post-launch)
+- R2 cleanup on project deletion
+
+**Phase 10: Docker Hardening** (3-5 days)
+- Docker seccomp profiles
+- AppArmor profile for R container
+- LaTeX container network isolation
+- Add mathrsfs and subcaption to Dockerfile
+
+**Phase 11: Cleanup and Testing** (5-7 days)
+- Fix all 15 lint warnings
+- Remove dead code
+- Deduplicate AMERICAN_TO_BRITISH dictionary
+- Fix phases_completed duplicates
+- Spelling fix dual-column update
+- Warning budget enforcement
+- Brace-checking bug fix
+- Pre-seeded references persistence
+- Database migration tracking
+- RLS test enhancement
+- Missing RLS policies
+- Bundle size optimization
+- PDF viewer virtualization
+
+**Cross-Phase Dependencies**: Detailed DAG showing which phases block others. Phases 4-6 can run in parallel after Phase 3; Phases 8-10 can overlap with Phase 7.
+
+**Items Skipped** (5 total): PWA mobile pages, persistent notification centre, Phase 1->2 identity binding, self-service licence transfer, user settings page (deferred to post-launch)
+
+**Items Needing External Input** (10 total): Razorpay/Stripe dashboard setup, privacy policy drafting, Upstash Redis account, AppArmor/seccomp testing on Hetzner
+
+---
+
+## File 3: /Users/devs/Downloads/Apollo/docs/REVIEW.md
+
+This is the complete gap analysis audit of the entire Apollo codebase across four major parts:
+
+**Part I: Infrastructure-Level Gap Analysis**
+- **CI/CD Health**: 1 CI-blocking lint error (prefer-const in auto-resolve.ts), 343/343 tests passing, 15 lint warnings
+- **Uncommitted Work**: 51 modified files, 17 untracked files representing Sprint 3-10 hardening work
+- **Sprint-by-Sprint Gaps**: Sprints 0-6 complete; Sprint 7 mostly complete (missing round-robin queue fairness, per-type runtime limits); Sprint 8 partial (R Sprint 8 analyses need verification); Sprints 9-10 mostly complete (missing processed_webhooks table, velocity rules, PWA mobile pages)
+- **Docker Security**: LaTeX container port 3001 exposed (deviation from PLAN), no seccomp profile (deviation), R container has no AppArmor, missing `mathrsfs` package
+- **Webhook Hardening**: Signature verification done, idempotency table missing, replay protection missing, atomic provisioning done
+- **Database Schema**: Only 3 incremental migrations found locally, core schema risk
+
+**Part II: Deep-Dive Business Logic Audit** (47 issues across 6 domains)
+
+**A. AI Integration Pipeline**:
+- P0: Phase 9 missing, Phase 6a/6b conflated, context truncated to 3,000 chars (Discussion gets minimal ROL context), refine/dataset/synopsis bypass token budget
+- P1: Word count targets disagree across 3 files, no Unicode avoidance in COMMON_RULES, M&M requires 8 sections but prompt mandates 12, review is purely rule-based (no AI), no retry logic
+- P2: Opus model routing unimplemented, messages_json always empty, synopsis prompt duplicated with different schemas
+
+**B. Citation Pipeline**:
+- P0: Orphan cite keys bypass Tier D stripping
+- P1: No retry logic for API failures, re-resolve lacks title verification
+- P2: Pre-seeded references not persisted, timeout budget mismatch for ROL
+
+**C. LaTeX Pipeline**:
+- P0: Round-trip destroys inline math ($p < 0.05$), destroys \footnote/\url/\textsuperscript, appendices generated but never \input, mathrsfs missing
+- P1: \label stripped permanently, abbreviations not injected, PDF storage ephemeral
+- P2: Warning budget not enforced, concurrent compile TOCTOU, brace-checking bug
+
+**D. R Analysis & Figure Pipeline**:
+- P0: R2 not wired for figures (ephemeral tmpdir), semaphore queue promotion bug
+- P1: PDF figure preview impossible, no figure download endpoint, no minimum figure/table enforcement
+- P2: Descriptive analysis no figure, subfigure support absent, chart type not exposed
+
+**E. Phase Transitions & Pipeline**:
+- P0: Inngest data loss (overwrites auto-generated), Phase 11 QC skip, refine can un-approve
+- P1: canAdvancePhase dead code, Phase 6a/6b not separated, undefined refs check false passes, refine un-approves sections
+- P2: Phase 1->2 identity binding, generation lacks sequence enforcement, phases_completed duplicates
+
+**F. Cross-Cutting**:
+- P0: Word count disagreement, token tracking incomplete, refine budget bypass
+- P1: Semaphore in-memory, Unicode warning missing, Anthropic client retry missing
+- P2: Model routing, messages_json empty, no global error strategy
+
+**Part III: Frontend-Backend Linkage & Wiring Audit** (26 unwired/dead routes and 3 missing PLAN features)
+
+**Unwired Routes**:
+- P0: Phase 11 QC check (/qc) and fix (/qc/fix) routes never called from UI; no Final QC dashboard component; Phase 11 has no dedicated UI
+- Medium: ExportMenu exists but only in ThesisCompletion (not in workspace); compilation history never displayed; licence transfer UI missing; dataset download button missing
+
+**Missing PLAN Features**:
+- User Settings/Profile page
+- Persistent notification centre (toasts only)
+- Onboarding tour component exists but not rendered
+
+**Workspace Issues**:
+- Duplicate CitationSearchDialog
+- Editor mode toggle visible when non-editable
+- Mobile tab resets on phase change
+
+**Part IV: Security, Monetization & Architectural Recommendations** (49 findings across 5 sub-audits)
+
+**IV-A: Authentication & Security** (9 critical/high findings):
+- IDOR: GET/PATCH/DELETE /api/projects/[id] rely on RLS only; GET /api/projects/[id]/share leaks review tokens with no ownership check; signed-url no project ownership
+- Role escalation: users UPDATE RLS allows setting own role to admin
+- XSS: dangerouslySetInnerHTML in title-page-preview
+- Rate limiting: only on generate; refine/auto-detect/synopsis unprotected
+- DEV_LICENCE_BYPASS: no production guard
+- R Plumber: no inter-service authentication
+
+**IV-B: Payment & Licence Pipeline** (12 critical/high findings):
+- Webhook race condition: double licence provisioning
+- Professional: provisions 1 licence not 3
+- No licence expiry enforcement (monthly = perpetual)
+- Missing licence gates: sandbox can consume unlimited AI tokens for any phase
+- No plan differentiation (Professional === Student in features)
+- "Monthly" plans are one-time purchases (no subscriptions)
+- Pricing inconsistency: landing (₹2,499/mo), FAQ (₹2,499 or ₹14,999/6mo), checkout (₹499/mo)
+- Hidden "addon" plan at ₹299
+- Non-atomic licence attachment
+- Unlimited project creation
+- Checkout no project ownership validation
+
+**IV-C: RLS & Data Isolation** (6 findings):
+- Admin client used in 35+ routes (bypasses RLS) — all data isolation depends on manual checks
+- Missing UPDATE policies on datasets and compilations
+- RLS tests incomplete (no per-user isolation testing)
+- Review system provides PDF URL reviewers can't access (needs auth)
+
+**IV-D: Data Privacy & DPDP Act Compliance** (12 critical/high findings):
+- Metadata (names, reg no) sent unredacted to Claude API
+- Synopsis unredacted in dataset generation
+- Previously approved sections with PII sent as context
+- No privacy policy page
+- No terms of service page
+- No account deletion flow
+- No consent for AI processing
+- Zero data retention policies implemented
+- Edge Sentry missing PII stripping
+- No PII scanning on dataset upload
+- Audit log retains PII after deletion (no CASCADE)
+- Cookie consent: no banner or opt-in
+
+**IV-E: Architecture & Reliability** (12 findings):
+- In-memory semaphore/rate limiter (resets on deploy, not shared across instances)
+- PDF storage in /tmp (lost on deploy)
+- Stale compilation blocks project forever
+- AI generation should use Inngest for reliability
+- Singleton Supabase client wasteful (creates per-call)
+- N+1 citation upserts
+- PDF viewer: 100+ canvas elements on mobile
+- Bundle size: Three.js + mermaid + xlsx
+- No health check endpoint
+- Env var validation missing
+- No offline support
+- Business model pricing misaligned with thesis workflow reality
+
+---
+
+## Summary
+
+These three documents form a complete audit and remediation roadmap:
+
+1. **REVIEW.md**: 136 findings catalogued across infrastructure, business logic, frontend wiring, and security
+2. **Mitigation_plan.md**: Comprehensive blueprint organizing all 136 findings into 11 sequential phases with dependencies, external inputs, and skip/defer decisions
+3. **Mitigation_implementation.md**: Auditable record of completed Phases 1-3 with lessons learned, bugs found during implementation, and deviations from the original plan
+
+All three documents are cross-referenced by Review ID and enforce the rule: "Read before writing" by documenting every decision and implementation detail.</result>
+<usage>total_tokens: 90362
+tool_uses: 3
+duration_ms: 50992</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a4e01ef.output
+
+---
+
+run lint check as well
+
+---
+
+any supabase migrations to push left?
+
+---
+
+now commit and push

@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 198,
+  "checkpoints_count": 204,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -78,7 +78,14 @@
     "apps/web/components/auth/auth-3d-scene-loader.tsx",
     "apps/web/components/auth/auth-3d-scene.tsx",
     "apps/web/components/auth/interactive-grid.tsx",
+    "apps/web/components/editor/editor-styles.css",
+    "apps/web/components/editor/extensions/citation-decorations.ts",
+    "apps/web/components/editor/extensions/environment-fold.ts",
+    "apps/web/components/editor/extensions/latex-language.ts",
+    "apps/web/components/editor/extensions/math-tooltip.ts",
+    "apps/web/components/editor/latex-editor.tsx",
     "apps/web/components/editor/latex-source-view.tsx",
+    "apps/web/components/editor/latex-toolbar.tsx",
     "apps/web/components/editor/section-editor.tsx",
     "apps/web/components/editor/word-count-bar.tsx",
     "apps/web/components/landing/cta-section.tsx",
@@ -274,6 +281,7 @@
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
+    "scripts/backfill-latex-content.ts",
     "supabase/migrations/016_create_abbreviations.sql",
     "supabase/migrations/017_add_rich_content_to_sections.sql",
     "supabase/migrations/018_add_rows_json_to_datasets.sql",
@@ -461,13 +469,20 @@
       "context": "/bd/84f5776d75/25/context.md",
       "content_hash": "/bd/84f5776d75/25/content_hash.txt",
       "prompt": "/bd/84f5776d75/25/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/26/metadata.json",
+      "transcript": "/bd/84f5776d75/26/full.jsonl",
+      "context": "/bd/84f5776d75/26/context.md",
+      "content_hash": "/bd/84f5776d75/26/content_hash.txt",
+      "prompt": "/bd/84f5776d75/26/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 87728,
-    "cache_creation_tokens": 6601564,
-    "cache_read_tokens": 238861702,
-    "output_tokens": 499662,
-    "api_call_count": 2557
+    "input_tokens": 87852,
+    "cache_creation_tokens": 6924075,
+    "cache_read_tokens": 250222061,
+    "output_tokens": 513737,
+    "api_call_count": 2663
   }
 }
