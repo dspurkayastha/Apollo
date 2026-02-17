@@ -1,0 +1,177 @@
+Implement the following plan:
+
+# Phase 1: Critical Safety — Implementation Plan
+
+## Context
+
+The REVIEW.md audit identified 136 findings. Phase 1 covers the 10 highest-severity items that must be fixed before any user testing: IDOR vulnerabilities, role escalation, data loss bugs, PII leakage to AI, and missing production guards. All items are independent (no cross-item dependencies) and total ~175 lines of changes across 13 modified files + 3 new files.
+
+---
+
+## Step 1: Fix CI-Blocking Lint Error
+
+**File:** `apps/web/lib/citations/auto-resolve.ts:151`
+
+Change `let tier: "A" | "D" = "D"` to `const tier: "A" | "D" = "D"`. Variable is never reassigned.
+
+---
+
+## Step 2: DEV_LICENCE_BYPASS Production Guard
+
+**File:** `apps/web/lib/phases/transitions.ts:44`
+
+```
+- const devBypass = process.env.DEV_LICENCE_BYPASS === "true";
++ const devBypass = process.env.NODE_ENV !== "production" && process.env.DEV_LICENCE_BYPASS === "true";
+```
+
+**Tests:** Add 2 cases to `apps/web/lib/phases/transitions.test.ts` (after line 77):
+- `NODE_ENV=production` + `DEV_LICENCE_BYPASS=true` → denied (LICENCE_REQUIRED)
+- `NODE_ENV=development` + `DEV_LICENCE_BYPASS=true` → allowed
+
+---
+
+## Step 3: IDOR Fixes (4 routes)
+
+**3a) `apps/web/app/api/projects/route.ts:18-21`** — GET returns all projects
+- Add `.eq("user_id", authResult.user.id)` to the SELECT query
+
+**3b) `apps/web/app/api/licenses/route.ts:13-16`** — GET returns all licences
+- Add `.eq("user_id", authResult.user.id)` to the SELECT query
+
+**3c) `apps/web/app/api/upload/signed-url/route.ts`** — no project ownership check
+- After path traversal validation (line 46), add ownership check using `createAdminSupabaseClient`
+- Import `createAdminSupabaseClient` from `@/lib/supabase/admin` and `notFound` from `@/lib/api/errors`
+- Query project with `.eq("id", projectId).eq("user_id", authResult.user.id).single()`
+- Return `notFound()` if no match
+
+**3d) `apps/web/app/api/checkout/route.ts:21`** — project_id from body unchecked
+- After parsing (line 21), if `project_id` is provided, verify ownership with same pattern
+- Import `createAdminSupabaseClient` and `notFound`
+
+NOTE: All 33+ `/api/projects/[id]/*` sub-routes already have correct ownership checks. No changes needed there.
+
+---
+
+## Step 4: Role Escalation Prevention
+
+**New file:** `apps/web/supabase/migrations/024_fix_role_escalation.sql`
+
+- Create `get_current_user_role()` SECURITY DEFINER function (follows pattern from migration 016)
+- DROP old permissive "Users can update own profile" policy
+- CREATE new policy with `WITH CHECK (... AND role = public.get_current_user_role())` — prevents role column changes
+
+---
+
+## Step 5: Inngest Content Overwrite Fix
+
+**File:** `apps/web/lib/inngest/functions/thesis-workflow.ts:22-36`
+
+Replace `.upsert()` with check-then-insert:
+1. Query for existing section with `.eq("project_id", projectId).eq("phase_number", nextPhase).maybeSingle()`
+2. Only `.insert()` if no existing section found
+3. Unique constraint on `(project_id, phase_number)` prevents race conditions
+
+---
+
+## Step 6: Webhook Replay Protection
+
+**New file:** `apps/web/lib/payments/webhook-guard.ts`
+- Export `isWebhookStale(createdAtSeconds: number): boolean` — returns true if event is >5 min old
+
+**Modified files:**
+- `apps/web/app/api/webhooks/razorpay/route.ts` — after line 30 (JSON parse), add staleness check on `event.created_at`
+- `apps/web/app/api/webhooks/stripe/route.ts` — after line 31 (constructStripeEvent), add staleness check on `event.created`
+
+Both return `{ error: "Event too old" }` with 400 status if stale.
+
+---
+
+## Step 7: PII Redaction for AI Calls
+
+**New file:** `apps/web/lib/ai/sanitise-metadata.ts`
+- Export `sanitiseMetadataForAI(metadata)` — strips `candidate_name`, `guide_name`, `hod_name`, `registration_no`, `supervisor_user_id`
+- Returns clean metadata with non-PII fields preserved (department, degree, speciality, year, etc.)
+
+**New file:** `apps/web/lib/ai/sanitise-metadata.test.ts`
+- 4 test cases: strips PII, handles PII-only input, passes non-PII unchanged, handles empty
+
+**Modified file:** `apps/web/lib/ai/prompts.ts:368`
+- Import and apply `sanitiseMetadataForAI()` before building `metadataStr` in `getPhaseUserMessage()`
+- This single change covers all phases since they all route through this function
+
+---
+
+## Step 8: Sentry Edge PII Stripping
+
+**File:** `apps/web/sentry.edge.config.ts`
+
+Add `beforeSend` hook matching pattern from `sentry.server.config.ts`:
+- Delete `event.user.email`, `.username`, `.name`, `.registration_no`
+
+---
+
+## Files Summary
+
+| # | File | Action |
+|---|------|--------|
+| 1 | `lib/citations/auto-resolve.ts` | Edit line 151 |
+| 2 | `lib/phases/transitions.ts` | Edit line 44 |
+| 3 | `lib/phases/transitions.test.ts` | Add 2 test cases |
+| 4 | `app/api/projects/route.ts` | Add .eq() filter |
+| 5 | `app/api/licenses/route.ts` | Add .eq() filter |
+| 6 | `app/api/upload/signed-url/route.ts` | Add ownership check |
+| 7 | `app/api/checkout/route.ts` | Add ownership check |
+| 8 | `supabase/migrations/024_fix_role_escalation.sql` | **Create** |
+| 9 | `lib/inngest/functions/thesis-workflow.ts` | Replace upsert |
+| 10 | `lib/payments/webhook-guard.ts` | **Create** |
+| 11 | `app/api/webhooks/razorpay/route.ts` | Add staleness check |
+| 12 | `app/api/webhooks/stripe/route.ts` | Add staleness check |
+| 13 | `lib/ai/sanitise-metadata.ts` | **Create** |
+| 14 | `lib/ai/sanitise-metadata.test.ts` | **Create** |
+| 15 | `lib/ai/prompts.ts` | Apply sanitiser |
+| 16 | `sentry.edge.config.ts` | Add beforeSend |
+
+All paths relative to `apps/web/`.
+
+---
+
+## Step 9: Webhook Guard Unit Test
+
+**New file:** `apps/web/lib/payments/webhook-guard.test.ts`
+- Test stale event (>5 min) → true
+- Test fresh event (<5 min) → false
+- Test undefined input → false
+
+---
+
+## Verification
+
+1. `pnpm lint` — confirms lint fix, no new errors
+2. `pnpm tsc --noEmit` — no TypeScript errors
+3. `pnpm test` — existing 226 tests pass + 9 new tests (2 transitions + 4 sanitise-metadata + 3 webhook-guard)
+
+**CI pipeline** already runs: lint → type-check → unit tests → security tests → compile tests. No CI config changes needed — the new test files are auto-discovered by Vitest's `**/*.test.ts` glob. No Prettier in the project (ESLint only via `next lint`).
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+regarding stripping PII, what all is sent to the AI from say the synopsis?
+
+---
+
+Is there any need to redact anything at all unless it is patient confidential data? which will anyway not be there except maybe in the uploaded dataset?
+
+---
+
+Logically think ultra hard about implemented steps, and if they align with the Review findings, and the Decisions.md files. Check if they make sense as well (eg the stripping PII was not making sense)
+
+---
+
+yes, revert step 6, and provide the correct fix as required from the review doc
+
+---
+
+now commit this and push to remote

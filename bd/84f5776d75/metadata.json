@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 197,
+  "checkpoints_count": 202,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -25,6 +25,7 @@
     "apps/web/app/api/checkout/route.ts",
     "apps/web/app/api/citations/search/route.ts",
     "apps/web/app/api/inngest/route.ts",
+    "apps/web/app/api/licenses/route.ts",
     "apps/web/app/api/projects/[id]/abbreviations/[abbrevId]/route.ts",
     "apps/web/app/api/projects/[id]/abbreviations/route.ts",
     "apps/web/app/api/projects/[id]/analyses/[analysisId]/route.ts",
@@ -58,9 +59,11 @@
     "apps/web/app/api/projects/[id]/sections/[phase]/route.ts",
     "apps/web/app/api/projects/[id]/sections/route.ts",
     "apps/web/app/api/projects/[id]/share/route.ts",
+    "apps/web/app/api/projects/route.ts",
     "apps/web/app/api/review/[token]/comments/route.ts",
     "apps/web/app/api/review/[token]/route.ts",
     "apps/web/app/api/synopsis/parse/route.ts",
+    "apps/web/app/api/upload/signed-url/route.ts",
     "apps/web/app/api/webhooks/razorpay/route.ts",
     "apps/web/app/api/webhooks/stripe/route.ts",
     "apps/web/app/apple-icon.svg",
@@ -131,6 +134,8 @@
     "apps/web/lib/ai/redact.test.ts",
     "apps/web/lib/ai/redact.ts",
     "apps/web/lib/ai/review-section.ts",
+    "apps/web/lib/ai/sanitise-metadata.test.ts",
+    "apps/web/lib/ai/sanitise-metadata.ts",
     "apps/web/lib/ai/token-budget.ts",
     "apps/web/lib/api/licence-gate.ts",
     "apps/web/lib/citations/audit.test.ts",
@@ -187,6 +192,8 @@
     "apps/web/lib/payments/provision-licence.ts",
     "apps/web/lib/payments/razorpay.ts",
     "apps/web/lib/payments/stripe.ts",
+    "apps/web/lib/payments/webhook-guard.test.ts",
+    "apps/web/lib/payments/webhook-guard.ts",
     "apps/web/lib/phases/constants.ts",
     "apps/web/lib/phases/transitions.test.ts",
     "apps/web/lib/phases/transitions.ts",
@@ -232,6 +239,7 @@
     "apps/web/supabase/migrations/021_add_rows_json_to_datasets.sql",
     "apps/web/supabase/migrations/022_create_processed_webhooks.sql",
     "apps/web/supabase/migrations/023_create_review_system.sql",
+    "apps/web/supabase/migrations/024_fix_role_escalation.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -244,6 +252,7 @@
     "docker/plumber.R",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
+    "docs/Decision_points.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
@@ -413,13 +422,20 @@
       "context": "/bd/84f5776d75/22/context.md",
       "content_hash": "/bd/84f5776d75/22/content_hash.txt",
       "prompt": "/bd/84f5776d75/22/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/23/metadata.json",
+      "transcript": "/bd/84f5776d75/23/full.jsonl",
+      "context": "/bd/84f5776d75/23/context.md",
+      "content_hash": "/bd/84f5776d75/23/content_hash.txt",
+      "prompt": "/bd/84f5776d75/23/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 81450,
-    "cache_creation_tokens": 6193008,
-    "cache_read_tokens": 230853449,
-    "output_tokens": 481431,
-    "api_call_count": 2471
+    "input_tokens": 81511,
+    "cache_creation_tokens": 6315887,
+    "cache_read_tokens": 235591478,
+    "output_tokens": 485736,
+    "api_call_count": 2520
   }
 }
