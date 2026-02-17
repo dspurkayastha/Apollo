@@ -1,0 +1,257 @@
+Implement the following plan:
+
+# Plan: Auth Pages Redesign, Post-Login Redirect, and Licence Purchase Flow
+
+## Context
+
+Three issues with the current auth and payment flow:
+1. **Auth pages have old aesthetic** — dark zinc bg + orange grid pattern doesn't match the warm, academic brand. User provided a mockup with warm beige hero image + dot-grid right panel + branded Clerk form.
+2. **Post-login lands on landing page** — despite `forceRedirectUrl="/dashboard"`, users may end up on `/` instead of `/dashboard`. Env vars `AFTER_SIGN_IN_URL`/`AFTER_SIGN_UP_URL` are not set. No middleware redirect for authenticated users on `/`.
+3. **Pricing → Checkout is disconnected** — Landing pricing cards all link to `/sign-up` with no plan info. After sign-up, user goes to dashboard with no checkout prompt. Licence page has no "Purchase" button. The checkout page (`/checkout`) is only reachable from the licence banner inside a project workspace.
+
+---
+
+## WP-1: Auth Page Redesign
+
+### Current State
+- `app/(auth)/layout.tsx` — split panel: left = dark zinc + orange `InteractiveGridPattern`, right = plain white
+- `components/auth/interactive-grid.tsx` — orange-tinted SVG grid (doesn't match brand)
+- Sign-in/sign-up pages are minimal wrappers around Clerk `<SignIn>`/`<SignUp>` with no appearance customization
+
+### Design (from mockup)
+
+**Left panel (hidden on mobile, 55% width on lg+):**
+- **Live 3D scene** using React Three Fiber (user provided full component code)
+- Warm beige background `bg-[#F5F5F0]` with subtle dot grid overlay
+- Scene includes: NetworkTopology (icosahedron wireframe with sage/amber ceramic nodes), FacingTablet (e-reader with Apollo branding), GlassPaperweight (glass dodecahedron), StylizedPampasVase (pampas in frosted glass), white ceramic platform base
+- Depth of field post-processing effect (`@react-three/postprocessing` — needs install)
+- Slow floating animation on the network topology
+- `ContactShadows` for grounded realism
+- Apollo logo overlay at top-left (`font-brand`, `z-20` above Canvas)
+- New component: `components/auth/auth-3d-scene.tsx` — extracted from user's code with `"use client"` directive and proper TypeScript types
+- **Note**: `@react-three/postprocessing` must be installed (`pnpm add @react-three/postprocessing`)
+
+**Right panel (full on mobile, 45% on lg+):**
+- Dot grid background matching landing page pattern (subtle 16px dots)
+- Clerk component centred with branded `appearance` prop
+
+**Clerk appearance customization (both SignIn and SignUp):**
+```tsx
+appearance={{
+  variables: {
+    colorPrimary: "#5A7A50",
+    colorText: "#2F2F2F",
+    colorTextSecondary: "#6B6B6B",
+    colorBackground: "transparent",
+    colorInputBackground: "#FFFFFF",
+    colorInputText: "#2F2F2F",
+    borderRadius: "0.5rem",
+  },
+  elements: {
+    rootBox: "w-full max-w-[400px]",
+    card: "shadow-none border-none bg-transparent p-0",
+    headerTitle: "font-serif text-2xl font-bold text-[#2F2F2F]",
+    headerSubtitle: "text-[#6B6B6B] text-sm",
+    formButtonPrimary:
+      "bg-[#5A7A50] hover:bg-[#4A6A40] rounded-lg text-sm font-medium h-11 shadow-none",
+    formFieldInput:
+      "rounded-lg border-black/[0.08] focus:border-[#8B9D77] focus:ring-[#8B9D77]/20 h-11",
+    formFieldLabel: "text-sm font-medium text-[#2F2F2F]",
+    socialButtonsBlockButton:
+      "rounded-lg border-black/[0.08] hover:bg-black/[0.02] h-11",
+    dividerLine: "bg-black/[0.06]",
+    dividerText: "text-[#6B6B6B] text-xs",
+    footerActionLink: "text-[#8B9D77] hover:text-[#6B7D57]",
+    footer: "hidden",
+  },
+}}
+```
+
+### Files to Create / Modify
+| File | Change |
+|------|--------|
+| `components/auth/auth-3d-scene.tsx` | **NEW** — 3D R3F scene from user's code (NetworkTopology, FacingTablet, GlassPaperweight, StylizedPampasVase) |
+| `app/(auth)/layout.tsx` | Replace dark zinc+grid with 3D scene left panel + dot-grid right panel |
+| `app/(auth)/sign-in/[[...sign-in]]/page.tsx` | Add `appearance` prop, make client component with dynamic `forceRedirectUrl` |
+| `app/(auth)/sign-up/[[...sign-up]]/page.tsx` | Add `appearance` prop, make client component with dynamic `forceRedirectUrl` |
+| `apps/web/package.json` | Add `@react-three/postprocessing` dependency |
+
+### Files to Delete
+| File | Reason |
+|------|--------|
+| `components/auth/interactive-grid.tsx` | Replaced by 3D scene — no longer used |
+
+---
+
+## WP-2: Post-Login Redirect Fix
+
+### Current State
+- `forceRedirectUrl="/dashboard"` is set on both `<SignIn>` and `<SignUp>` — but user reports it doesn't work
+- No `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` or `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` env vars set
+- Middleware doesn't redirect authenticated users visiting `/` to `/dashboard`
+
+### Fix — Belt and Suspenders (3 layers)
+
+**Layer 1: Env vars** (`.env.example` files)
+```
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+```
+
+**Layer 2: `forceRedirectUrl` on Clerk components** (already set, make dynamic for plan passthrough — see WP-3)
+
+**Layer 3: Middleware redirect for authenticated users on `/`**
+```typescript
+// In middleware.ts, after the protect block:
+const { userId } = await auth();
+if (userId && req.nextUrl.pathname === "/") {
+  return NextResponse.redirect(new URL("/dashboard", req.url));
+}
+```
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `middleware.ts` | Add authenticated `/` → `/dashboard` redirect + protect `/checkout` |
+| `.env.example` | Add `AFTER_SIGN_IN_URL` and `AFTER_SIGN_UP_URL` |
+| `apps/web/.env.example` | Same |
+
+---
+
+## WP-3: Pricing → Checkout Flow
+
+### Current Flow (broken)
+```
+Landing pricing "Get Started" → /sign-up → /dashboard (no checkout prompt, plan lost)
+```
+
+### Target Flow
+```
+Landing "Get Started"   → /sign-up?plan=student       → /checkout?plan=student
+Landing "Go Pro"        → /sign-up?plan=professional   → /checkout?plan=professional
+Landing "Start Free"    → /sign-up                     → /dashboard (free sandbox)
+Licence banner          → /checkout?attach=projectId   (already works)
+Licences page           → /checkout                    (new "Purchase" button)
+```
+
+### Changes
+
+**A. Pricing section — pass plan type via `?plan=` query param**
+
+Update `href` values in `pricing-section.tsx`:
+- Free Trial: `/sign-up` (unchanged)
+- Student: `/sign-up?plan=student`
+- Professional: `/sign-up?plan=professional`
+
+**B. Sign-up/sign-in pages — preserve `?plan=` through Clerk redirect**
+
+Both pages become client components that read `?plan=` and set `forceRedirectUrl` dynamically:
+- If `?plan=student` present → `forceRedirectUrl="/checkout?plan=student"`
+- If no `?plan=` → `forceRedirectUrl="/dashboard"`
+- Wrap in `<Suspense>` for `useSearchParams()` (Next.js 15 requirement)
+
+**C. Checkout page — accept `?plan=` to pre-highlight a card**
+
+Read `plan` from searchParams. If it matches a plan_type, auto-mark that card as `recommended` and scroll into view. Both `?plan=` and `?attach=` can coexist.
+
+**D. Licences page — add "Purchase licence" CTA**
+
+Add a `<Link href="/checkout">` button in the page header, next to the title.
+
+**E. Middleware — protect `/checkout` route**
+
+Add `/checkout(.*)` to the `isProtectedRoute` matcher.
+
+### Price Alignment
+
+Landing pricing section and checkout page currently show **different prices**:
+
+| Plan | Landing (pricing-section.tsx) | Checkout (checkout/page.tsx) | API (payment-schemas.ts) |
+|------|------------------------------|------------------------------|--------------------------|
+| Student | ₹2,499/mo | ₹499/mo | ₹499 (49900 paise) |
+| Professional | ₹4,999/mo | ₹999/mo | ₹999 (99900 paise) |
+
+The API/checkout prices are the source of truth. Landing section prices will be updated to match. Landing page is LOCKED but this price correction is part of the approved plan scope.
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `components/landing/pricing-section.tsx` | Update `href` with `?plan=`, align prices to checkout |
+| `app/(auth)/sign-in/[[...sign-in]]/page.tsx` | Dynamic `forceRedirectUrl` based on `?plan=` |
+| `app/(auth)/sign-up/[[...sign-up]]/page.tsx` | Dynamic `forceRedirectUrl` based on `?plan=` |
+| `app/(dashboard)/checkout/page.tsx` | Read `?plan=`, highlight matching card |
+| `app/(dashboard)/licences/page.tsx` | Add "Purchase licence" button |
+| `middleware.ts` | Add `/checkout(.*)` to protected routes |
+
+---
+
+## Execution Order
+
+1. **WP-2** first (middleware + env) — fixes the redirect issue immediately
+2. **WP-1** next (auth layout) — visual redesign
+3. **WP-3** last (pricing flow) — connects the full funnel
+
+---
+
+## Verification
+
+1. **Auth aesthetics**: Visit `/sign-in` and `/sign-up` — 3D scene on left (network topology, tablet, vase, paperweight), dot grid on right, sage green Clerk form
+2. **Post-login redirect**: Sign in → lands on `/dashboard`. Visit `/` while logged in → redirects to `/dashboard`
+3. **Pricing → checkout**: Click "Get Started" on landing → sign up → lands on `/checkout?plan=student` with Student card highlighted
+4. **Free trial flow**: Click "Start Free" → sign up → lands on `/dashboard` (no checkout)
+5. **Licence page**: Visit `/licences` → "Purchase licence" button links to `/checkout`
+6. **Project checkout**: Click "Get licence" on licence banner → `/checkout?attach=projectId` still works
+7. **Mobile**: Auth pages show right panel only (no 3D scene — saves bundle/GPU), form centred and usable
+8. **TypeScript**: `npx tsc --noEmit` passes with 0 errors
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+## Error Type
+Build Error
+
+## Error Message
+Ecmascript file had an error
+
+## Build Output
+./app/(auth)/layout.tsx:3:21
+Ecmascript file had an error
+  1 | import dynamic from "next/dynamic";
+  2 |
+> 3 | const Auth3DScene = dynamic(
+    |                     ^^^^^^^^
+> 4 |   () => import("@/components/auth/auth-3d-scene"),
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 5 |   { ssr: false }
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 6 | );
+    | ^^
+  7 |
+  8 | export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  9 |   return (
+
+`ssr: false` is not allowed with `next/dynamic` in Server Components. Please move it into a Client Component.
+
+Next.js version: 15.5.12 (Turbopack)
+
+---
+
+do a gap analysis from the mockup, and error analysis on the current page status. Think ultra hard
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 10.33.39 PM.png]
+
+---
+
+the left pane looks like a first pass render of a 3D asset. What libraries did we use for our landing? use same ones here. generate best true to life version of the 3d assets here. also fix the zoom, placement, pane breakup the clerk window viewport etc. Think ultra hard and plan
+
+---
+
+[Image: source: REDACTED 2026-02-15 at 11.07.47 PM.png]
+
+---
+
+[Request interrupted by user for tool use]
