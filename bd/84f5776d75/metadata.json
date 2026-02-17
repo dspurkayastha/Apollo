@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 202,
+  "checkpoints_count": 197,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -252,7 +252,6 @@
     "docker/plumber.R",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
-    "docs/Decision_points.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
@@ -432,10 +431,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 81511,
-    "cache_creation_tokens": 6315887,
-    "cache_read_tokens": 235591478,
-    "output_tokens": 485736,
-    "api_call_count": 2520
+    "input_tokens": 81473,
+    "cache_creation_tokens": 6266182,
+    "cache_read_tokens": 232426505,
+    "output_tokens": 488466,
+    "api_call_count": 2488
   }
 }

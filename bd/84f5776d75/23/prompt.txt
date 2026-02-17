@@ -175,3 +175,306 @@ yes, revert step 6, and provide the correct fix as required from the review doc
 ---
 
 now commit this and push to remote
+
+---
+
+now lets move on to Phase 2
+
+---
+
+you need to align yourself to the Review.md Decisions.md and Mitigation_plan.md files in /docs/
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me go through the conversation chronologically:
+
+1. **Initial Request**: User asked to implement a "Phase 1: Critical Safety" plan covering 10 highest-severity items from REVIEW.md audit. The plan had 9 steps covering: lint fix, DEV_LICENCE_BYPASS guard, IDOR fixes (4 routes), role escalation prevention, Inngest content overwrite fix, webhook replay protection, PII redaction for AI calls, Sentry edge PII stripping, and webhook guard unit tests.
+
+2. **Implementation**: I read all relevant files and implemented all 9 steps:
+   - Step 1: `let tier` → `const tier` in auto-resolve.ts
+   - Step 2: Added `NODE_ENV !== "production"` guard to DEV_LICENCE_BYPASS
+   - Step 3a-d: IDOR fixes across 4 routes
+   - Step 4: Created migration 024 for role escalation prevention
+   - Step 5: Fixed Inngest upsert → check-then-insert
+   - Step 6: Created webhook-guard.ts with staleness check
+   - Step 7: Created sanitise-metadata.ts for PII redaction
+   - Step 8: Added Sentry edge PII stripping
+   - Step 9: Created webhook guard tests
+
+3. **TypeScript Error**: `vi.stubEnv` was needed instead of direct `process.env.NODE_ENV` assignment (read-only property). Fixed by importing `vi` from vitest and using `vi.stubEnv`/`vi.unstubAllEnvs`.
+
+4. **User Challenge on PII Redaction**: User asked "regarding stripping PII, what all is sent to the AI from say the synopsis?" I traced the full data flow showing 3 channels (synopsis, metadata, previousSections) and identified gaps. User then challenged: "Is there any need to redact anything at all unless it is patient confidential data?" This was a key insight — candidate names, guide names etc. are PUBLIC academic info needed by the AI for front matter. I reverted the sanitise-metadata changes, deleted the files.
+
+5. **User's Critical Audit Request**: User said "Logically think ultra hard about implemented steps, and if they align with the Review findings, and the Decisions.md files." I did a thorough audit of all steps:
+   - Steps 1-5: Correct
+   - Step 6 (webhook staleness): **HARMFUL** — would break legitimate webhook retries from Razorpay/Stripe. Both gateways retry at intervals >5 minutes. Idempotency already handles dedup.
+   - Step 7 (PII sanitiser): Already reverted, correct
+   - Step 8 (Sentry edge): Correct
+   
+6. **Revert Step 6 and Correct Fix**: User approved reverting Step 6. I:
+   - Removed staleness checks from both webhook routes
+   - Deleted webhook-guard.ts and its test
+   - Implemented the ACTUAL fix from Review §IV-B.B2: atomic claim-first idempotency
+   - Created `claimWebhookEvent()` that uses UPSERT with `ignoreDuplicates: true` — claims the event BEFORE provisioning
+   - Removed old `isEventProcessed()` and `markEventProcessed()` functions
+   - Updated both webhook routes to use new pattern
+
+7. **Commit and Push**: User asked to commit and push. I staged 86 files (all modified + untracked except temp files), committed as `b852cec` and pushed to `origin/main`.
+
+8. **Phase 2**: User said "now lets move on to Phase 2". I entered plan mode and launched 2 explore agents to investigate P0 items. The agents returned comprehensive findings on all P0/P1 items.
+
+9. **User Feedback on Scope**: I tried to ask the user about Phase 2 scope via AskUserQuestion. User rejected it, saying "you need to align yourself to the Review.md Decisions.md and Mitigation_plan.md files in /docs/". I then read the full Mitigation_plan.md which already has Phase 2 fully planned out.
+
+10. **Current State**: I'm in plan mode, have read the Mitigation_plan.md which defines Phase 2: Infrastructure Foundation with 9 items (2.1-2.9), and need to write a plan file aligned with that document.
+
+Key files modified in Phase 1:
+- apps/web/lib/citations/auto-resolve.ts (let→const)
+- apps/web/lib/phases/transitions.ts (DEV_LICENCE_BYPASS guard)
+- apps/web/lib/phases/transitions.test.ts (2 new tests)
+- apps/web/app/api/projects/route.ts (user_id filter)
+- apps/web/app/api/licenses/route.ts (user_id filter)
+- apps/web/app/api/upload/signed-url/route.ts (ownership check)
+- apps/web/app/api/checkout/route.ts (ownership check)
+- apps/web/supabase/migrations/024_fix_role_escalation.sql (new)
+- apps/web/lib/inngest/functions/thesis-workflow.ts (check-then-insert)
+- apps/web/lib/payments/provision-licence.ts (atomic claimWebhookEvent)
+- apps/web/app/api/webhooks/razorpay/route.ts (atomic idempotency)
+- apps/web/app/api/webhooks/stripe/route.ts (atomic idempotency)
+- apps/web/sentry.edge.config.ts (beforeSend PII stripping)
+
+Key files deleted:
+- apps/web/lib/ai/sanitise-metadata.ts (reverted - not needed)
+- apps/web/lib/ai/sanitise-metadata.test.ts (reverted - not needed)
+- apps/web/lib/payments/webhook-guard.ts (reverted - harmful)
+- apps/web/lib/payments/webhook-guard.test.ts (reverted - harmful)
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to implement a "Phase 1: Critical Safety" plan from a 136-finding codebase audit (REVIEW.md). This covered 10 highest-severity items: IDOR vulnerabilities, role escalation, data loss bugs, PII leakage, and missing production guards. After Phase 1 was committed, the user requested moving to Phase 2 (Infrastructure Foundation) as defined in the Mitigation_plan.md. The user explicitly corrected me when I tried to re-scope Phase 2, saying I should align to the existing docs/REVIEW.md, docs/DECISIONS.md, and docs/Mitigation_plan.md files which already have Phase 2 fully planned.
+
+2. Key Technical Concepts:
+   - IDOR (Insecure Direct Object Reference) vulnerability fixes — adding `.eq("user_id")` filters and ownership checks
+   - Atomic webhook idempotency — claim-first pattern using UPSERT with `ignoreDuplicates: true` to prevent double licence provisioning
+   - PostgreSQL RLS (Row Level Security) — SECURITY DEFINER functions to prevent role escalation
+   - Supabase admin client vs server client — admin bypasses RLS, server respects it
+   - Inngest workflow — check-then-insert pattern to prevent content overwrite
+   - Sentry `beforeSend` hooks for PII stripping in edge runtime
+   - Vitest `vi.stubEnv()` for environment variable mocking in tests
+   - Webhook retry behavior — Razorpay retries at 0, 5min, 30min, 1h, 2h, 4h; Stripe retries for up to 3 days
+   - Phase 2 items from Mitigation_plan.md: Upstash Redis for semaphore/rate-limiter, R2 storage for PDFs/figures, env var validation, stale compilation recovery, Inngest architectural fix, health check endpoint, singleton Supabase admin client, middleware route coverage
+
+3. Files and Code Sections:
+   - **apps/web/lib/citations/auto-resolve.ts:151**
+     - CI-blocking lint error fix
+     - Changed `let tier: "A" | "D" = "D"` to `const tier: "A" | "D" = "D"`
+
+   - **apps/web/lib/phases/transitions.ts:44**
+     - DEV_LICENCE_BYPASS production guard
+     - `const devBypass = process.env.NODE_ENV !== "production" && process.env.DEV_LICENCE_BYPASS === "true";`
+
+   - **apps/web/lib/phases/transitions.test.ts**
+     - Added 2 test cases for DEV_LICENCE_BYPASS guard using `vi.stubEnv`
+     ```typescript
+     it("should deny DEV_LICENCE_BYPASS in production", () => {
+       vi.stubEnv("NODE_ENV", "production");
+       vi.stubEnv("DEV_LICENCE_BYPASS", "true");
+       const project = makeProject({ current_phase: 1, status: "sandbox" });
+       const result = canAdvancePhase(project, "approved");
+       expect(result.allowed).toBe(false);
+       expect(result.code).toBe("LICENCE_REQUIRED");
+       vi.unstubAllEnvs();
+     });
+
+     it("should allow DEV_LICENCE_BYPASS in development", () => {
+       vi.stubEnv("NODE_ENV", "development");
+       vi.stubEnv("DEV_LICENCE_BYPASS", "true");
+       const project = makeProject({ current_phase: 1, status: "sandbox" });
+       const result = canAdvancePhase(project, "approved");
+       expect(result.allowed).toBe(true);
+       vi.unstubAllEnvs();
+     });
+     ```
+
+   - **apps/web/app/api/projects/route.ts**
+     - IDOR fix: added `.eq("user_id", authResult.user.id)` to GET query (belt-and-suspenders with RLS)
+
+   - **apps/web/app/api/licenses/route.ts**
+     - IDOR fix: added `.eq("user_id", authResult.user.id)` to GET query
+
+   - **apps/web/app/api/upload/signed-url/route.ts**
+     - Genuine IDOR vulnerability fix: added project ownership check using admin client
+     ```typescript
+     const adminDb = createAdminSupabaseClient();
+     const { data: project } = await adminDb
+       .from("projects")
+       .select("id")
+       .eq("id", projectId)
+       .eq("user_id", authResult.user.id)
+       .single();
+     if (!project) return notFound("Project not found");
+     ```
+
+   - **apps/web/app/api/checkout/route.ts**
+     - Added project ownership check when `project_id` is provided in checkout request
+
+   - **apps/web/supabase/migrations/024_fix_role_escalation.sql** (NEW)
+     - Prevents role escalation via direct Supabase client
+     ```sql
+     CREATE OR REPLACE FUNCTION public.get_current_user_role()
+     RETURNS TEXT AS $
+       SELECT role FROM public.users
+       WHERE clerk_user_id = (SELECT auth.jwt() ->> 'sub')
+       LIMIT 1;
+     $ LANGUAGE sql SECURITY DEFINER STABLE;
+
+     DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
+     CREATE POLICY "Users can update own profile"
+       ON public.users FOR UPDATE TO authenticated
+       USING (clerk_user_id = (select auth.jwt() ->> 'sub'))
+       WITH CHECK (
+         clerk_user_id = (select auth.jwt() ->> 'sub')
+         AND role = public.get_current_user_role()
+       );
+     ```
+
+   - **apps/web/lib/inngest/functions/thesis-workflow.ts**
+     - Fixed content overwrite: replaced `.upsert()` with check-then-insert
+     ```typescript
+     await step.run("create-next-section", async () => {
+       const supabase = createAdminSupabaseClient();
+       const { data: existing } = await supabase
+         .from("sections")
+         .select("id")
+         .eq("project_id", projectId)
+         .eq("phase_number", nextPhase)
+         .maybeSingle();
+       if (!existing) {
+         await supabase.from("sections").insert({
+           project_id: projectId,
+           phase_number: nextPhase,
+           phase_name: nextPhaseDef.name,
+           latex_content: "",
+           word_count: 0,
+           citation_keys: [],
+           status: "draft",
+         });
+       }
+     });
+     ```
+
+   - **apps/web/lib/payments/provision-licence.ts**
+     - Replaced `isEventProcessed()` + `markEventProcessed()` with atomic `claimWebhookEvent()`
+     ```typescript
+     export async function claimWebhookEvent(
+       provider: string,
+       eventId: string,
+       eventType: string
+     ): Promise<boolean> {
+       const supabase = createAdminSupabaseClient();
+       const { data } = await supabase
+         .from("processed_webhooks")
+         .upsert(
+           { provider, event_id: eventId, event_type: eventType },
+           { onConflict: "event_id", ignoreDuplicates: true }
+         )
+         .select("id");
+       return (data?.length ?? 0) > 0;
+     }
+     ```
+
+   - **apps/web/app/api/webhooks/razorpay/route.ts** and **stripe/route.ts**
+     - Both rewritten to use claim-first pattern: `claimWebhookEvent()` runs BEFORE `provisionLicence()`
+     - Removed staleness checks and webhook-guard import
+
+   - **apps/web/sentry.edge.config.ts**
+     - Added `beforeSend` hook matching server config pattern
+     ```typescript
+     beforeSend(event) {
+       if (event.user) {
+         delete event.user.email;
+         delete event.user.username;
+         delete (event.user as Record<string, unknown>).name;
+         delete (event.user as Record<string, unknown>).registration_no;
+       }
+       return event;
+     },
+     ```
+
+   - **docs/Mitigation_plan.md** (READ — critical for Phase 2 planning)
+     - Phase 2 "Infrastructure Foundation" has 9 items: 2.1 Upstash Redis, 2.2 R2 Storage, 2.3 Env Var Validation, 2.4 Stale Compilation Recovery, 2.5 Inngest Architectural Fix, 2.6 Health Check Endpoint, 2.7 Replay Protection (NOTE: already proven harmful and should be skipped), 2.8 Singleton Supabase Admin Client, 2.9 Middleware Route Coverage
+
+   - **docs/DECISIONS.md** (READ — authoritative product decisions)
+     - §3.4: No context truncation for previous sections
+     - §4.1-4.2: Canonical word count ranges
+     - §7.1: Inngest as primary orchestrator
+     - §7.2: Upstash Redis for semaphore/rate-limiter
+
+   - **docs/REVIEW.md** (READ — 136-finding audit across 4 parts)
+     - Full gap analysis of the codebase vs PLAN.md
+
+4. Errors and Fixes:
+   - **TypeScript error: `Cannot assign to 'NODE_ENV' because it is a read-only property`**
+     - Occurred in transitions.test.ts when trying `process.env.NODE_ENV = "production"`
+     - Fixed by using `vi.stubEnv("NODE_ENV", "production")` and `vi.unstubAllEnvs()` from Vitest
+   
+   - **Webhook staleness check was HARMFUL (identified during audit)**
+     - The `isWebhookStale()` function rejected events >5 minutes old
+     - Razorpay retries at 0, 5min, 30min, 1h, 2h, 4h — ALL retries after first would be rejected
+     - Stripe retries for up to 3 days with exponential backoff — ALL retries would be rejected
+     - This would cause legitimate payment events to be LOST after server downtime
+     - Fixed by reverting the staleness check entirely and implementing the REAL fix: atomic claim-first idempotency
+
+   - **PII sanitiser was counterproductive (identified by user)**
+     - `sanitiseMetadataForAI()` stripped candidate_name, guide_name, etc. from metadata sent to AI
+     - User pointed out these are PUBLIC academic information needed by the AI for front matter generation (acknowledgements, certificates)
+     - The real concern is PATIENT data which goes to R/Plumber, never to AI
+     - Reverted: deleted sanitise-metadata.ts and sanitise-metadata.test.ts, removed import from prompts.ts
+
+5. Problem Solving:
+   - Identified that the review's recommendation for webhook replay protection (5-min staleness window) was actually harmful when combined with payment gateway retry behavior
+   - Identified the ACTUAL bug from Review §IV-B.B2: non-atomic provisioning where `provisionLicence()` succeeds but `markEventProcessed()` fails, causing double licensing on retry
+   - Solved with claim-first atomic pattern: claim the webhook event ID in processed_webhooks FIRST (via UPSERT with UNIQUE constraint), then provision only if claim succeeded
+   - Distinguished between PII that matters (patient data, government IDs → keep `redactPII()`) vs public academic info (names, institutions → don't strip from AI)
+   - Distinguished Sentry PII stripping (legitimate — third-party monitoring service doesn't need user emails) from AI PII stripping (counterproductive — AI needs names for front matter)
+
+6. All User Messages:
+   - "Implement the following plan: # Phase 1: Critical Safety — Implementation Plan [detailed 9-step plan]"
+   - "regarding stripping PII, what all is sent to the AI from say the synopsis?"
+   - "Is there any need to redact anything at all unless it is patient confidential data? which will anyway not be there except maybe in the uploaded dataset?"
+   - "Logically think ultra hard about implemented steps, and if they align with the Review findings, and the Decisions.md files. Check if they make sense as well (eg the stripping PII was not making sense)"
+   - "yes, revert step 6, and provide the correct fix as required from the review doc"
+   - "now commit this and push to remote"
+   - "now lets move on to Phase 2"
+   - "you need to align yourself to the Review.md Decisions.md and Mitigation_plan.md files in /docs/"
+
+7. Pending Tasks:
+   - **Phase 2: Infrastructure Foundation** — needs to be planned and implemented per Mitigation_plan.md §Phase 2 (items 2.1-2.9)
+   - Currently in plan mode, need to write the plan file and get approval before implementing
+   - Note: Item 2.7 (Replay Protection for Webhooks) in the Mitigation_plan.md should be SKIPPED — we proved during Phase 1 that staleness checks break legitimate webhook retries
+
+8. Current Work:
+   I am currently in **plan mode** for Phase 2 (Infrastructure Foundation). I had read the full Mitigation_plan.md which defines Phase 2 with 9 items. I launched 2 Explore agents that returned comprehensive findings on all P0/P1 items. I then attempted to ask the user scope questions via AskUserQuestion but the user rejected it, saying: **"you need to align yourself to the Review.md Decisions.md and Mitigation_plan.md files in /docs/"** — meaning I should follow the existing plan documents rather than re-asking the user for scope decisions that are already made. I then read the full Mitigation_plan.md (1443 lines). I have NOT yet written the plan file at `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md`.
+
+   Phase 2 items from Mitigation_plan.md:
+   - 2.1: Upstash Redis for Semaphore and Rate Limiter (Review IDs: IV-E1, F1, D7, IV-A6)
+   - 2.2: R2 Storage for PDFs and Figures (Review IDs: IV-E2, C9, D1)
+   - 2.3: Environment Variable Validation (Review ID: IV-E10)
+   - 2.4: Stale Compilation Recovery (Review ID: IV-E3)
+   - 2.5: Inngest Content Overwrite Fix — Architectural (Review ID: E1 extended)
+   - 2.6: Health Check Endpoint (Review ID: IV-E9)
+   - 2.7: Replay Protection for Webhooks (Review ID: I-4) — **SHOULD BE SKIPPED** per Phase 1 analysis
+   - 2.8: Singleton Supabase Admin Client (Review ID: IV-E5)
+   - 2.9: Middleware Route Coverage (Review ID: IV-A1)
+
+9. Optional Next Step:
+   Write the Phase 2 plan to the plan file at `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md` aligned with the Mitigation_plan.md Phase 2 section (items 2.1-2.9), noting that item 2.7 should be skipped. Then call ExitPlanMode for user approval. The user's last message was: **"you need to align yourself to the Review.md Decisions.md and Mitigation_plan.md files in /docs/"** — indicating I should follow the existing planning documents rather than re-scoping.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]
