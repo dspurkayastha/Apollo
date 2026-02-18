@@ -3,9 +3,9 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "5744817a-df6f-4063-ab76-97dc7fe42aaf",
   "strategy": "manual-commit",
-  "created_at": "2026-02-17T19:40:45.53986Z",
+  "created_at": "2026-02-18T02:30:13.604138Z",
   "branch": "main",
-  "checkpoints_count": 6,
+  "checkpoints_count": 0,
   "files_touched": [
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
     "apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts",
@@ -18,38 +18,33 @@
     "apps/web/components/editor/extensions/latex-language.ts",
     "apps/web/components/editor/extensions/math-tooltip.ts",
     "apps/web/components/editor/latex-editor.tsx",
-    "apps/web/components/editor/latex-source-view.tsx",
     "apps/web/components/editor/latex-toolbar.tsx",
-    "apps/web/components/editor/section-editor.tsx",
     "apps/web/lib/citations/extract-keys.ts",
     "apps/web/lib/latex/assemble.test.ts",
     "apps/web/lib/latex/assemble.ts",
-    "apps/web/lib/latex/latex-to-tiptap.test.ts",
-    "apps/web/lib/latex/latex-to-tiptap.ts",
-    "apps/web/lib/latex/tiptap-to-latex.test.ts",
-    "apps/web/lib/latex/tiptap-to-latex.ts",
-    "apps/web/supabase/.temp/cli-latest",
     "apps/web/tests/pipeline-e2e.test.ts",
     "apps/web/tests/security/licence-gates.test.ts",
     "docs/Mitigation_implementation.md",
     "scripts/backfill-latex-content.ts"
   ],
   "agent": "Claude Code",
+  "checkpoint_transcript_start": 833,
+  "transcript_lines_at_start": 833,
   "token_usage": {
-    "input_tokens": 124,
-    "cache_creation_tokens": 322511,
-    "cache_read_tokens": 11360359,
-    "output_tokens": 14075,
-    "api_call_count": 106
+    "input_tokens": 4070,
+    "cache_creation_tokens": 180751,
+    "cache_read_tokens": 4091366,
+    "output_tokens": 1383,
+    "api_call_count": 32
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-17T19:40:43.178912Z",
-    "agent_lines": 803,
-    "human_added": 33,
-    "human_modified": 1,
+    "calculated_at": "2026-02-18T02:30:10.948945Z",
+    "agent_lines": 257,
+    "human_added": 1371,
+    "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 837,
-    "agent_percentage": 95.9378733572282
+    "total_committed": 1628,
+    "agent_percentage": 15.786240786240786
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/5744817a-df6f-4063-ab76-97dc7fe42aaf.jsonl"
 }

@@ -1439,3 +1439,313 @@ any supabase migrations to push left?
 ---
 
 now commit and push
+
+---
+
+now re align to the Review.md, Decisions.md, Mitigation_plan.md, Mitigation_implementation.md files. Check these files throughly (especially the deferred items listed in the Mitigation_implementation.md for items deferred to Phase 5. Then proceed to create a full proof plan which is code wise and logically correct for execution of Phase 5. For the system prompts, be as detailed and specific as possible. Add proper inputs, expected deliverable(s), constraints, etc as a well designed system prompt should have [do not skimp on detailed prompt, that effects generated content badly].
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation to capture all important details.
+
+1. This conversation is a continuation of TWO previous sessions. The first session implemented all of Phase 4 (Editor Migration to CodeMirror 6). The second session (summarized at the start) performed the Phase 4 completion audit, found bugs, and wrote the completion report.
+
+2. This session started with the user's context from the previous session, which had:
+   - Created `editor-styles.css` with KaTeX import and CSS classes
+   - Found 3 CSS bugs (missing KaTeX CSS, missing .cm-cite-chip, missing .cm-math-tooltip)
+   - Found 2 stale comments (assemble.ts:224, extract-keys.ts:3)
+   - Needed to import CSS into editor, fix stale comments, and write Phase 4 completion report
+
+3. My first action was to continue from where the previous session left off:
+   - Read `latex-editor.tsx`, `assemble.ts` (lines 220-229), `extract-keys.ts`, and `Mitigation_implementation.md`
+   - User sent a message while I was working: "I will unlock the globals.css for this step only, delete editor-styles.css, and add the css to the globals.css."
+
+4. I then:
+   - Read `globals.css` to find the right place
+   - Deleted `editor-styles.css`
+   - Added KaTeX import to top of `globals.css`
+   - Fixed stale comment in `assemble.ts:224`
+   - Fixed stale comment in `extract-keys.ts:3`
+   - Added `.cm-cite-chip` and `.cm-math-tooltip` CSS to `globals.css` before focus rings
+
+5. Ran TypeScript check (0 errors) and tests (298 passing, 30 files)
+
+6. Wrote the comprehensive Phase 4 completion report to `Mitigation_implementation.md`
+   - Added Review ID cross-reference entries (C1, C2, C3, C6, DECISIONS 2)
+
+7. Verified: 0 TypeScript errors, 298 tests passing
+
+8. User asked to "run lint check as well" → ran `npx next lint` → all pre-existing warnings only, no new ones
+
+9. User asked "any supabase migrations to push left?" → checked migrations → `026_latex_content_canonical` already applied
+
+10. User asked "now commit and push":
+    - Staged all 26 Phase 4 files
+    - Committed as `f46f42a` with detailed message
+    - Pushed to remote
+
+11. User asked "keep checking the CI, fix till green":
+    - Watched CI run `22112909614`
+    - All 4 jobs passed: Lint & Type Check (44s), Unit Tests (40s), Security & RLS Tests (39s), Compile Test (19s)
+
+12. User's major request: "now re align to the Review.md, Decisions.md, Mitigation_plan.md, Mitigation_implementation.md files. Check these files throughly (especially the deferred items listed in the Mitigation_implementation.md for items deferred to Phase 5. Then proceed to create a full proof plan which is code wise and logically correct for execution of Phase 5. For the system prompts, be as detailed and specific as possible. Add proper inputs, expected deliverable(s), constraints, etc as a well designed system prompt should have [do not skimp on detailed prompt, that effects generated content badly]."
+
+13. I entered plan mode and launched 3 explore agents in parallel:
+    - Agent 1: Explored Phase 5 scope from all 4 reference docs (REVIEW.md, DECISIONS.md, Mitigation_plan.md, Mitigation_implementation.md)
+    - Agent 2: Explored AI pipeline code (generate, refine, approve routes, prompts, token budget, Inngest, client setup)
+    - Agent 3: Explored word counts, prompts, model selection, token budgets, context passing, AI review
+
+14. Then I read critical files directly:
+    - `DECISIONS.md` (full 293 lines) — sections on pricing, editor, AI pipeline, word counts
+    - `prompts.ts` (full 440 lines) — all system prompts, COMMON_RULES, phase user messages
+    - `token-budget.ts` (full 125 lines) — budget checking and recording
+    - `review-section.ts` (full 316 lines) — local review checks
+    - `client.ts` (15 lines) — Anthropic singleton
+    - `word-count-targets.ts` (57 lines) — current word count config
+    - `auto-resolve.ts` (200 lines) — citation resolution
+    - `datasets/generate.ts` (140 lines) — standalone Anthropic usage
+    - `compliance/checker.ts` (lines 155-194) — standalone Anthropic usage
+    - `refine/route.ts` (full 212 lines) — refinement route
+    - `synopsis/parse/route.ts` (full 121 lines) — synopsis parsing with duplicate prompt
+    - `analyses/auto-detect/route.ts` (full 218 lines) — analysis auto-detection
+    - `datasets/generate/route.ts` (full 100 lines) — dataset generation route
+
+15. Checked DB schema for `ai_conversations` table — has `total_tokens` but no `input_tokens`/`output_tokens`
+
+16. Then I tried to write the plan to the plan file but got an error: "File has not been read yet. Read it first before writing to it."
+
+Key findings from research:
+- Word counts disagree across 3 files vs DECISIONS.md 4.1 canonical
+- Context truncated to 3000 chars at prompts.ts:375
+- Only generate route has token budget enforcement
+- Refine sets status to "review" without rolling back phases_completed
+- No Phase 9 prompt
+- M&M check uses 8 sections, should be 12
+- Opus routing is dead code (both branches return Sonnet)
+- 2 standalone Anthropic instances bypass singleton
+- N+1 citation upserts
+- 2 different synopsis parse prompts
+- Orphan cite keys survive to compiled PDF
+
+The plan I attempted to write was comprehensive — 17 steps covering all 15 mitigation items.
+
+Summary:
+1. Primary Request and Intent:
+
+The user's session involved multiple sequential requests:
+
+a. **Continue Phase 4 completion work** (from previous session): Import CSS into editor component, fix stale comments, write Phase 4 completion report to `Mitigation_implementation.md`
+
+b. **User override on CSS approach**: "I will unlock the globals.css for this step only, delete editor-styles.css, and add the css to the globals.css."
+
+c. **Run lint check**: "run lint check as well"
+
+d. **Check migrations**: "any supabase migrations to push left?"
+
+e. **Commit and push**: "now commit and push"
+
+f. **Monitor CI**: "keep checking the CI, fix till green"
+
+g. **Phase 5 planning** (CURRENT MAJOR TASK): "now re align to the Review.md, Decisions.md, Mitigation_plan.md, Mitigation_implementation.md files. Check these files throughly (especially the deferred items listed in the Mitigation_implementation.md for items deferred to Phase 5. Then proceed to create a full proof plan which is code wise and logically correct for execution of Phase 5. For the system prompts, be as detailed and specific as possible. Add proper inputs, expected deliverable(s), constraints, etc as a well designed system prompt should have [do not skimp on detailed prompt, that effects generated content badly]."
+
+2. Key Technical Concepts:
+
+- **LaTeX canonical storage**: Phase 4 eliminated tiptap round-trip. `latex_content` is the sole canonical column. `rich_content_json` deprecated.
+- **CodeMirror 6 editor stack**: `latex-editor.tsx` + extensions (`latex-language.ts`, `citation-decorations.ts`, `math-tooltip.ts`, `environment-fold.ts`)
+- **AI pipeline architecture**: Generate (SSE streaming) → Refine → Approve → Compile. Phase-specific system prompts in `prompts.ts`.
+- **Token budget**: 100K output tokens per phase, 1.2M total per thesis. Only `generate/route.ts` enforces it. `ai_conversations` table tracks usage.
+- **Word count targets**: 3-way disagreement between `prompts.ts`, `word-count-targets.ts`, and DECISIONS.md 4.1 (canonical).
+- **Citation pipeline**: Auto-resolve with CrossRef/PubMed, BibTeX trailer splitting, N+1 upserts, orphan cite key issue.
+- **COMMON_RULES**: Shared AI prompt rules (British English, citations, LaTeX formatting). Missing Unicode avoidance rule.
+- **Model routing**: DECISIONS.md says Opus for phases 2+7, but code has dead conditional (both branches return Sonnet).
+- **Inngest**: Background job orchestrator. DECISIONS.md 3.5 specifies AI generation should run as Inngest jobs with Supabase Realtime live preview.
+- **Licence phase gate**: Sandbox (phases 0-2), Licensed (3-11). Plan-based feature differentiation for Opus routing.
+
+3. Files and Code Sections:
+
+- **`apps/web/app/globals.css`** — LOCKED file, unlocked by user for this step only
+  - Added KaTeX CSS import at top: `@import "katex/dist/katex.min.css";`
+  - Added `.cm-cite-chip` CSS (sage badge: `#8B9D7722` bg, `#5A6B4A` text)
+  - Added `.cm-math-tooltip` CSS (white card, `box-shadow: 0 4px 16px rgba(0,0,0,0.08)`)
+  - These fix 3 bugs where CodeMirror decorations had no visual styling
+
+- **`apps/web/lib/latex/assemble.ts`** (line 224)
+  - Fixed stale comment referencing tiptap round-trip in `escapeBareAmpersands()` docstring
+  - Changed to: "AI-generated content may contain bare `&` outside tabular environments"
+
+- **`apps/web/lib/citations/extract-keys.ts`** (line 3)
+  - Fixed stale module header referencing "tiptap-to-latex serialiser"
+  - Changed to: "Used by section save route, generate/refine routes, and auto-resolve."
+
+- **`docs/Mitigation_implementation.md`** — Phase 4 completion report added (~110 lines)
+  - 13 items implemented table, 1 deferred (atomic ranges), 4 deviations from plan
+  - 5 bugs found (3 CSS, 2 stale comments), 6 lessons learned
+  - Migration note, deleted files inventory, dependency changes
+  - Cross-reference appendix updated with C1, C2, C3, C6, DECISIONS 2
+
+- **`apps/web/components/editor/editor-styles.css`** — DELETED per user request
+
+**Phase 5 research — files read for planning:**
+
+- **`docs/DECISIONS.md`** (293 lines) — Sections 3 (AI Pipeline) and 4 (Word Count & QC Targets) are critical:
+  - Section 3.1: Phase 9 AI reviews BibTeX entries
+  - Section 3.2: AI-powered section review (~2K tokens, Haiku)
+  - Section 3.3: Opus for phases 2+7, Sonnet for rest
+  - Section 3.4: No context truncation — full content passed
+  - Section 3.5: Inngest background jobs + Supabase Realtime live preview
+  - Section 4.1: Canonical word count ranges (differs from current code)
+  - Section 4.2: QC gate rules (hard floor = softMin, hard ceiling = softMax * 1.15)
+  - Section 4.3: Refine rules (shortening/lengthening constraints)
+
+- **`apps/web/lib/ai/prompts.ts`** (440 lines) — All AI system prompts
+  - `COMMON_RULES` (lines 6-17): 9 rules, missing Unicode avoidance
+  - Phase prompts: SYNOPSIS_PARSE (19), FRONT_MATTER (39), INTRODUCTION (48), AIMS (80), ROL (109), MATERIALS_METHODS (159), RESULTS (196), DISCUSSION (217), CONCLUSION (252), APPENDICES (284), REFINE (323)
+  - `getPhaseSystemPrompt()` (342-356): switch with no `case 9`
+  - `getPhaseUserMessage()` (362-413): context truncation at line 375 (`.slice(0, 3000)`)
+  - Word counts hardcoded in each prompt (disagree with DECISIONS.md)
+  - `SYNOPSIS_PARSE_SYSTEM_PROMPT` different from route-local `SYNOPSIS_WIZARD_PROMPT`
+
+- **`apps/web/lib/ai/token-budget.ts`** (125 lines)
+  - `MAX_OUTPUT_TOKENS_PER_PHASE = 100_000`
+  - `MAX_TOTAL_TOKENS_PER_THESIS = 1_200_000`
+  - `checkTokenBudget()`: sums `total_tokens` (combined input+output)
+  - `recordTokenUsage()`: inserts single `total_tokens` value
+
+- **`apps/web/lib/ai/review-section.ts`** (316 lines) — Entirely regex-based
+  - `checkCitations()`: diff against original
+  - `checkWordCount()`: uses `getWordCountTarget()`
+  - `checkStructure()`: M&M requires 8 sections (line 138), should be 12
+  - `checkBritishEnglish()`: American→British spelling check
+  - `checkCitationQuality()`: Tier D ratio check
+  - `CITATION_HEAVY_PHASES = new Set([2, 4, 5, 7])` (duplicated in generate route)
+
+- **`apps/web/lib/ai/client.ts`** (15 lines)
+  - Singleton `getAnthropicClient()` — no retry/timeout config
+  - `_client = new Anthropic({ apiKey })` — bare instantiation
+
+- **`apps/web/lib/phases/word-count-targets.ts`** (57 lines)
+  - Current values disagree with DECISIONS.md 4.1:
+    - Intro: 750-1200 (should be 1000-1400)
+    - Aims: 200-500 (should be 300-500)
+    - ROL: 3500-4500 (should be 3500-5000)
+    - Discussion: 2000-3500 (correct)
+
+- **`apps/web/lib/citations/auto-resolve.ts`** (200 lines)
+  - N+1 upserts in loop (lines 93-119)
+  - No retry logic on CrossRef/PubMed
+  - Orphan keys get Tier D placeholders but keys with NO DB record survive
+
+- **`apps/web/lib/datasets/generate.ts`** (140 lines)
+  - Line 82: `const anthropic = new Anthropic()` — standalone instance, not singleton
+  - No token budget check or recording
+
+- **`apps/web/lib/compliance/checker.ts`** (lines 155-194)
+  - Line 166: `const anthropic = new Anthropic()` — standalone instance
+
+- **`apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`** (212 lines)
+  - Line 131: Sets `status: "review"` — un-approves without rolling back `phases_completed`
+  - No `checkTokenBudget()` or `recordTokenUsage()` calls
+  - Model hardcoded: `"claude-sonnet-4-5-20250929"` (line 89)
+
+- **`apps/web/app/api/synopsis/parse/route.ts`** (121 lines)
+  - Lines 13-32: Inline `SYNOPSIS_WIZARD_PROMPT` — duplicates/differs from `SYNOPSIS_PARSE_SYSTEM_PROMPT` in prompts.ts
+  - No token budget check or recording
+
+- **`apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts`** (218 lines)
+  - Uses Haiku model (line 130)
+  - No token recording
+
+- **`apps/web/app/api/projects/[id]/datasets/generate/route.ts`** (100 lines)
+  - No token budget check or recording
+
+- **DB schema** (`ai_conversations` table):
+  - Columns: `id`, `project_id`, `phase_number`, `messages_json`, `model_used`, `total_tokens`, `created_at`
+  - Missing: `input_tokens`, `output_tokens` columns
+
+4. Errors and Fixes:
+
+- **Error: File has not been read yet** when trying to `Write` to the plan file `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md`
+  - The plan file existed from the previous session but hadn't been read in this session
+  - I needed to `Read` it first before `Write`
+  - This was the last action before the summary was requested — the plan was NOT written yet
+
+- **Previous session bugs found and fixed**:
+  - Missing KaTeX CSS → Added `@import "katex/dist/katex.min.css"` to `globals.css`
+  - Missing `.cm-cite-chip` CSS → Added to `globals.css`
+  - Missing `.cm-math-tooltip` CSS → Added to `globals.css`
+  - Stale comment in `assemble.ts:224` → Updated docstring
+  - Stale comment in `extract-keys.ts:3` → Updated module header
+
+5. Problem Solving:
+
+- **Phase 4 CSS bugs**: User overrode my approach (separate `editor-styles.css`) and instructed to put CSS in `globals.css` instead. I complied, deleted the separate file, and added styles to the unlocked `globals.css`.
+- **Phase 4 completion report**: Wrote comprehensive report following Phases 1-3 format in `Mitigation_implementation.md`
+- **CI verification**: Monitored all 4 CI jobs until green, no fixes needed
+- **Phase 5 planning**: Comprehensive research completed across all reference docs and implementation files. Identified all 15 mitigation items, their dependencies, current code state, and discrepancies.
+
+6. All User Messages:
+
+- (Session start — continuation from previous session with summary)
+- "I will unlock the globals.css for this step only, delete editor-styles.css, and add the css to the globals.css."
+- "run lint check as well"
+- "any supabase migrations to push left?"
+- "now commit and push"
+- "keep checking the CI, fix till green"
+- "now re align to the Review.md, Decisions.md, Mitigation_plan.md, Mitigation_implementation.md files. Check these files throughly (especially the deferred items listed in the Mitigation_implementation.md for items deferred to Phase 5. Then proceed to create a full proof plan which is code wise and logically correct for execution of Phase 5. For the system prompts, be as detailed and specific as possible. Add proper inputs, expected deliverable(s), constraints, etc as a well designed system prompt should have [do not skimp on detailed prompt, that effects generated content badly]."
+
+7. Pending Tasks:
+
+- **Write the Phase 5 plan to the plan file** — The comprehensive plan was composed (17 steps) but the `Write` tool failed because the file hadn't been read first. The plan content exists in my last attempted tool call but was NOT persisted.
+- **Get user approval on plan** via `ExitPlanMode`
+- **Execute Phase 5 after approval** — all 15 mitigation items
+
+8. Current Work:
+
+I am in **plan mode** working on Phase 5 planning. I completed all research (3 explore agents + direct file reads of ~20 files + DB schema check) and composed a comprehensive 17-step plan. The plan covers all 15 Phase 5 mitigation items (5.1-5.15) with detailed implementation instructions, file paths, code snippets, and a detailed AI review system prompt.
+
+I attempted to write the plan to `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md` but got the error: "File has not been read yet. Read it first before writing to it."
+
+The full plan content I attempted to write includes:
+- **Step 1**: Unify word count targets → new `word-count-config.ts` with DECISIONS.md 4.1 canonical ranges
+- **Step 2**: Unicode avoidance rule in COMMON_RULES (rule 10)
+- **Step 3**: Anthropic client retry config (`maxRetries: 3, timeout: 120_000`) + consolidate standalone instances
+- **Step 4**: Deduplicate synopsis parse prompts (merge `SYNOPSIS_WIZARD_PROMPT` into `SYNOPSIS_PARSE_SYSTEM_PROMPT`)
+- **Step 5**: Remove context truncation (delete `.slice(0, 3000)` at `prompts.ts:375`)
+- **Step 6**: Token budget enforcement for refine, dataset generate, synopsis parse, auto-detect routes
+- **Step 7**: Split input/output token tracking (migration `027_split_token_tracking` + update `token-budget.ts`)
+- **Step 8**: Phase 9 References Consolidation prompt (detailed ~80 line prompt for BibTeX review)
+- **Step 9**: Opus model routing for phases 2+7 on Professional plan
+- **Step 10**: Orphan cite key stripping in `assembleThesisContent()`
+- **Step 11**: Citation retry (exponential backoff), ROL timeout increase, title verification
+- **Step 12**: Batch citation upserts (replace N+1 loop)
+- **Step 13**: AI-powered section review (detailed ~150 line Haiku prompt covering 6 quality dimensions) + M&M 8→12 fix
+- **Step 14**: Refine status rollback (roll back `phases_completed` when refining approved section)
+- **Step 15**: Inngest background generation + Supabase Realtime live preview (migration `028_streaming_content`)
+- **Step 16**: Update all phase prompts with template literals referencing word count config
+- **Step 17**: Tests (new + updated)
+
+9. Optional Next Step:
+
+Read the plan file `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md` first, then write the comprehensive Phase 5 plan to it, then call `ExitPlanMode` for user approval.
+
+The user's most recent explicit request was: "now re align to the Review.md, Decisions.md, Mitigation_plan.md, Mitigation_implementation.md files. Check these files throughly (especially the deferred items listed in the Mitigation_implementation.md for items deferred to Phase 5. Then proceed to create a full proof plan which is code wise and logically correct for execution of Phase 5. For the system prompts, be as detailed and specific as possible."
+
+I was in the middle of writing the plan file when the Write tool failed. The next step is to read the plan file first, then write the plan, then call ExitPlanMode.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user]
+
+---
+
+continue
+
+---
+
+[Request interrupted by user for tool use]
