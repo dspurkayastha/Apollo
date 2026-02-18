@@ -1,0 +1,747 @@
+Implement the following plan:
+
+# Phase 10: Docker Hardening — Implementation Plan
+
+## Executive Summary
+
+This plan addresses 9 deliverables across 5 new files and 4 modifications. The critical discovery is that `compile.ts` uses `docker run --rm` (ephemeral containers) rather than `docker exec` on the persistent compose container. This means `docker-compose.yml` security options are **dead code** for LaTeX compilation. The fix requires passing all security options directly via `docker run` CLI flags in `compile.ts`, and referencing seccomp profile files that must exist on the host filesystem.
+
+**Items already complete** (verified):
+- **10.3**: LaTeX network isolation (`--network=none` in `compile.ts:179`)
+- **10.4**: `mathrsfs` + `subcaption` in `Dockerfile.latex` (lines 31-32)
+
+---
+
+## 1. CRITICAL BUG FIX: compile.ts Security Args (Item 10.1a)
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/lib/latex/compile.ts` (lines 174-185)
+
+**Current state** (lines 176-185):
+```typescript
+const args = [
+  "run", "--rm",
+  "--network=none", "--read-only",
+  "--tmpfs", "/tmp:rw,size=512m",
+  "--memory=1g",
+  "-v", `${workDir}:/thesis`,
+  containerName,
+];
+```
+
+**Required change** — add 5 missing security flags + seccomp with graceful fallback:
+
+```typescript
+import { access } from "fs/promises";
+
+// Resolve seccomp profile path (graceful fallback)
+const seccompPath = path.resolve(process.cwd(), "../../docker/seccomp-latex.json");
+let seccompExists = false;
+try {
+  await access(seccompPath);
+  seccompExists = true;
+} catch {
+  // Profile not found — Docker's default seccomp will be used (still secure)
+}
+
+const args = [
+  "run", "--rm",
+  "--network=none",
+  "--read-only",
+  "--tmpfs", "/tmp:rw,size=512m",
+  "--memory=1g",
+  "--pids-limit=256",
+  "--security-opt", "no-new-privileges:true",
+  "--cap-drop=ALL",
+  "--cap-add=DAC_OVERRIDE",
+  "--cap-add=FOWNER",
+  "-v", `${workDir}:/thesis`,
+  containerName,
+];
+
+// Add custom seccomp profile if available; otherwise Docker default applies
+if (seccompExists) {
+  args.splice(args.indexOf("--cap-drop=ALL"), 0,
+    "--security-opt", `seccomp=${seccompPath}`);
+}
+```
+
+**Flags added:**
+- `--pids-limit=256` — prevents fork bombs
+- `--security-opt no-new-privileges:true` — prevents setuid escalation
+- `--cap-drop=ALL` + `--cap-add=DAC_OVERRIDE` + `--cap-add=FOWNER` — minimal capabilities for TeX Live
+- `--security-opt seccomp=...` — custom seccomp profile (if file exists; else Docker default)
+
+**Graceful fallback**: If the profile file doesn't exist (e.g., development environment, macOS), Docker's default seccomp profile applies automatically. This is still secure (blocks ~44 dangerous syscalls), just without the extra networking syscall blocks. For mock/local compile modes, none of this applies.
+
+**Testing**: Docker is available locally. Test with `docker run --rm` using all new flags against `apollo-latex` image. Cannot test seccomp on macOS, but flag syntax can be verified. VPS testing required for seccomp behaviour.
+
+---
+
+## 2. Seccomp Profiles (Item 10.1)
+
+Two new JSON files.
+
+### 2a. LaTeX Seccomp Profile
+
+**New file**: `/Users/devs/Downloads/Apollo/docker/seccomp-latex.json`
+
+**Approach**: Whitelist-based (`"defaultAction": "SCMP_ACT_ERRNO"` — deny by default, explicitly allow needed syscalls). This is stricter than Docker's default blacklist approach.
+
+LaTeX compilation runs `pdflatex`, `bibtex`, and `ghostscript` — CPU/IO-bound user-space programs needing file I/O, process forking, and memory management. They do NOT need networking, kernel modules, namespace manipulation, or raw device access.
+
+**Syscall allowlist by category:**
+
+| Category | Syscalls | Why |
+|----------|----------|-----|
+| File I/O | `read`, `write`, `open`, `openat`, `close`, `stat`, `fstat`, `lstat`, `lseek`, `access`, `readlink`, `getcwd`, `rename`, `unlink`, `mkdir`, `rmdir`, `dup`, `dup2`, `pipe`, `pipe2`, `readv`, `writev`, `pread64`, `pwrite64`, `ftruncate`, `getdents`, `getdents64`, `statfs`, `fstatfs`, `faccessat`, `newfstatat`, `fchmod`, `fchown`, `chown`, `utimensat`, `renameat`, `renameat2`, `unlinkat`, `mkdirat`, `symlinkat`, `readlinkat`, `fchmodat`, `fchownat` | TeX reads/writes files |
+| Process | `fork`, `vfork`, `clone`, `clone3`, `execve`, `execveat`, `wait4`, `waitid`, `exit`, `exit_group`, `getpid`, `getppid`, `getuid`, `getgid`, `geteuid`, `getegid`, `getresuid`, `getresgid`, `setuid`, `setgid`, `setresuid`, `setresgid`, `getgroups`, `setgroups`, `setsid`, `getpgrp`, `setpgid` | compile.sh forks subprocesses |
+| Memory | `mmap`, `munmap`, `mprotect`, `brk`, `mremap`, `msync`, `madvise`, `mincore` | Memory allocation |
+| Signals | `rt_sigaction`, `rt_sigprocmask`, `rt_sigreturn`, `rt_sigpending`, `rt_sigsuspend`, `kill`, `tgkill`, `sigaltstack` | Signal handling |
+| Time | `clock_gettime`, `clock_getres`, `gettimeofday`, `nanosleep`, `clock_nanosleep` | Timing |
+| Misc | `ioctl`, `fcntl`, `poll`, `ppoll`, `select`, `pselect6`, `futex`, `set_robust_list`, `get_robust_list`, `arch_prctl`, `set_tid_address`, `prctl`, `sched_getaffinity`, `sched_yield`, `getrandom`, `uname`, `getcpu`, `rseq`, `membarrier` | Standard libc internals |
+
+**Explicitly DENIED** (by `defaultAction`):
+- `socket`, `connect`, `bind`, `listen`, `accept`, `sendto`, `recvfrom`, `sendmsg`, `recvmsg` (no networking)
+- `mount`, `umount2`, `pivot_root` (no filesystem manipulation)
+- `ptrace`, `process_vm_readv`, `process_vm_writev` (no debugging)
+- `init_module`, `finit_module`, `delete_module` (no kernel modules)
+- `reboot`, `kexec_load`, `kexec_file_load` (no system control)
+- `keyctl`, `add_key`, `request_key` (no keyring access)
+- `bpf`, `perf_event_open`, `lookup_dcookie` (no tracing)
+
+**Risk**: LOW-MEDIUM. If a needed syscall is missing, pdflatex will SIGSYS. The deploy-conformance script runs a test compilation to catch this. Fix: check `dmesg | grep seccomp` for the blocked syscall number, add it to the profile.
+
+### 2b. R Plumber Seccomp Profile
+
+**New file**: `/Users/devs/Downloads/Apollo/docker/seccomp-r.json`
+
+Similar to LaTeX but WITH networking syscalls since R Plumber serves HTTP on port 8787. Additional allowed syscalls:
+- `socket`, `bind`, `listen`, `accept`, `accept4`, `setsockopt`, `getsockopt`, `sendto`, `recvfrom`, `sendmsg`, `recvmsg` (HTTP server)
+- `epoll_create`, `epoll_create1`, `epoll_ctl`, `epoll_wait`, `epoll_pwait`, `eventfd2` (event loop for Plumber)
+- `connect`, `getpeername`, `getsockname`, `shutdown` (for curl healthcheck + client connections)
+
+Still DENIED: ptrace, kernel module loading, mount, reboot, bpf, keyctl (same as LaTeX).
+
+**docker-compose.yml change**: Replace `seccomp:unconfined` with `seccomp:./docker/seccomp-r.json`.
+
+---
+
+## 3. docker-compose.yml Updates (Items 10.1 + 10.2)
+
+**File**: `/Users/devs/Downloads/Apollo/docker/docker-compose.yml`
+
+### 3a. LaTeX service (line 19)
+
+```yaml
+latex:
+  # NOTE: This container is NOT used for compilation.
+  # compile.ts uses `docker run --rm apollo-latex` (ephemeral containers).
+  # Security settings here are for the sleeping container only.
+  # Compilation security settings are in apps/web/lib/latex/compile.ts.
+  security_opt:
+    - no-new-privileges:true
+    - seccomp:./docker/seccomp-latex.json   # was: seccomp:unconfined
+```
+
+### 3b. R Plumber service (line 43)
+
+```yaml
+r-plumber:
+  security_opt:
+    - no-new-privileges:true
+    - seccomp:./docker/seccomp-r.json       # was: seccomp:unconfined
+    - apparmor:apollo-r-plumber              # NEW (loaded via deploy-conformance.sh)
+```
+
+---
+
+## 4. AppArmor Profile for R Container (Item 10.2)
+
+**New file**: `/Users/devs/Downloads/Apollo/docker/apparmor-r-plumber`
+
+```
+#include <tunables/global>
+
+profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Allow R runtime
+  /usr/lib/R/** mr,
+  /usr/local/lib/R/** mr,
+  /usr/share/R/** r,
+  /usr/bin/R ix,
+  /usr/bin/Rscript ix,
+
+  # Allow Plumber app
+  /app/** r,
+  /app/plumber.R r,
+
+  # Temp directory (mapped via tmpfs)
+  /tmp/** rwk,
+
+  # Deny dangerous executables
+  deny /bin/sh x,
+  deny /bin/bash x,
+  deny /bin/dash x,
+  deny /usr/bin/python* x,
+  deny /usr/bin/perl x,
+  deny /usr/bin/wget x,
+
+  # Allow curl ONLY for health check (container-internal)
+  /usr/bin/curl Cx -> healthcheck,
+  profile healthcheck {
+    #include <abstractions/base>
+    #include <abstractions/nameservice>
+    network inet stream,
+    /usr/bin/curl mr,
+  }
+
+  # Network access — HTTP server on 8787
+  network inet stream,
+  network inet6 stream,
+
+  # Deny raw network access
+  deny network raw,
+  deny network packet,
+
+  # Deny mount/umount
+  deny mount,
+  deny umount,
+  deny pivot_root,
+
+  # Deny ptrace
+  deny ptrace,
+
+  # Deny kernel module loading
+  deny @{PROC}/sys/kernel/** w,
+}
+```
+
+**Loading**: The deploy-conformance script copies the profile to `/etc/apparmor.d/apollo-r-plumber` and runs `apparmor_parser -r` to load it. If AppArmor is not available on the VPS, the deploy-conformance.sh warns but does not fail — the system is secure without it (seccomp + capabilities + network isolation).
+
+---
+
+## 5. Deploy Conformance Script (Governance requirement)
+
+**New file**: `/Users/devs/Downloads/Apollo/scripts/deploy-conformance.sh`
+
+Referenced in `docs/governance/security-tests.md` and `docs/governance/release-gates.md` but does not exist yet.
+
+**Checks performed:**
+
+1. LaTeX seccomp profile file exists and is valid JSON
+2. LaTeX test compilation succeeds with all security flags + seccomp
+3. R Plumber seccomp profile exists and is valid JSON
+4. R Plumber container is running and healthy
+5. R Plumber seccomp is NOT unconfined
+6. AppArmor profile `apollo-r-plumber` loaded (warn-only if not available)
+7. No `system()` calls in `plumber.R`
+8. No dangerous bind mounts (`/etc`, `/home`, `/root`, `/proc`, `/sys`)
+9. No API secrets leaked to compute container env vars
+10. SSL certificate valid and not expiring within 14 days
+11. No unexpected open ports
+
+**Exit behaviour**: Exit 1 on any FAIL. Print `[PASS]`/`[WARN]`/`[FAIL]` per check with summary.
+
+---
+
+## 6. Security Headers in next.config.ts
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/next.config.ts`
+
+Currently has zero security headers. Add via Next.js `headers()` config:
+
+```typescript
+const securityHeaders = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-DNS-Prefetch-Control", value: "on" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+  },
+];
+
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+  output: "standalone",
+  async headers() {
+    return [{ source: "/(.*)", headers: securityHeaders }];
+  },
+  // ... existing images config
+};
+```
+
+**No CSP**: Content-Security-Policy is complex and could break Clerk, Sentry, PostHog, and inline styles from shadcn/ui. Defer to Phase 11 with thorough testing.
+
+---
+
+## 7. k6 Load Test Script (Governance requirement)
+
+**New file**: `/Users/devs/Downloads/Apollo/scripts/load-test.js`
+
+Referenced in `docs/governance/release-gates.md` line 19 as a **hard pre-launch gate**. Scenarios from the PLAN.md capacity model:
+
+1. **Sequential compiles**: 3 sequential with 2 queued — complete without OOM or exceed 3.8 GB RSS
+2. **Concurrent R analyses**: 2 concurrent (including survival/meta-analysis) — within runtime limits
+3. **Mixed load**: 1 compile + 1 analysis concurrent — compile p95 < 90s
+4. **AI generation load**: 10 concurrent AI generations — stream without timeout
+5. **No-contention compile**: p95 < 60s
+
+```javascript
+import http from 'k6/http';
+import { check, group } from 'k6';
+import { Trend } from 'k6/metrics';
+
+const BASE_URL = __ENV.BASE_URL || 'https://apollo.example.com';
+const AUTH_TOKEN = __ENV.AUTH_TOKEN; // Required for authenticated endpoints
+
+const compileDuration = new Trend('compile_duration', true);
+const analysisDuration = new Trend('analysis_duration', true);
+
+export const options = {
+  scenarios: {
+    sequential_compiles: { /* executor: per-vu-iterations, 5 iters, 1 VU */ },
+    concurrent_analyses: { /* executor: constant-vus, 2 VUs */ },
+    mixed_load: { /* executor: constant-vus, 2 VUs (1 compile + 1 analysis) */ },
+    ai_generation_load: { /* executor: constant-vus, 10 VUs */ },
+  },
+  thresholds: {
+    'compile_duration{scenario:no_contention}': ['p(95)<60000'],
+    'compile_duration{scenario:mixed_load}': ['p(95)<90000'],
+  },
+};
+```
+
+**Risk**: LOW. Read-only diagnostic script, only runs when explicitly invoked.
+
+---
+
+## 8. Enhanced Health Check
+
+**File**: `/Users/devs/Downloads/Apollo/apps/web/app/api/health/route.ts`
+
+Currently returns a static `{status: "ok", timestamp, version}`. Enhance with dependency checks:
+
+```typescript
+export async function GET() {
+  const checks: Record<string, "ok" | "degraded" | "down"> = {};
+
+  // Check R Plumber
+  try {
+    const res = await fetch("http://localhost:8787/health", { signal: AbortSignal.timeout(3000) });
+    checks.r_plumber = res.ok ? "ok" : "down";
+  } catch {
+    checks.r_plumber = "down";
+  }
+
+  // Check Docker availability (for compile mode)
+  if (process.env.LATEX_COMPILE_MODE === "docker") {
+    try {
+      const { execFile } = await import("child_process");
+      const { promisify } = await import("util");
+      await promisify(execFile)("docker", ["info"], { timeout: 5000 });
+      checks.docker = "ok";
+    } catch {
+      checks.docker = "down";
+    }
+  }
+
+  const overallStatus = Object.values(checks).some((v) => v === "down")
+    ? "degraded" : "ok";
+
+  return NextResponse.json({
+    status: overallStatus,
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version ?? "0.1.0",
+    checks,
+  });
+}
+```
+
+---
+
+## Implementation Order
+
+| Step | Item | Dependencies |
+|------|------|-------------|
+| 1-3 | Create `seccomp-latex.json`, `seccomp-r.json`, `apparmor-r-plumber` | None (parallel) |
+| 4 | Fix `compile.ts` — add security flags + seccomp fallback | Step 1 |
+| 5 | Update `docker-compose.yml` — profiles + AppArmor ref | Steps 1-3 |
+| 6 | Security headers in `next.config.ts` | None (parallel with 4-5) |
+| 7 | Enhanced health check | None (parallel with 4-6) |
+| 8 | Create `deploy-conformance.sh` | Steps 1-5 |
+| 9 | Create `scripts/load-test.js` | None (parallel with 8) |
+| 10 | Update `docs/Mitigation_implementation.md` | All above |
+
+---
+
+## Files Inventory
+
+| Action | File | Est. Lines |
+|--------|------|------------|
+| CREATE | `docker/seccomp-latex.json` | ~200 (JSON) |
+| CREATE | `docker/seccomp-r.json` | ~220 (JSON) |
+| CREATE | `docker/apparmor-r-plumber` | ~50 |
+| CREATE | `scripts/deploy-conformance.sh` | ~150 |
+| CREATE | `scripts/load-test.js` | ~200 |
+| MODIFY | `apps/web/lib/latex/compile.ts` | ~15 lines changed (174-195) |
+| MODIFY | `docker/docker-compose.yml` | ~8 lines changed |
+| MODIFY | `apps/web/next.config.ts` | ~20 lines added |
+| MODIFY | `apps/web/app/api/health/route.ts` | ~30 lines added |
+
+---
+
+## Testing Strategy
+
+### Locally testable (macOS with Docker):
+- `pnpm tsc --noEmit` — 0 errors
+- `pnpm test` — all existing tests pass (mock compile mode)
+- `jq empty docker/seccomp-*.json` — valid JSON
+- `bash -n scripts/deploy-conformance.sh` — syntax check
+- `docker run --rm` with all new flags (verify syntax, cannot test seccomp on macOS)
+- Security headers: `curl -I localhost:3000` confirms headers present
+- Health check: verify JSON response shape with dependency checks
+
+### VPS-only testing:
+1. SSH to VPS
+2. Copy seccomp profiles to repo
+3. Run test compilation with all flags:
+   ```bash
+   docker run --rm --network=none --read-only \
+     --tmpfs /tmp:rw,size=512m --memory=1g --pids-limit=256 \
+     --security-opt no-new-privileges:true \
+     --security-opt "seccomp=$(pwd)/docker/seccomp-latex.json" \
+     --cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER \
+     -v /tmp/test-thesis:/thesis apollo-latex
+   ```
+4. If SIGSYS: `dmesg | grep seccomp` for blocked syscall numbers, add to profile
+5. Test both CLS files (WBUHS + SSUHS) under seccomp
+6. Deploy updated docker-compose.yml for R Plumber
+7. Load AppArmor profile: `sudo apparmor_parser -r docker/apparmor-r-plumber`
+8. Run `scripts/deploy-conformance.sh`
+9. Run `k6 run scripts/load-test.js`
+
+---
+
+## Risk Assessment
+
+| Item | Risk | Impact if Failed | Mitigation |
+|------|------|-----------------|------------|
+| compile.ts seccomp fallback | LOW | Falls back to Docker default (still secure) | Graceful check + log warning |
+| seccomp-latex.json | MEDIUM | pdflatex SIGSYS | Whitelist approach; deploy-conformance test compile; dmesg debugging |
+| seccomp-r.json | MEDIUM | R Plumber fails to start | Test on VPS before production deploy |
+| AppArmor profile | MEDIUM | R container refuses to start | Check availability first; warn-only in conformance script |
+| docker-compose.yml | LOW | R container changes are live; LaTeX is dead code | Straightforward replacements |
+| deploy-conformance.sh | LOW | Read-only checks, cannot break anything | Pure diagnostic |
+| Security headers | LOW | Extremely unlikely to break (no CSP) | Standard headers only |
+| k6 load test | LOW | Script only, no side effects | Only runs when explicitly invoked |
+| Health check enhancement | LOW | Additive change | Graceful fallbacks on every check |
+
+---
+
+## Critical Files for Implementation
+
+- `/Users/devs/Downloads/Apollo/apps/web/lib/latex/compile.ts` — Core bug fix: add seccomp, cap-drop, pids-limit, no-new-privileges to docker run args (lines 174-185)
+- `/Users/devs/Downloads/Apollo/docker/docker-compose.yml` — Replace `seccomp:unconfined` with actual profile paths; add AppArmor reference for R Plumber
+- `/Users/devs/Downloads/Apollo/docker/seccomp-latex.json` (NEW) — Restricted syscall allowlist for LaTeX compilation
+- `/Users/devs/Downloads/Apollo/docker/seccomp-r.json` (NEW) — Restricted syscall allowlist for R Plumber (with networking)
+- `/Users/devs/Downloads/Apollo/docker/apparmor-r-plumber` (NEW) — AppArmor profile restricting R container
+- `/Users/devs/Downloads/Apollo/scripts/deploy-conformance.sh` (NEW) — VPS deploy-gate script referenced by governance docs
+- `/Users/devs/Downloads/Apollo/scripts/load-test.js` (NEW) — k6 load test for pre-launch gate
+- `/Users/devs/Downloads/Apollo/apps/web/next.config.ts` — Add security response headers
+- `/Users/devs/Downloads/Apollo/apps/web/app/api/health/route.ts` — Add dependency health checks
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+I need to clarify some stuff, I am not really docker savvy, so I need to be doubly sure when you answer these. future of this app depends on it. 1. What will happen if i want to push updates like new cls files etc to the app. how ill this setup handle it? 2. What about that white list/blacklist approach? what will be objectively better, and has that been implemented? 3. This app is basically just talking to docker for the actual latex compile and R analysis isnt it? So even if its a bit unsecure (not open, but not defcon secure either) whats the actual harm? what i mean is that if implementing these security features actually makes the debug for errors worth it? 4. I need a basic idea about the app infra backend flow, I know the pipeline I want for the thesis generation and the tools to use, but locally. for a deployed prod version, whats the flow, and what are the hiccups we have already accounted for?
+
+---
+
+realign to the Review ,Deiscussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 10 for consistency, correctness, errors , logical fallacies, redundancies and other logic issues. Think ultra hard
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **First user message**: "Implement the following plan: Phase 10: Docker Hardening — Implementation Plan"
+   - This was a detailed plan with 9 deliverables across 5 new files and 4 modifications
+   - Key items: seccomp profiles, AppArmor profile, compile.ts security fix, docker-compose updates, security headers, deploy-conformance script, k6 load test, enhanced health check
+
+2. **My implementation**:
+   - Created task list (9 tasks)
+   - Created `docker/seccomp-latex.json` - whitelist-based seccomp profile for LaTeX
+   - Created `docker/seccomp-r.json` - similar but with networking syscalls for R Plumber
+   - Created `docker/apparmor-r-plumber` - AppArmor profile
+   - Modified `apps/web/lib/latex/compile.ts` - added security flags + seccomp fallback
+   - Modified `docker/docker-compose.yml` - replaced seccomp:unconfined with actual profiles
+   - Modified `apps/web/next.config.ts` - added security headers
+   - Modified `apps/web/app/api/health/route.ts` - added dependency checks
+   - Created `scripts/deploy-conformance.sh` - 11 conformance checks
+   - Created `scripts/load-test.js` - k6 load test
+   - Validated: JSON valid, shell syntax valid, TypeScript 0 errors, 324/324 tests passing
+
+3. **Second user message**: Clarification questions about Docker setup
+   - Q1: What happens when pushing updates like new CLS files?
+   - Q2: Whitelist vs blacklist seccomp approach - what's objectively better?
+   - Q3: Is the security hardening worth the debugging cost?
+   - Q4: Production infrastructure flow overview
+
+4. **My response**: Read compile.sh, Dockerfile.latex, Dockerfile.r-plumber, and launched an Explore agent for production infra. Gave detailed answers to all 4 questions:
+   - CLS files are read from host disk at compile time, not baked into Docker image
+   - Honest assessment: whitelist is implemented with graceful fallback, but blacklist (Docker default) is objectively better for a single-developer project
+   - Tiered security analysis: Tier 1 (free, always keep), Tier 2 (low cost), Tier 3 (medium cost - seccomp profiles)
+   - Full production architecture diagram and flow
+
+5. **Third user message**: "realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 10 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard"
+
+6. **My response**: Read all 4 governance docs:
+   - `docs/REVIEW.md` (full 136-finding audit)
+   - `docs/Mitigation_plan.md` (implementation blueprint)
+   - `docs/Mitigation_implementation.md` (audit log of previous phases)
+   - `docs/DECISIONS.md` (decision log)
+   
+   I was in the process of reading the Mitigation_implementation.md (it was too large, needed offset reads) when the summary was requested. I had read through Phase 8's implementation notes but hadn't yet completed reading the full document or provided any analysis/findings to the user.
+
+Key files created/modified in Phase 10:
+- `docker/seccomp-latex.json` (NEW)
+- `docker/seccomp-r.json` (NEW)
+- `docker/apparmor-r-plumber` (NEW)
+- `apps/web/lib/latex/compile.ts` (MODIFIED)
+- `docker/docker-compose.yml` (MODIFIED)
+- `apps/web/next.config.ts` (MODIFIED)
+- `apps/web/app/api/health/route.ts` (MODIFIED)
+- `scripts/deploy-conformance.sh` (NEW)
+- `scripts/load-test.js` (NEW)
+
+Important context from docs:
+- REVIEW.md Section 4 identified: Docker `seccomp:unconfined` (I-5), AppArmor missing (I-13), LaTeX network isolation deviation (I-12)
+- Mitigation_plan.md Phase 10 Section specifies items 10.1-10.4
+- Items 10.3 (network isolation) and 10.4 (mathrsfs + subcaption) were already complete before Phase 10 implementation
+- The Mitigation_implementation.md documents all previous phases (1-8) with their bugs found, lessons learned, and deviations
+
+The user's third request was essentially asking me to do a thorough cross-reference audit of Phase 10 implementation against all governance docs. I was still gathering information (reading the implementation log) and had NOT yet provided the audit findings when the summary was requested.
+</thinking>
+
+<analysis>
+Let me chronologically analyze the full conversation:
+
+**Message 1 (User)**: Requested implementation of Phase 10: Docker Hardening plan with 9 deliverables across 5 new files and 4 modifications.
+
+**My Response 1**: Created 9 tasks, implemented all files:
+- Read 4 files to modify: compile.ts, docker-compose.yml, next.config.ts, health/route.ts
+- Created seccomp-latex.json, seccomp-r.json, apparmor-r-plumber
+- Modified compile.ts (added security flags + seccomp fallback)
+- Modified docker-compose.yml (replaced seccomp:unconfined)
+- Modified next.config.ts (added security headers)
+- Rewrote health/route.ts (added dependency checks)
+- Created deploy-conformance.sh and load-test.js
+- Validated: JSON valid, bash syntax valid, 0 TS errors, 324/324 tests pass
+
+**Message 2 (User)**: Asked 4 Docker/infra clarification questions about CLS file updates, whitelist vs blacklist, security cost-benefit, and production flow.
+
+**My Response 2**: Read Dockerfile.latex, Dockerfile.r-plumber, compile.sh, launched Explore agent for full infra analysis. Provided detailed answers explaining:
+- CLS files read from host disk at compile time (no Docker rebuild needed)
+- Whitelist implemented with graceful fallback, but Docker default blacklist is pragmatically better
+- Tiered security: Tier 1 (free/essential), Tier 2 (low cost), Tier 3 (seccomp - medium cost with fallback)
+- Full production architecture diagram and flow
+
+**Message 3 (User)**: "realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 10 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard"
+
+**My Response 3 (in progress)**: Read all governance docs:
+- docs/REVIEW.md (complete - 1274 lines)
+- docs/Mitigation_plan.md (complete - 1452 lines)
+- docs/DECISIONS.md (complete - 293 lines)
+- docs/Mitigation_implementation.md (partial - read lines 1-200, then 200-700, was reading more)
+I was still gathering information and had NOT yet provided the audit findings when the summary was requested.
+
+Summary:
+1. Primary Request and Intent:
+   - **Request 1**: Implement Phase 10: Docker Hardening plan — 9 deliverables: seccomp profiles for LaTeX and R containers, AppArmor profile for R, fix compile.ts security args, update docker-compose.yml, add security headers to next.config.ts, enhance health check, create deploy-conformance.sh, create k6 load-test.js.
+   - **Request 2**: Clarify 4 Docker/infrastructure questions: (1) How CLS file updates work with this setup, (2) Whitelist vs blacklist seccomp — which is objectively better, (3) Is Docker security hardening worth the debugging overhead, (4) Production infrastructure backend flow.
+   - **Request 3 (CURRENT/PENDING)**: Cross-reference ALL Phase 10 changes against `docs/REVIEW.md`, `docs/DECISIONS.md`, `docs/Mitigation_plan.md`, and `docs/Mitigation_implementation.md` for consistency, correctness, errors, logical fallacies, redundancies, and logic issues. User emphasized "Think ultra hard."
+
+2. Key Technical Concepts:
+   - Docker seccomp profiles: whitelist (SCMP_ACT_ERRNO default) vs blacklist (Docker default ~44 blocked syscalls)
+   - Docker security flags: `--network=none`, `--read-only`, `--tmpfs`, `--memory`, `--pids-limit`, `--cap-drop=ALL`, `--cap-add`, `--security-opt no-new-privileges:true`
+   - AppArmor profiles for container filesystem/network restriction
+   - Ephemeral containers (`docker run --rm`) vs persistent compose containers (`docker exec`)
+   - Critical discovery: `compile.ts` uses `docker run --rm` (ephemeral), NOT `docker exec` on the compose container — compose security settings are effectively dead code for LaTeX compilation
+   - Graceful seccomp fallback: check if profile file exists before adding `--security-opt seccomp=...` flag
+   - Next.js security headers via `async headers()` config
+   - k6 load testing with custom metrics and scenario-based thresholds
+   - Apollo production architecture: Hetzner CX23 VPS, Coolify for deployment, Next.js talks to Docker for LaTeX compile and HTTP to R Plumber for analysis
+   - CLS files are NOT baked into Docker image — `compile.ts` reads from host `templates/` dir and copies into workDir each compilation
+
+3. Files and Code Sections:
+
+   - **`/Users/devs/Downloads/Apollo/docker/seccomp-latex.json`** (NEW)
+     - Whitelist-based seccomp profile for LaTeX compilation
+     - `defaultAction: SCMP_ACT_ERRNO` — deny by default
+     - Allows: file I/O, process management (fork/clone/execve), memory management, signals, time, standard libc internals
+     - Denies: all networking (socket, connect, bind, etc.), mount/umount, ptrace, kernel modules, bpf, keyctl
+     - Validated with `jq empty`
+
+   - **`/Users/devs/Downloads/Apollo/docker/seccomp-r.json`** (NEW)
+     - Similar to LaTeX but WITH networking syscalls for R Plumber HTTP server
+     - Additional allowed: socket, bind, listen, accept, accept4, connect, setsockopt, getsockopt, sendto, recvfrom, sendmsg, recvmsg, shutdown
+     - Additional allowed: epoll_create, epoll_create1, epoll_ctl, epoll_wait, epoll_pwait, eventfd2
+
+   - **`/Users/devs/Downloads/Apollo/docker/apparmor-r-plumber`** (NEW)
+     - AppArmor profile restricting R container
+     - Allows: R runtime (`/usr/lib/R/**`, `/usr/local/lib/R/**`), Plumber app (`/app/**`), temp (`/tmp/**`)
+     - Denies: shell execution (`/bin/sh`, `/bin/bash`, `/bin/dash`), python, perl, wget
+     - Allows curl only in `healthcheck` sub-profile
+     - Allows inet/inet6 stream networking, denies raw/packet
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/latex/compile.ts`** (MODIFIED)
+     - Added `import { access } from "fs/promises"` at line 3
+     - Replaced lines 174-185 (docker run args) with security-hardened version:
+     ```typescript
+     // Resolve seccomp profile path (graceful fallback to Docker default)
+     const seccompPath = path.resolve(process.cwd(), "../../docker/seccomp-latex.json");
+     let seccompExists = false;
+     try {
+       await access(seccompPath);
+       seccompExists = true;
+     } catch {
+       // Profile not found — Docker's default seccomp applies (still secure)
+     }
+
+     const args = [
+       "run", "--rm",
+       "--network=none",
+       "--read-only",
+       "--tmpfs", "/tmp:rw,size=512m",
+       "--memory=1g",
+       "--pids-limit=256",
+       "--security-opt", "no-new-privileges:true",
+       "--cap-drop=ALL",
+       "--cap-add=DAC_OVERRIDE",
+       "--cap-add=FOWNER",
+       "-v", `${workDir}:/thesis`,
+       containerName,
+     ];
+
+     // Add custom seccomp profile if available; otherwise Docker default applies
+     if (seccompExists) {
+       const containerIdx = args.indexOf(containerName);
+       args.splice(containerIdx, 0, "--security-opt", `seccomp=${seccompPath}`);
+     }
+     ```
+     - New flags: `--pids-limit=256`, `--security-opt no-new-privileges:true`, `--cap-drop=ALL`, `--cap-add=DAC_OVERRIDE`, `--cap-add=FOWNER`
+
+   - **`/Users/devs/Downloads/Apollo/docker/docker-compose.yml`** (MODIFIED)
+     - LaTeX service: Added 4-line comment explaining compile.ts uses ephemeral containers, not this compose container. Changed `seccomp:unconfined` → `seccomp:./docker/seccomp-latex.json`
+     - R Plumber service: Changed `seccomp:unconfined` → `seccomp:./docker/seccomp-r.json`, added `apparmor:apollo-r-plumber`
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/next.config.ts`** (MODIFIED)
+     - Added security headers array before nextConfig:
+     ```typescript
+     const securityHeaders = [
+       { key: "X-Frame-Options", value: "DENY" },
+       { key: "X-Content-Type-Options", value: "nosniff" },
+       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+       { key: "X-DNS-Prefetch-Control", value: "on" },
+       { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
+     ];
+     ```
+     - Added `async headers()` to nextConfig returning headers for all routes `/(.*)`
+     - No CSP added (deferred — would break Clerk, Sentry, PostHog, shadcn inline styles)
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/api/health/route.ts`** (REWRITTEN)
+     - Was: static `{status: "ok", timestamp, version}`
+     - Now: checks R Plumber health (`fetch ${R_PLUMBER_URL}/health` with 3s timeout), checks Docker availability (`execFile docker info` with 5s timeout when `LATEX_COMPILE_MODE=docker`)
+     - Returns `overallStatus: "degraded"` if any check is "down", otherwise "ok"
+     - Includes `checks` object with per-dependency status
+
+   - **`/Users/devs/Downloads/Apollo/scripts/deploy-conformance.sh`** (NEW, chmod +x)
+     - 11 checks: seccomp profile JSON validity, test compilation with security flags, R Plumber health, seccomp not unconfined, AppArmor loaded (warn-only), no system() in plumber.R, no dangerous bind mounts, no leaked API secrets, SSL certificate validity, unexpected open ports
+     - Exit 1 on any FAIL, prints [PASS]/[WARN]/[FAIL] per check with summary
+     - Linux-specific checks gracefully skip on macOS
+
+   - **`/Users/devs/Downloads/Apollo/scripts/load-test.js`** (NEW)
+     - k6 load test with 5 scenarios: sequential_compiles, concurrent_analyses, mixed_load, ai_generation_load, no_contention_compile
+     - Custom metrics: compile_duration, analysis_duration, ai_generation_duration, compile_errors
+     - Thresholds: p95 < 60s for no-contention, p95 < 90s for mixed load
+     - Uses `BASE_URL`, `AUTH_TOKEN`, `TEST_PROJECT_ID` env vars
+
+   - **Governance docs read for audit** (Request 3):
+     - `docs/REVIEW.md` — 136-finding audit across 4 parts (Infrastructure, Business Logic, Frontend-Backend, Security/Monetization)
+     - `docs/Mitigation_plan.md` — 11-phase implementation blueprint mapping all 136 findings
+     - `docs/DECISIONS.md` — Owner decision log on pricing, editor, AI pipeline, phase structure, privacy
+     - `docs/Mitigation_implementation.md` — Auditable log of Phases 1-8 implementation (partially read through Phase 8)
+     - Phase 10 in Mitigation_plan.md (items 10.1-10.4): seccomp profiles, AppArmor, network isolation, mathrsfs+subcaption in Docker
+     - Items 10.3 (network isolation via `--network=none` in compile.ts:179) and 10.4 (mathrsfs + subcaption in Dockerfile.latex lines 31-32) were already complete before this Phase 10 work
+
+4. Errors and Fixes:
+   - No errors encountered during implementation. All validations passed:
+     - `jq empty docker/seccomp-*.json` — both valid JSON
+     - `bash -n scripts/deploy-conformance.sh` — valid syntax
+     - `npx tsc --noEmit` — 0 TypeScript errors
+     - `pnpm test` — 324/324 tests passing across 32 files
+
+5. Problem Solving:
+   - The critical architectural discovery that `compile.ts` uses ephemeral `docker run --rm` (not `docker exec` on compose container) was addressed by adding all security flags directly in compile.ts rather than relying on docker-compose.yml settings
+   - Graceful seccomp fallback: checks file existence before adding the flag, so development on macOS (where seccomp doesn't work) and environments without the profile file still work with Docker's default seccomp
+   - The `args.splice()` approach inserts seccomp flag before the container name to maintain correct arg ordering (watermark flags come after container name)
+
+6. All User Messages:
+   - **Message 1**: "Implement the following plan: # Phase 10: Docker Hardening — Implementation Plan [full detailed plan with 9 deliverables, file inventory, implementation order, testing strategy, risk assessment]"
+   - **Message 2**: "I need to clarify some stuff, I am not really docker savvy, so I need to be doubly sure when you answer these. future of this app depends on it. 1. What will happen if i want to push updates like new cls files etc to the app. how will this setup handle it? 2. What about that white list/blacklist approach? what will be objectively better, and has that been implemented? 3. This app is basically just talking to docker for the actual latex compile and R analysis isnt it? So even if its a bit unsecure (not open, but not defcon secure either) whats the actual harm? what i mean is that if implementing these security features actually makes the debug for errors worth it? 4. I need a basic idea about the app infra backend flow, I know the pipeline I want for the thesis generation and the tools to use, but locally. for a deployed prod version, whats the flow, and what are the hiccups we have already accounted for?"
+   - **Message 3**: "realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 10 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard"
+
+7. Pending Tasks:
+   - **ACTIVE**: Complete the cross-reference audit of Phase 10 changes against all governance docs (REVIEW.md, DECISIONS.md, Mitigation_plan.md, Mitigation_implementation.md) for consistency, correctness, errors, logical fallacies, redundancies, and logic issues
+   - Need to finish reading `docs/Mitigation_implementation.md` (read through Phase 8, need remaining phases 9+)
+   - Need to provide the actual audit findings to the user — no analysis has been delivered yet
+
+8. Current Work:
+   The user's most recent request (Message 3) asked to "realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 10 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard."
+   
+   I was in the process of reading all governance documents to perform this cross-reference audit:
+   - Read `docs/REVIEW.md` (complete — 1274 lines, 136 findings)
+   - Read `docs/Mitigation_plan.md` (complete — 1452 lines, Phase 10 items 10.1-10.4)
+   - Read `docs/DECISIONS.md` (complete — 293 lines)
+   - Read `docs/Mitigation_implementation.md` (partial — read lines 1-700, covering Phases 1-8)
+   - Still needed: remaining sections of Mitigation_implementation.md (Phase 9+ and any Phase 10 section if it exists)
+   
+   I had NOT yet provided any audit findings or analysis to the user. The work was entirely in the information-gathering phase.
+
+   Key items from governance docs relevant to Phase 10 audit:
+   - REVIEW.md items: I-5 (seccomp:unconfined), I-12 (LaTeX network isolation), I-13 (AppArmor for R), IV-E9 (health check endpoint)
+   - Mitigation_plan.md Phase 10: items 10.1 (seccomp profiles), 10.2 (AppArmor), 10.3 (network isolation — already done), 10.4 (mathrsfs+subcaption — already done)
+   - The plan specifies Phase 10 estimated effort as 3-5 days
+   - Mitigation_implementation.md documents a pattern of recurring audit findings across phases (missing local migration files, SSOT not imported in all consumers, QC gates not in all code paths)
+
+9. Optional Next Step:
+   Complete reading the remaining sections of `docs/Mitigation_implementation.md` (Phase 9 onward), then deliver the comprehensive cross-reference audit of all Phase 10 changes against all four governance documents, checking for:
+   - Consistency with what REVIEW.md identified (I-5, I-12, I-13, IV-E9)
+   - Correctness of the implementation vs what Mitigation_plan.md specifies
+   - Whether the health check enhancement deviates from Phase 2 lesson (2.6: "health check omits DB/Redis probes... deliberately")
+   - Whether deploy-conformance.sh and load-test.js (not in Mitigation_plan.md Phase 10 items but in governance docs) are consistent with referenced governance requirements
+   - Whether any items specified in the plan were missed or implemented incorrectly
+   - Whether the seccomp whitelist approach contradicts the user discussion (where blacklist was recommended as pragmatically better)
+   - Logical issues, redundancies between compose security settings (dead code for LaTeX) and compile.ts flags
+   
+   User's exact words: "realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 10 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.claude/projects/-Users-devs-Downloads-Apollo/d97ae08b-ea44-4fc7-90fa-e493a3e73a14.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+fix all the bugs, ask questions as necessary
+
+---
+
+commit and push to remote , keep an eye on the CI. Any migrations etc, docker files etc left  to push anywhere?

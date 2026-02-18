@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 202,
+  "checkpoints_count": 204,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -309,17 +309,24 @@
     "apps/web/vancouver.bst",
     "docker/Dockerfile.latex",
     "docker/Dockerfile.r-plumber",
+    "docker/apparmor-r-plumber",
     "docker/compile.sh",
+    "docker/docker-compose.prod.yml",
     "docker/docker-compose.yml",
     "docker/plumber.R",
+    "docker/seccomp-latex.json",
+    "docker/seccomp-r.json",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
     "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
+    "docs/governance/security-tests.md",
     "docs/mitigation_implementation.md",
     "scripts/backfill-latex-content.ts",
+    "scripts/deploy-conformance.sh",
+    "scripts/load-test.js",
     "supabase/migrations/016_create_abbreviations.sql",
     "supabase/migrations/017_add_rich_content_to_sections.sql",
     "supabase/migrations/018_add_rows_json_to_datasets.sql",
@@ -549,13 +556,20 @@
       "context": "/bd/84f5776d75/31/context.md",
       "content_hash": "/bd/84f5776d75/31/content_hash.txt",
       "prompt": "/bd/84f5776d75/31/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/32/metadata.json",
+      "transcript": "/bd/84f5776d75/32/full.jsonl",
+      "context": "/bd/84f5776d75/32/context.md",
+      "content_hash": "/bd/84f5776d75/32/content_hash.txt",
+      "prompt": "/bd/84f5776d75/32/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 108796,
-    "cache_creation_tokens": 7771278,
-    "cache_read_tokens": 273165552,
-    "output_tokens": 563768,
-    "api_call_count": 2840
+    "input_tokens": 113691,
+    "cache_creation_tokens": 8015498,
+    "cache_read_tokens": 280439836,
+    "output_tokens": 575042,
+    "api_call_count": 2930
   }
 }

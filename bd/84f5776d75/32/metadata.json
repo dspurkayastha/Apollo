@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "d97ae08b-ea44-4fc7-90fa-e493a3e73a14",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-18T20:00:02.477582Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/app/api/health/route.ts",
+    "apps/web/lib/latex/compile.ts",
+    "apps/web/next.config.ts",
+    "apps/web/supabase/.temp/cli-latest",
+    "docker/apparmor-r-plumber",
+    "docker/docker-compose.prod.yml",
+    "docker/docker-compose.yml",
+    "docker/seccomp-latex.json",
+    "docker/seccomp-r.json",
+    "docs/Mitigation_implementation.md",
+    "docs/governance/security-tests.md",
+    "scripts/deploy-conformance.sh",
+    "scripts/load-test.js"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 4895,
+    "cache_creation_tokens": 244220,
+    "cache_read_tokens": 7274284,
+    "output_tokens": 11274,
+    "api_call_count": 90
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-18T20:00:01.790226Z",
+    "agent_lines": 960,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 1,
+    "total_committed": 960,
+    "agent_percentage": 100
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/d97ae08b-ea44-4fc7-90fa-e493a3e73a14.jsonl"
+}
