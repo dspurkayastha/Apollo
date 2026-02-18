@@ -1031,3 +1031,302 @@ Please continue the conversation from where we left off without asking the user 
 ---
 
 commit this and push, watch CI
+
+---
+
+ow start on phase 10. realign to the Review ,Deiscussion, Mitigation_plan, Mitigation_implementation.md files inside /docs/ folder and create the plan for implementation of phase 10. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures. Ask detailed clarifying questions as required. Consider my inputs important, but you may suggest better options.
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically trace through this conversation carefully:
+
+1. **Session Start**: This is a continuation session. The summary indicates Phase 9 was completed, committed, pushed, and CI passed. Migration 030 and 031 were applied. The last task was the database audit fixes.
+
+2. **First user message**: No explicit message - the session continuation context indicates pending work on Task #13 (migration 031 database audit fixes).
+
+3. **My first actions**: I checked TaskList and list_migrations to understand current state. Found Task #13 pending, 11 migrations applied.
+
+4. **Task #13 execution**: I updated task to in_progress, then gathered data:
+   - All function signatures with search_path settings (9 functions, 6 SECURITY DEFINER)
+   - All NO ACTION foreign keys (7 found)
+   - Checked for existing indexes on FK columns (none found)
+   - Got full function bodies to verify schema-qualified references
+   - Checked analyses table FK constraints (has both project_id CASCADE and dataset_id NO ACTION)
+
+5. **Critical analysis of cascade chain**: I identified that `figures_section_id_fkey` (NO ACTION) would ALSO block project deletion cascade (not just `fk_thesis_licenses_project`). When sections cascade-delete from project, figures referencing those sections violate NO ACTION constraint.
+
+6. **Applied migration 031**: Successfully applied via MCP with fixes for:
+   - H1: thesis_licenses.project_id → SET NULL
+   - H1b: figures.section_id → CASCADE (newly discovered blocker)
+   - H2: RLS on processed_webhooks + deny-all policy
+   - S1: search_path='' on 6 SECURITY DEFINER functions
+   - S2: analyses.dataset_id → SET NULL
+   - P2: 6 FK indexes
+   - P3: Drop redundant index
+
+7. **Verification**: All 4 verification queries confirmed fixes took effect.
+
+8. **Security advisor follow-up**: Ran security advisor, found 3 remaining warnings on non-SECURITY DEFINER functions (prevent_identity_change, enforce_transfer_cooldown, set_updated_at). Checked their bodies (only use NEW/OLD/now()), fixed them too.
+
+9. **Local migration file**: Created `031_database_audit_fixes.sql` and updated it to include the 3 additional function fixes.
+
+10. **Security advisor confirmation**: Re-ran security advisor — 0 warnings.
+
+11. **Mitigation implementation doc update**: Added "Phase 9 Supplement: Database Audit Fixes" section with full documentation of issues found, fixed, and deferred. Included the verified cascade deletion chain.
+
+12. **TypeScript check**: `pnpm tsc --noEmit` — 0 errors.
+
+13. **Task completion**: Marked Task #13 as completed.
+
+14. **User message: "commit this and push, watch CI"**
+
+15. **Commit and push**: 
+    - 3 files changed: 030 migration (updated), 031 migration (new), Mitigation_implementation.md
+    - Commit: `404b3cf` "Database audit fixes: 2 cascade blockers, security hardening, 6 FK indexes"
+    - Pushed to origin/main
+    - CI watched: All 4 jobs passed (Lint 47s, Unit Tests 39s, Security & RLS 41s, Compile 19s)
+
+16. **User message: "ow start on phase 10. realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files inside /docs/ folder and create the plan for implementation of phase 10. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures. Ask detailed clarifying questions as required. Consider my inputs important, but you may suggest better options."**
+
+17. **Entered plan mode**: Started Phase 10 planning.
+
+18. **Phase 1 Exploration**: Launched 3 parallel Explore agents:
+    - Agent 1: Phase 10 requirements from docs (Mitigation_plan, REVIEW, DECISIONS, Mitigation_implementation)
+    - Agent 2: Existing codebase infrastructure patterns
+    - Agent 3: Governance and security docs
+
+19. **Agent 1 findings** — Phase 10 has 4 items:
+    - 10.1: Seccomp profiles (REVIEW I-5)
+    - 10.2: AppArmor for R (REVIEW I-13)
+    - 10.3: LaTeX network isolation (REVIEW I-12) — partially done
+    - 10.4: mathrsfs + subcaption — ALREADY DONE
+
+20. **Agent 2 findings** — Infrastructure assessment covering deployment, env vars, error monitoring, health checks, rate limiting, logging, testing, middleware, security headers, backup/monitoring.
+
+21. **Agent 3 findings** — Governance requirements including security-tests.md (deploy-conformance.sh), release-gates.md (k6 load test), incident response, data classification.
+
+22. **Direct file reads**: Read docker-compose.yml, Dockerfile.latex, Dockerfile.r-plumber, compile.sh, r-plumber/client.ts, next.config.ts, middleware.ts, health route, plumber.R
+
+23. **CRITICAL BUG DISCOVERED**: compile.ts uses `docker run --rm` (creates NEW ephemeral containers), NOT `docker exec` into the persistent compose container. This means:
+    - docker-compose.yml security settings (seccomp, cap-drop, pids-limit) are dead code for LaTeX compilation
+    - Actual compilation containers have NO seccomp, NO cap-drop, NO pids-limit
+    - Only --network=none, --read-only, --tmpfs, --memory are applied (hardcoded in compile.ts)
+    - The docker-compose LaTeX entry with `sleep infinity` is effectively unused
+
+24. **Phase 2 Design**: Launched Plan agent with comprehensive context. Agent designed detailed plan covering:
+    - compile.ts bug fix (add missing security flags to docker run args)
+    - Seccomp profile strategy (use Docker default + deny networking for LaTeX)
+    - AppArmor profile design
+    - Deploy conformance script structure
+    - Security headers for next.config.ts
+    - k6 load test script
+    - Enhanced health check
+    - Implementation order and risk assessment
+
+25. **Plan file writing**: Was about to write the final plan to the plan file and ask clarifying questions when the summary was requested.
+
+Key questions identified but not yet asked:
+1. Is Docker available locally for testing?
+2. Should scope extend beyond 10.1-10.4 to include governance items (security headers, deploy script, load test)?
+
+Summary:
+1. Primary Request and Intent:
+
+   **First request**: Continue with Task #13 — apply migration 031 (database audit fixes) that was created but not executed in the previous session. The user's original instruction was: "fix all the issues, start with H1 and H2. Prior to execution of fix, ensure that each step aligns with the mitigation plan and mitigation implementation doc."
+
+   **Second request**: "commit this and push, watch CI" — after migration 031 was applied and verified.
+
+   **Third (current) request**: "ow start on phase 10. realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files inside /docs/ folder and create the plan for implementation of phase 10. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures. Ask detailed clarifying questions as required. Consider my inputs important, but you may suggest better options."
+
+2. Key Technical Concepts:
+   - PostgreSQL ON DELETE CASCADE vs SET NULL vs NO ACTION foreign key constraints
+   - Cascade deletion chain analysis (user → projects → sections → figures/citations)
+   - Row Level Security (RLS) defense-in-depth
+   - SECURITY DEFINER function search_path vulnerability
+   - FK index optimization for CASCADE delete performance
+   - Docker seccomp profiles (JSON syscall allowlists)
+   - AppArmor profiles for container file/network restriction
+   - `docker run --rm` vs `docker exec` (ephemeral vs persistent containers)
+   - Next.js security headers (HSTS, X-Frame-Options, CSP, etc.)
+   - Deploy-time conformance validation scripts
+   - k6 load testing for pre-launch gates
+   - Supabase MCP tools for migration application and SQL execution
+
+3. Files and Code Sections:
+
+   **`apps/web/supabase/migrations/031_database_audit_fixes.sql`** (CREATED)
+   - Database audit fixes migration applied to live DB and saved locally
+   - Contains 7 fix categories: H1 (thesis_licenses FK SET NULL), H1b (figures FK CASCADE), H2 (processed_webhooks RLS), S1 (search_path on 9 functions), S2 (analyses FK SET NULL), P2 (6 indexes), P3 (drop redundant index)
+   ```sql
+   -- H1: thesis_licenses.project_id → projects.id: NO ACTION → SET NULL
+   ALTER TABLE public.thesis_licenses
+     DROP CONSTRAINT IF EXISTS fk_thesis_licenses_project;
+   ALTER TABLE public.thesis_licenses
+     ADD CONSTRAINT fk_thesis_licenses_project
+       FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE SET NULL;
+
+   -- H1b: figures.section_id → sections.id: NO ACTION → CASCADE
+   ALTER TABLE public.figures
+     DROP CONSTRAINT IF EXISTS figures_section_id_fkey;
+   ALTER TABLE public.figures
+     ADD CONSTRAINT figures_section_id_fkey
+       FOREIGN KEY (section_id) REFERENCES public.sections(id) ON DELETE CASCADE;
+
+   -- H2: Enable RLS on processed_webhooks
+   ALTER TABLE public.processed_webhooks ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "Server-only: no direct access"
+     ON public.processed_webhooks FOR ALL USING (false);
+
+   -- S1: search_path on all functions (6 SECURITY DEFINER + 3 trigger)
+   ALTER FUNCTION public.attach_licence_to_project(uuid, uuid, uuid) SET search_path = '';
+   ALTER FUNCTION public.audit_trigger_func() SET search_path = '';
+   ALTER FUNCTION public.get_current_user_id() SET search_path = '';
+   ALTER FUNCTION public.get_current_user_org_id() SET search_path = '';
+   ALTER FUNCTION public.get_current_user_role() SET search_path = '';
+   ALTER FUNCTION public.is_current_user_admin() SET search_path = '';
+   ALTER FUNCTION public.prevent_identity_change() SET search_path = '';
+   ALTER FUNCTION public.enforce_transfer_cooldown() SET search_path = '';
+   ALTER FUNCTION public.set_updated_at() SET search_path = '';
+
+   -- S2: analyses.dataset_id → datasets.id: NO ACTION → SET NULL
+   ALTER TABLE public.analyses
+     DROP CONSTRAINT IF EXISTS analyses_dataset_id_fkey;
+   ALTER TABLE public.analyses
+     ADD CONSTRAINT analyses_dataset_id_fkey
+       FOREIGN KEY (dataset_id) REFERENCES public.datasets(id) ON DELETE SET NULL;
+
+   -- P2: 6 FK indexes
+   CREATE INDEX IF NOT EXISTS idx_analyses_dataset_id ON public.analyses(dataset_id);
+   CREATE INDEX IF NOT EXISTS idx_citations_attested_by_user_id ON public.citations(attested_by_user_id);
+   CREATE INDEX IF NOT EXISTS idx_figures_section_id ON public.figures(section_id);
+   CREATE INDEX IF NOT EXISTS idx_review_comments_review_token_id ON public.review_comments(review_token_id);
+   CREATE INDEX IF NOT EXISTS idx_review_tokens_created_by ON public.review_tokens(created_by);
+   CREATE INDEX IF NOT EXISTS idx_sections_ai_conversation_id ON public.sections(ai_conversation_id);
+
+   -- P3: Drop redundant index
+   DROP INDEX IF EXISTS public.idx_processed_webhooks_event_id;
+   ```
+
+   **`apps/web/supabase/migrations/030_privacy_compliance.sql`** (MODIFIED)
+   - Updated comments to reflect actual applied state (review_tokens FK removed, citations FK added)
+   - Contains: user privacy columns, projects FK CASCADE, thesis_licenses FK CASCADE, citations FK SET NULL, audit_log FKs CASCADE
+
+   **`docs/Mitigation_implementation.md`** (MODIFIED)
+   - Added "Phase 9 Supplement: Database Audit Fixes" section documenting all 7 fix categories
+   - Includes verified cascade deletion chain diagram
+   - Documents deferred items (P1: 35 RLS initplan policies, L1-L3 info items)
+
+   **`docker/docker-compose.yml`** (READ for Phase 10 planning)
+   - LaTeX: `network_mode: none`, `read_only: true`, `seccomp:unconfined`, `entrypoint: ["sleep", "infinity"]`
+   - R Plumber: `read_only: true`, `seccomp:unconfined`, `expose: ["8787"]`, healthcheck configured
+
+   **`apps/web/lib/latex/compile.ts`** (READ for Phase 10 planning — CRITICAL BUG FOUND)
+   - Lines 174-195: Uses `docker run --rm` NOT `docker exec` — creates ephemeral containers
+   - Missing from docker run args: seccomp, cap-drop, cap-add, pids-limit, no-new-privileges
+   - Only has: --network=none, --read-only, --tmpfs, --memory, -v
+   ```typescript
+   const containerName = process.env.LATEX_CONTAINER_NAME ?? "apollo-latex";
+   const args = [
+     "run", "--rm",
+     "--network=none", "--read-only",
+     "--tmpfs", "/tmp:rw,size=512m", "--memory=1g",
+     "-v", `${workDir}:/thesis`,
+     containerName,
+   ];
+   ```
+
+   **`docker/Dockerfile.latex`** (READ)
+   - TeX Live 2025 minimal + scheme-small + 23 extra packages
+   - Both `subcaption` (line 31) and `mathrsfs` (line 32) already installed — 10.4 is COMPLETE
+
+   **`docker/Dockerfile.r-plumber`** (READ)
+   - R 4.4.0 base, plumber + tidyverse + statistical packages
+   - Exposes 8787, runs plumber HTTP server
+
+   **`apps/web/next.config.ts`** (READ)
+   - No security headers at all (no CSP, HSTS, X-Frame-Options, etc.)
+   - Only reactStrictMode, output: standalone, image domains, Sentry wrapper
+
+   **`apps/web/app/api/health/route.ts`** (READ)
+   - Minimal health check: returns `{status: "ok", timestamp, version}` — no dependency checks
+
+   **`apps/web/middleware.ts`** (READ)
+   - Clerk auth middleware, protects dashboard/projects/api routes
+   - No security headers, no rate limiting
+
+   **`apps/web/lib/r-plumber/client.ts`** (READ)
+   - Calls R Plumber via HTTP with Bearer auth
+   - Default URL: `http://localhost:8787`
+
+   **`docker/compile.sh`** (READ)
+   - Shell script for LaTeX compilation (4-pass: pdflatex → bibtex → pdflatex × 2)
+   - 120s timeout, watermark support
+
+   **`docker/plumber.R`** (READ, first 40 lines)
+   - R Plumber API with statistical analysis endpoints
+   - Helper functions for LaTeX tables and plot generation
+
+4. Errors and Fixes:
+
+   - **figures.section_id FK blocker (H1b)**: During cascade chain analysis, discovered that `figures_section_id_fkey` (NO ACTION) would block section deletion cascading from project delete. This was NOT identified in the original audit — it was newly discovered during migration design. Fixed by including CASCADE in migration 031.
+
+   - **3 non-SECURITY DEFINER functions still flagged**: After applying migration 031, the Supabase security advisor still showed 3 warnings for `prevent_identity_change`, `enforce_transfer_cooldown`, and `set_updated_at`. Fixed by verifying their bodies use only NEW/OLD/now() (no table references), then applying `SET search_path = ''` via SQL and updating the local migration file.
+
+   - **compile.ts docker run bug (Phase 10 discovery)**: Found that the docker-compose.yml security settings are dead code for LaTeX compilation because compile.ts uses `docker run --rm` instead of `docker exec`. The actual compilation containers have NO seccomp, NO cap-drop, NO pids-limit. This is a critical finding for Phase 10 planning.
+
+5. Problem Solving:
+
+   - **Cascade deletion chain verification**: Analyzed all 7 NO ACTION FKs to determine which actually block the project/user deletion cascade. Found that `figures_section_id_fkey` blocks section deletion (cascading from project), while `analyses_dataset_id_fkey` does NOT block project deletion (analyses cascade-delete via project_id independently). This nuanced analysis prevented both over-fixing and under-fixing.
+
+   - **Function search_path safety**: Before setting `search_path = ''` on functions, verified all 9 function bodies to confirm they either use schema-qualified references (`public.*`, `auth.jwt()`) or only use trigger variables (`NEW`/`OLD`/`now()`). This prevented breaking any functions.
+
+   - **Phase 10 architecture discovery**: The finding that compile.ts creates ephemeral containers via `docker run` (not `docker exec`) fundamentally changes the Phase 10 implementation approach — seccomp profiles must be passed as CLI args in compile.ts, not just configured in docker-compose.yml.
+
+6. All User Messages:
+   - (Session continuation — no initial message, continued from previous context about Task #13)
+   - "commit this and push, watch CI"
+   - "ow start on phase 10. realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files inside /docs/ folder and create the plan for implementation of phase 10. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures. Ask detailed clarifying questions as required. Consider my inputs important, but you may suggest better options."
+
+7. Pending Tasks:
+   - **Phase 10 plan finalization**: Write the plan file at `/Users/devs/.claude/plans/tranquil-roaming-nest.md` (currently contains the old Phase 9 plan that needs to be overwritten)
+   - **Ask clarifying questions**: Docker availability locally, scope beyond 10.1-10.4
+   - **Call ExitPlanMode**: After plan is written and questions answered
+
+8. Current Work:
+
+   I am in **plan mode** designing the Phase 10 (Docker Hardening) implementation plan. I have completed:
+   - Phase 1 (Initial Understanding): 3 parallel Explore agents gathered all requirements from docs, codebase, and governance files
+   - Phase 2 (Design): Plan agent designed the full implementation approach
+   - Direct file reads of all critical Docker, compile, config, and middleware files
+
+   I have NOT yet:
+   - Written the plan to the plan file (still contains old Phase 9 plan)
+   - Asked the user clarifying questions
+   - Called ExitPlanMode
+
+   The plan covers:
+   - **10.1**: Seccomp profiles (seccomp-latex.json + seccomp-r.json) + compile.ts bug fix (add missing security flags to docker run args)
+   - **10.2**: AppArmor profile for R container
+   - **10.3**: Network isolation (ALREADY DONE — verify only)
+   - **10.4**: LaTeX packages (ALREADY DONE — both subcaption and mathrsfs in Dockerfile)
+   - **Additional**: Security headers in next.config.ts, deploy-conformance.sh script, enhanced health check, k6 load test script
+
+   Key critical bug: compile.ts `docker run` args are missing seccomp, cap-drop, pids-limit, no-new-privileges. The docker-compose.yml LaTeX entry is effectively dead code.
+
+9. Optional Next Step:
+
+   Write the Phase 10 plan to `/Users/devs/.claude/plans/tranquil-roaming-nest.md` (overwriting old Phase 9 plan), ask the user clarifying questions about Docker availability and scope, then call ExitPlanMode.
+
+   The user's exact request: "start on phase 10. realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files inside /docs/ folder and create the plan for implementation of phase 10. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures. Ask detailed clarifying questions as required."
+
+   I was in the middle of Phase 3-4 of the plan workflow (Review + Final Plan writing) when the summary was requested. The plan file needs to be written and ExitPlanMode called.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]

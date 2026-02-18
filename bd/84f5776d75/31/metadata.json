@@ -3,9 +3,9 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "85f7ba53-d2b0-4ce5-873f-8c545a0eac2e",
   "strategy": "manual-commit",
-  "created_at": "2026-02-18T17:51:31.669975Z",
+  "created_at": "2026-02-18T19:56:34.917326Z",
   "branch": "main",
-  "checkpoints_count": 3,
+  "checkpoints_count": 0,
   "files_touched": [
     ".claude/settings.local.json",
     "apps/web/app/(dashboard)/settings/page.tsx",
@@ -35,23 +35,23 @@
   ],
   "agent": "Claude Code",
   "transcript_identifier_at_start": "95a00857-c8d6-45f5-af9d-ce24d5968425",
-  "checkpoint_transcript_start": 674,
-  "transcript_lines_at_start": 674,
+  "checkpoint_transcript_start": 1543,
+  "transcript_lines_at_start": 1543,
   "token_usage": {
-    "input_tokens": 14657,
-    "cache_creation_tokens": 297894,
-    "cache_read_tokens": 9688071,
-    "output_tokens": 11213,
-    "api_call_count": 105
+    "input_tokens": 802,
+    "cache_creation_tokens": 177613,
+    "cache_read_tokens": 3754301,
+    "output_tokens": 15645,
+    "api_call_count": 30
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-18T17:51:30.509802Z",
-    "agent_lines": 168,
-    "human_added": 0,
-    "human_modified": 0,
-    "human_removed": 80,
-    "total_committed": 168,
-    "agent_percentage": 100
+    "calculated_at": "2026-02-18T19:56:32.700651Z",
+    "agent_lines": 78,
+    "human_added": 802,
+    "human_modified": 80,
+    "human_removed": 0,
+    "total_committed": 960,
+    "agent_percentage": 8.125
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/85f7ba53-d2b0-4ce5-873f-8c545a0eac2e.jsonl"
 }
