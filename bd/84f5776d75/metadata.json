@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 202,
+  "checkpoints_count": 206,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -67,6 +67,7 @@
     "apps/web/app/api/projects/[id]/share/route.ts",
     "apps/web/app/api/projects/route.ts",
     "apps/web/app/api/review/[token]/comments/route.ts",
+    "apps/web/app/api/review/[token]/preview.pdf/route.ts",
     "apps/web/app/api/review/[token]/route.ts",
     "apps/web/app/api/synopsis/parse/route.ts",
     "apps/web/app/api/upload/signed-url/route.ts",
@@ -91,6 +92,7 @@
     "apps/web/components/editor/latex-toolbar.tsx",
     "apps/web/components/editor/section-editor.tsx",
     "apps/web/components/editor/word-count-bar.tsx",
+    "apps/web/components/error-boundary.tsx",
     "apps/web/components/landing/cta-section.tsx",
     "apps/web/components/landing/faq-section.tsx",
     "apps/web/components/landing/features-section.tsx",
@@ -105,6 +107,7 @@
     "apps/web/components/layout/glass-sidebar.tsx",
     "apps/web/components/layout/navbar.tsx",
     "apps/web/components/onboarding/tour-overlay.tsx",
+    "apps/web/components/preview/title-page-preview.tsx",
     "apps/web/components/project/abbreviation-manager.tsx",
     "apps/web/components/project/ai-generate-button.tsx",
     "apps/web/components/project/analysis-plan-review.tsx",
@@ -136,6 +139,7 @@
     "apps/web/components/remotion/apollo-hero-player-inner.tsx",
     "apps/web/components/remotion/apollo-hero-player.tsx",
     "apps/web/components/ui/alert-dialog.tsx",
+    "apps/web/components/upload/file-uploader.tsx",
     "apps/web/components/viewer/pdf-viewer.tsx",
     "apps/web/e2e/analysis-run.spec.ts",
     "apps/web/e2e/compliance-check.spec.ts",
@@ -515,13 +519,20 @@
       "context": "/bd/84f5776d75/29/context.md",
       "content_hash": "/bd/84f5776d75/29/content_hash.txt",
       "prompt": "/bd/84f5776d75/29/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/30/metadata.json",
+      "transcript": "/bd/84f5776d75/30/full.jsonl",
+      "context": "/bd/84f5776d75/30/context.md",
+      "content_hash": "/bd/84f5776d75/30/content_hash.txt",
+      "prompt": "/bd/84f5776d75/30/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 96180,
-    "cache_creation_tokens": 7526685,
-    "cache_read_tokens": 266705527,
-    "output_tokens": 539626,
-    "api_call_count": 2788
+    "input_tokens": 96436,
+    "cache_creation_tokens": 7988443,
+    "cache_read_tokens": 288614166,
+    "output_tokens": 559951,
+    "api_call_count": 3027
   }
 }
