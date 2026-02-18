@@ -821,6 +821,68 @@ A second comprehensive audit discovered and fixed 3 additional issues:
 
 ---
 
+## Phase 9 Supplement: Database Audit Fixes
+
+**Status**: COMPLETE
+**Migration**: `031_database_audit_fixes.sql` (applied via MCP)
+**Trigger**: Comprehensive database audit performed after Phase 9 migration 030 applied
+
+### Context
+
+After applying all migrations (019--030) to the live database, a full schema audit was performed covering: RLS policies, indexes, functions, FK constraints, triggers, orphaned data, and Supabase security/performance advisors. The audit identified 7 categories of issues.
+
+### Issues Found and Fixed
+
+| ID | Severity | Issue | Fix | Migration Section |
+|----|----------|-------|-----|-------------------|
+| H1 | CRITICAL | `fk_thesis_licenses_project` (thesis_licenses.project_id -> projects.id) was NO ACTION --- blocked project hard-delete for any licensed project. Phase 9.9 project deletion would fail. | Changed to ON DELETE SET NULL. Licence record survives with null project_id (already consumed). | H1 |
+| H1b | CRITICAL | `figures_section_id_fkey` (figures.section_id -> sections.id) was NO ACTION --- blocked section CASCADE deletion, which blocked project deletion chain. | Changed to ON DELETE CASCADE. Figures belong to their section. | H1b |
+| H2 | LOW | `processed_webhooks` table had RLS disabled. Mitigation plan (IV-L6) says "intentional" --- but defense-in-depth is good practice. | Enabled RLS + deny-all policy (`USING (false)`). Server-side access via admin client bypasses RLS. | H2 |
+| S1 | MEDIUM | 9 public functions had mutable `search_path` (Supabase security advisor warning). 6 were SECURITY DEFINER (higher risk), 3 were trigger functions (lower risk). | Set `search_path = ''` on all 9. Verified all use schema-qualified references (`public.*`) or only `NEW`/`OLD`/`now()`. | S1 |
+| S2 | MEDIUM | `analyses_dataset_id_fkey` (analyses.dataset_id -> datasets.id) was NO ACTION --- blocked independent dataset deletion/replacement in Phase 6a. | Changed to ON DELETE SET NULL. Analysis records preserved with null dataset_id. | S2 |
+| P2 | LOW | 6 foreign key columns had no index --- CASCADE deletes require sequential scan of referencing table. | Added indexes on: `analyses.dataset_id`, `citations.attested_by_user_id`, `figures.section_id`, `review_comments.review_token_id`, `review_tokens.created_by`, `sections.ai_conversation_id`. | P2 |
+| P3 | LOW | `idx_processed_webhooks_event_id` was redundant --- covered by the unique constraint index. | Dropped redundant index. | P3 |
+
+### Issues Deferred
+
+| ID | Severity | Issue | Reason |
+|----|----------|-------|--------|
+| P1 | LOW (perf) | 35+ RLS policies use `auth.jwt()` without `(select ...)` wrapper, causing per-row re-evaluation | Too large for single migration. Requires rewriting every policy. Will batch in a dedicated migration. |
+| L1 | INFO | Audit triggers only cover 4 of 17 tables | By design --- only high-value tables (projects, sections, citations, thesis_licenses) are audited. |
+| L2 | INFO | projects.UPDATE RLS allows user to modify `status` column | API routes validate status transitions. RLS is defense-in-depth, not primary gate. |
+| L3 | INFO | Multiple permissive SELECT policies on projects/sections/users | By design --- role-based access (owner/supervisor/admin) requires separate policies. |
+
+### Post-Fix Advisor Status
+
+**Security advisor**: 0 warnings (was 9 --- all resolved via S1)
+**Performance advisor**: 35 `auth_rls_initplan` warnings (P1, deferred) + unused index info (expected for newly created indexes + pre-existing design decisions) + 3 multiple permissive policy warnings (by design)
+
+### Cascade Deletion Chain (Verified)
+
+After migrations 030 + 031, the complete user deletion cascade chain is:
+```
+DELETE user
+  -> CASCADE projects (projects.user_id)
+       -> CASCADE sections (sections.project_id)
+            -> CASCADE citations (citations.section_id)
+            -> CASCADE figures (figures.section_id) [was NO ACTION, fixed H1b]
+       -> CASCADE datasets (datasets.project_id)
+       -> CASCADE analyses (analyses.project_id)
+       -> CASCADE audit_log (audit_log.project_id)
+       -> SET NULL thesis_licenses (thesis_licenses.project_id) [was NO ACTION, fixed H1]
+  -> CASCADE thesis_licenses (thesis_licenses.user_id)
+  -> CASCADE audit_log (audit_log.user_id)
+  -> SET NULL citations.attested_by_user_id
+```
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `supabase/migrations/031_database_audit_fixes.sql` | All audit fixes: H1, H1b, H2, S1, S2, P2, P3 |
+
+---
+
 ## Appendix: Review ID Cross-Reference
 
 Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
