@@ -3,9 +3,9 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "7db51985-e458-4369-a2e7-267118e2bcaa",
   "strategy": "manual-commit",
-  "created_at": "2026-02-18T15:21:41.955154Z",
+  "created_at": "2026-02-18T16:49:25.712068Z",
   "branch": "main",
-  "checkpoints_count": 4,
+  "checkpoints_count": 0,
   "files_touched": [
     "apps/web/.env.example",
     "apps/web/app/(dashboard)/projects/[id]/page.tsx",
@@ -30,27 +30,28 @@
     "apps/web/lib/api/licence-gate.ts",
     "apps/web/lib/r-plumber/client.ts",
     "apps/web/lib/r2/client.ts",
-    "apps/web/supabase/.temp/cli-latest",
     "docker/docker-compose.yml",
     "docker/plumber.R",
     "docs/Mitigation_implementation.md"
   ],
   "agent": "Claude Code",
+  "checkpoint_transcript_start": 1443,
+  "transcript_lines_at_start": 1443,
   "token_usage": {
-    "input_tokens": 256,
-    "cache_creation_tokens": 461758,
-    "cache_read_tokens": 21908639,
-    "output_tokens": 20325,
-    "api_call_count": 239
+    "input_tokens": 11814,
+    "cache_creation_tokens": 66980,
+    "cache_read_tokens": 2705724,
+    "output_tokens": 8497,
+    "api_call_count": 22
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-18T15:21:40.066367Z",
-    "agent_lines": 658,
-    "human_added": 3,
-    "human_modified": 1,
+    "calculated_at": "2026-02-18T16:49:23.307622Z",
+    "agent_lines": 129,
+    "human_added": 1345,
+    "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 662,
-    "agent_percentage": 99.39577039274926
+    "total_committed": 1474,
+    "agent_percentage": 8.751696065128902
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/7db51985-e458-4369-a2e7-267118e2bcaa.jsonl"
 }
