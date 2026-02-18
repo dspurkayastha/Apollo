@@ -31,43 +31,8 @@ export interface QCReport {
   warningCount: number;
 }
 
-// ── American → British spelling dictionary ─────────────────────────────────
-
-const AMERICAN_TO_BRITISH: [RegExp, string][] = [
-  [/\banalyze\b/gi, "analyse"],
-  [/\banalyzed\b/gi, "analysed"],
-  [/\banalyzing\b/gi, "analysing"],
-  [/\bbehavior\b/gi, "behaviour"],
-  [/\bcolor\b/gi, "colour"],
-  [/\bcenter\b/gi, "centre"],
-  [/\brandomized\b/gi, "randomised"],
-  [/\borganize\b/gi, "organise"],
-  [/\borganized\b/gi, "organised"],
-  [/\brecognize\b/gi, "recognise"],
-  [/\brecognized\b/gi, "recognised"],
-  [/\bspecialized\b/gi, "specialised"],
-  [/\bfavor\b/gi, "favour"],
-  [/\bhonor\b/gi, "honour"],
-  [/\blabor\b/gi, "labour"],
-  [/\btumor\b/gi, "tumour"],
-  [/\bfetus\b/gi, "foetus"],
-  [/\bpediatric\b/gi, "paediatric"],
-  [/\banesthesia\b/gi, "anaesthesia"],
-  [/\bhemoglobin\b/gi, "haemoglobin"],
-  [/\besophagus\b/gi, "oesophagus"],
-];
-
-// ── Word count targets per phase ───────────────────────────────────────────
-
-const WORD_COUNT_TARGETS: Record<number, { min: number; max: number }> = {
-  2: { min: 500, max: 750 },
-  3: { min: 150, max: 200 },
-  4: { min: 2500, max: 3500 },
-  5: { min: 1500, max: 2500 },
-  6: { min: 1500, max: 2500 },
-  7: { min: 2000, max: 2500 },
-  8: { min: 500, max: 750 },
-};
+import { AMERICAN_TO_BRITISH } from "@/lib/compliance/spelling-dictionary";
+import { WORD_COUNT_CONFIG } from "@/lib/phases/word-count-config";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -131,14 +96,14 @@ function checkSectionCompleteness(sections: Section[]): QCCheck {
       continue;
     }
 
-    const target = WORD_COUNT_TARGETS[phase];
-    if (!target) continue;
+    const config = WORD_COUNT_CONFIG[phase];
+    if (!config) continue;
 
     const words = countWords(section.latex_content);
-    if (words < target.min) {
+    if (words < config.hardFloor) {
       details.push({
         item: `Phase ${phase}`,
-        message: `Word count (${words}) below minimum (${target.min})`,
+        message: `Word count (${words}) below minimum (${config.hardFloor})`,
       });
     }
   }
@@ -293,14 +258,16 @@ function checkResultsFiguresAndTables(
     });
   }
 
-  // Count LaTeX table environments in Results chapter content
+  // Count tables: use the HIGHER of analysis-produced tables vs LaTeX table
+  // environments in Results. These overlap (AI embeds analysis tables verbatim),
+  // so summing would double-count.
   const resultsSection = sections.find((s) => s.phase_number === 6);
   const latexTableCount = (
     resultsSection?.latex_content?.match(
       /\\begin\{(table|longtable|tabular)\}/g
     ) ?? []
   ).length;
-  const totalTables = analysisTableCount + latexTableCount;
+  const totalTables = Math.max(analysisTableCount, latexTableCount);
 
   if (totalTables < MIN_TABLES) {
     details.push({
@@ -334,9 +301,9 @@ function checkUndefinedReferences(
   if (!compileLog) {
     return {
       name: "undefined-references",
-      status: "pass",
+      status: "fail",
       blocking: true,
-      message: "No compile log available — compile first",
+      message: "No compile log available --- compile the thesis before running Final QC",
       details: [],
     };
   }

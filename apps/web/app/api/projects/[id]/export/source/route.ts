@@ -4,7 +4,7 @@ import { unauthorised, internalError } from "@/lib/api/errors";
 import { checkLicenceGate } from "@/lib/api/licence-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { assembleThesisContent } from "@/lib/latex/assemble";
-import type { Project, Section, Citation } from "@/lib/types/database";
+import type { Project, Section, Citation, Abbreviation } from "@/lib/types/database";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -35,7 +35,7 @@ export async function GET(
 
     const supabase = createAdminSupabaseClient();
 
-    const [projectRes, sectionsRes, citationsRes] = await Promise.all([
+    const [projectRes, sectionsRes, citationsRes, abbreviationsRes] = await Promise.all([
       supabase.from("projects").select("*").eq("id", id).single(),
       supabase
         .from("sections")
@@ -44,6 +44,7 @@ export async function GET(
         .in("status", ["approved", "review"])
         .order("phase_number"),
       supabase.from("citations").select("*").eq("project_id", id),
+      supabase.from("abbreviations").select("*").eq("project_id", id),
     ]);
 
     if (!projectRes.data) {
@@ -56,6 +57,7 @@ export async function GET(
     const project = projectRes.data as Project;
     const sections = (sectionsRes.data ?? []) as Section[];
     const citations = (citationsRes.data ?? []) as Citation[];
+    const abbreviations = (abbreviationsRes.data ?? []) as Abbreviation[];
 
     // Read the template
     const templatePath = path.join(process.cwd(), "..", "..", "templates", "main.tex");
@@ -70,7 +72,8 @@ export async function GET(
       template,
       project,
       sections,
-      citations
+      citations,
+      abbreviations
     );
 
     // Build a JSON manifest of all files (actual ZIP requires archiver library)

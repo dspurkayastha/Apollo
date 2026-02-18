@@ -561,6 +561,79 @@ ALTER TABLE public.projects
 
 ---
 
+## Phase 7: Final QC and Completion Flow
+
+**Status**: COMPLETE
+**Commit**: (pending)
+**Duration**: ~2 days (including comprehensive audit + fixes)
+**Tests**: 324 passing (32 files), 0 TypeScript errors
+**Scope**: 3 new files + ~18 modified files. ~+350 lines net.
+
+### Items Implemented
+
+| Item | Review IDs | Description | Files Changed |
+|------|-----------|-------------|---------------|
+| 7.1 | W3, W4, C-III-4 | Final QC Dashboard component --- renders at Phase 11, "Run Final QC" button, 6 check cards (pass/warn/fail), auto-fix buttons, "Complete Thesis" button disabled when blocking checks fail. Integrated into project-workspace (replaces editor for Phase 11). | `components/project/final-qc-dashboard.tsx` (new, ~250 lines), `projects/[id]/project-workspace.tsx` (**LOCKED** --- modified with approval) |
+| 7.2 | E2 | Phase 11 approval gates on QC --- `finalQC()` called BEFORE section status change. Fetches all sections, citations, latest `log_text`, figure count, analysis table count. Returns `badRequest()` with blocking count if `!overallPass`. Only sets `project.status = "completed"` after QC passes. | `sections/[phase]/approve/route.ts` |
+| 7.3 | E3 | Remove `canAdvancePhase` dead code --- removed `currentSectionStatus` parameter entirely (section status already validated in approve route lines 75--92). Updated all call sites and tests. | `lib/phases/transitions.ts`, `sections/[phase]/approve/route.ts`, `lib/phases/transitions.test.ts` |
+| 7.4 | E7 | Fix `checkUndefinedReferences` --- returns `status: "fail"` (blocking) when compile log is `null`, with message "No compile log available --- compile the thesis before running Final QC". QC route column reference fixed from `compile_log` to `log_text`. | `lib/qc/final-qc.ts`, `app/api/projects/[id]/qc/route.ts` |
+| 7.5 | Part III-D | ThesisCompletion flow --- Phase 11 approval sets `project.status = "completed"` after QC passes. Frontend renders `ThesisCompletion` celebration UI with stats + export downloads. No code changes needed beyond 7.2 (flow already existed, was just unreachable). | (verified --- no additional changes needed) |
+| 7.6 | C4 | Appendices template injection --- `ANNEXURE_SECTION_MAP` maps AI `\section*{}` headings to template `\annexurechapter{}` placeholders. `injectAppendices()` splits Phase 10 content and replaces placeholders. Phase 10 prompt updated to reference synopsis text for PIS/ICF and dataset columns for Data Collection Proforma. | `lib/latex/assemble.ts`, `lib/ai/prompts.ts`, `sections/[phase]/generate/route.ts` |
+| 7.7 | C5 | Abbreviations injection --- `injectAbbreviations()` replaces `\begin{abbreviations}...\end{abbreviations}` in template with generated content. Added abbreviations fetch to compile, source export, and DOCX export routes. | `lib/latex/assemble.ts`, `compile/route.ts`, `export/source/route.ts`, `export/docx/route.ts` |
+| 7.8 | C7 | `mathrsfs` added to Docker --- added to `tlmgr install` list in Dockerfile. | `docker/Dockerfile.latex` |
+
+### Supporting Changes
+
+| Change | Description | Files Changed |
+|--------|-------------|---------------|
+| Shared spelling dictionary | Extracted 79-entry `AMERICAN_TO_BRITISH` array from `spell-check.ts` (superset) into shared module. Replaced 4 independent copies (~21 entries each) with single import. | `lib/compliance/spelling-dictionary.ts` (new), `lib/compliance/spell-check.ts`, `lib/qc/final-qc.ts`, `app/api/projects/[id]/qc/fix/route.ts`, `lib/ai/review-section.ts` |
+| Phase 6 QC gate in approve route | Figure/table QC (5 figs, 7 tables) + analysis plan match enforced in approve route when `phaseNumber === 6` | `sections/[phase]/approve/route.ts` |
+| Phase 8 citation audit | Auto-creates Phase 9 section with citation audit results on Phase 8 approval | `sections/[phase]/approve/route.ts` |
+| Phase 10 auto-create | Auto-creates Phase 11 section with QC placeholder on Phase 10 approval | `sections/[phase]/approve/route.ts` |
+| New tests | `final-qc.test.ts` --- 10 tests covering `checkUndefinedReferences` (null log, clean log, warnings) and `finalQC` (blocking fail, all pass, all 6 checks present, British English detection, figure/table minimums) | `lib/qc/final-qc.test.ts` (new), `lib/latex/assemble.test.ts` (updated) |
+
+### Deviations from Plan
+
+1. **`canAdvancePhase` parameter removed entirely, not fixed (7.3).** The plan said "pass actual section status to `canAdvancePhase()`". The implementation removed the `currentSectionStatus` parameter entirely because section status is already validated in the approve route (lines 75--92) before `canAdvancePhase()` is called. The dead parameter was providing false assurance of a check that happened elsewhere. Removing it is cleaner than maintaining a parameter that duplicates existing validation.
+
+2. **Undefined references returns `fail` (blocking) not `warn` when no compile log (7.4).** The plan specified returning `status: "warn"`. The implementation returns `status: "fail"` with `blocking: true`. Rationale: a thesis cannot be completed without at least one successful compilation. Allowing completion without a compile log would mean undefined references and citations are never checked. This is stricter than the plan but prevents a real gap in quality assurance.
+
+3. **Appendices prompt enhanced with synopsis and dataset context (7.6).** The plan only specified fixing the template injection. The implementation also enhanced the Phase 10 AI prompt to reference synopsis text (for PIS study title, procedures, risks, criteria) and dataset columns (for Data Collection Proforma field names and Master Chart headers). This produces significantly more realistic annexures.
+
+### Bugs Found During Post-Implementation Audit
+
+A comprehensive audit was performed cross-referencing every changed file against REVIEW.md, DECISIONS.md, and Mitigation\_plan.md. Three bugs were found and fixed:
+
+| Bug | Severity | Description | Resolution |
+|-----|----------|-------------|------------|
+| Phase 11 QC check ordering | CRITICAL | QC check ran AFTER section was set to "approved" (lines 191--220 approve section, then lines 353--414 run QC). If QC fails, section is stuck at "approved" permanently --- approve route rejects already-approved sections at line 79. Student locked out with no recovery path. | Fixed: moved Phase 11 QC gate to BEFORE section approval (adjacent to Phase 6 gates). Old post-approval block replaced with just `project.status = "completed"` update. |
+| Word count SSOT not imported in `final-qc.ts` | HIGH | `checkSectionCompleteness()` hardcoded `WORD_COUNT_TARGETS` with wrong values: Phase 2 min=500 (SSOT hardFloor=1000), Phase 3 min=150 (SSOT hardFloor=300). Exact same bug class as Review finding A5/E6/F2 that Phase 5 item 5.1 was designed to fix. `final-qc.ts` was not updated when the SSOT was created. | Fixed: replaced hardcoded targets with `import { WORD_COUNT_CONFIG } from "@/lib/phases/word-count-config"`. Changed `target.min` to `config.hardFloor`. Updated test fixture word counts to meet new minimums. |
+| Table double-counting | MEDIUM | `totalTables = analysisTableCount + latexTableCount` double-counts because AI embeds analysis `table_latex` verbatim in Results chapter (per `RESULTS_SYSTEM_PROMPT` instructions). Present in BOTH `final-qc.ts` `checkResultsFiguresAndTables()` AND `approve/route.ts` Phase 6 gate. | Fixed: changed to `Math.max(analysisTableCount, latexTableCount)` in both locations. |
+
+### Lessons Learned
+
+1. **Pre-approval QC gates must run BEFORE section status transitions.** The approve route's flow is: validate status (lines 75--92) → run QC (phase-specific) → approve section (lines 191--220) → advance phase → post-approval actions. If QC runs after approval, a failure leaves the section at "approved" with no way to re-attempt (the route rejects already-approved sections). This is a state machine deadlock. Any blocking validation must happen before the irreversible state change.
+
+2. **SSOT consumers must be audited when the SSOT is created.** Phase 5 item 5.1 created `word-count-config.ts` as the canonical word count source. But `final-qc.ts` --- a direct consumer of word count data --- was never updated. The SSOT only works if ALL consumers import from it. When creating a new SSOT, `grep` for every usage of the old values across the entire codebase, including files that might have been written before the SSOT existed.
+
+3. **Table counting must account for AI content embedding.** The Results prompt instructs AI to include analysis `table_latex` verbatim. This means the same table appears both in the `analyses.results_json.table_latex` field AND as a `\begin{table}` environment in the chapter LaTeX. Summing both counts every table twice. The correct approach is `Math.max()` --- take the higher of the two counts, acknowledging they substantially overlap.
+
+4. **Shared dictionaries reduce maintenance burden and catch more issues.** The four independent spelling dictionaries had 21, 21, 21, and 60 entries respectively. Consumers using the 21-entry versions missed 39 American English spellings that the comprehensive version would catch. Extracting a shared module ensures all consumers benefit from the same coverage.
+
+5. **Phase-specific QC gates belong adjacent to each other in the approve route.** Phase 6 QC gates (lines 112--179) and Phase 11 QC gates (lines 181--237) now sit next to each other, BEFORE the generic approval logic. This makes the approve route's control flow clear: validate → phase-specific QC → approve → advance → post-approval hooks. Scattering QC checks throughout the function (some before, some after approval) creates ordering bugs.
+
+6. **QC report stored as JSON in `latex_content` is a pragmatic hack.** Phase 11's `latex_content` column stores JSON (the QC report) rather than LaTeX. This is semantically wrong but operationally correct: Phase 11 is never included in the assembly pipeline, and the workspace parses it as JSON for the dashboard. A dedicated `qc_report_json` column would be cleaner but adds a migration for no functional benefit.
+
+### New Files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `components/project/final-qc-dashboard.tsx` | ~250 | Final QC Dashboard UI component |
+| `lib/compliance/spelling-dictionary.ts` | ~80 | Shared American→British spelling dictionary (79 entries) |
+| `lib/qc/final-qc.test.ts` | ~160 | Tests for Final QC checks (10 tests) |
+
+---
+
 ## Appendix: Review ID Cross-Reference
 
 Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
@@ -647,3 +720,12 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 | DECISIONS 5.3 | Figure/table QC gates (5 figs, 7 tables, plan match) | 6 |
 | DECISIONS 7.3 | Chart type + colour scheme in UI | 6 |
 | DECISIONS 8.7 | Subfigure support via subcaption | 6 |
+| W3 | No QC button in Phase 11 workspace | 7 |
+| W4 | No auto-fix button for QC issues | 7 |
+| C-III-4 | Phase 11 has no UI (QC routes never called) | 7 |
+| E2 | Phase 11 approval skips QC entirely | 7 |
+| E3 | `canAdvancePhase` status check is dead code | 7 |
+| E7 | Undefined references check passes when no compile log | 7 |
+| C4 | Appendices content never rendered in PDF | 7 |
+| C5 | Abbreviations never injected into template | 7 |
+| C7 | `mathrsfs` package missing from Docker | 7 |

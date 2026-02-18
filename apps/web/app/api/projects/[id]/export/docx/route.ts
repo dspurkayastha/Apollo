@@ -4,7 +4,7 @@ import { unauthorised, internalError } from "@/lib/api/errors";
 import { checkLicenceGate } from "@/lib/api/licence-gate";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { assembleThesisContent } from "@/lib/latex/assemble";
-import type { Project, Section, Citation } from "@/lib/types/database";
+import type { Project, Section, Citation, Abbreviation } from "@/lib/types/database";
 
 export async function GET(
   _request: NextRequest,
@@ -33,8 +33,8 @@ export async function GET(
 
     const supabase = createAdminSupabaseClient();
 
-    // Fetch project, sections, citations for assembly
-    const [projectRes, sectionsRes, citationsRes] = await Promise.all([
+    // Fetch project, sections, citations, abbreviations for assembly
+    const [projectRes, sectionsRes, citationsRes, abbreviationsRes] = await Promise.all([
       supabase.from("projects").select("*").eq("id", id).single(),
       supabase
         .from("sections")
@@ -43,6 +43,7 @@ export async function GET(
         .in("status", ["approved", "review"])
         .order("phase_number"),
       supabase.from("citations").select("*").eq("project_id", id),
+      supabase.from("abbreviations").select("*").eq("project_id", id),
     ]);
 
     if (!projectRes.data) {
@@ -56,6 +57,7 @@ export async function GET(
     const project = projectRes.data as Project;
     const sections = (sectionsRes.data ?? []) as Section[];
     const citations = (citationsRes.data ?? []) as Citation[];
+    const abbreviations = (abbreviationsRes.data ?? []) as Abbreviation[];
 
     // For DOCX, we compile all chapter LaTeX into a single body
     // In production, this would call pandoc in Docker
@@ -64,7 +66,8 @@ export async function GET(
       "", // Template not needed for chapter extraction
       project,
       sections,
-      citations
+      citations,
+      abbreviations
     );
 
     // Combine all chapters into a single LaTeX body

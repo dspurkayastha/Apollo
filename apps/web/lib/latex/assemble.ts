@@ -1,6 +1,7 @@
 import { generateTex } from "./generate-tex";
 import { normaliseUnicode } from "./escape";
-import type { Project, Section, Citation } from "@/lib/types/database";
+import { generateAbbreviationsLatex } from "./abbreviations";
+import type { Project, Section, Citation, Abbreviation } from "@/lib/types/database";
 
 // ── Phase → chapter file mapping ────────────────────────────────────────────
 
@@ -12,7 +13,6 @@ const PHASE_CHAPTER_MAP: Record<number, string> = {
   6: "chapters/results.tex",
   7: "chapters/discussion.tex",
   8: "chapters/conclusion.tex",
-  10: "chapters/appendices.tex",
 };
 
 // ── BibTeX splitter ─────────────────────────────────────────────────────────
@@ -384,6 +384,103 @@ function injectFrontMatter(
   return tex;
 }
 
+// ── Appendices injection ────────────────────────────────────────────────────
+
+/**
+ * Mapping from AI-generated \section*{} headings to template \annexurechapter{} names.
+ * The AI prompt instructs Phase 10 to use these exact \section*{} headings.
+ */
+const ANNEXURE_SECTION_MAP: Record<string, string> = {
+  "Patient Information Sheet and Informed Consent Form": "Patient Information Sheet and Informed Consent Form",
+  "Data Collection Proforma": "Data Collection Proforma",
+  "Master Chart": "Master Chart",
+};
+
+/**
+ * Inject Phase 10 appendices content into the template's annexure placeholders.
+ *
+ * The template has `\annexurechapter{Name}` followed by `%% [[PLACEHOLDER --- Phase 10]]`.
+ * Phase 10 AI generates content with `\section*{Name}` headings.
+ * This function matches them up and replaces placeholders with actual content.
+ */
+function injectAppendices(
+  tex: string,
+  sections: Section[],
+  warnings: string[]
+): string {
+  const phase10 = sections
+    .filter((s) => s.phase_number === 10)
+    .sort((a, b) => {
+      const priority: Record<string, number> = { approved: 0, review: 1 };
+      return (priority[a.status] ?? 2) - (priority[b.status] ?? 2);
+    })[0];
+
+  if (!phase10?.latex_content) return tex;
+
+  const { body } = splitBibtex(phase10.latex_content);
+  if (!body.trim()) return tex;
+
+  // Split AI content by \section*{} headings
+  const sectionParts = body.split(/\\section\*?\{([^}]+)\}/);
+  // sectionParts: [preamble, heading1, content1, heading2, content2, ...]
+
+  const contentByHeading = new Map<string, string>();
+  for (let i = 1; i < sectionParts.length; i += 2) {
+    const heading = sectionParts[i].trim();
+    const content = (sectionParts[i + 1] ?? "").trim();
+    if (content) {
+      contentByHeading.set(heading, content);
+    }
+  }
+
+  let injectedCount = 0;
+
+  for (const [aiHeading, annexureTitle] of Object.entries(ANNEXURE_SECTION_MAP)) {
+    const content = contentByHeading.get(aiHeading);
+    if (!content) continue;
+
+    // Replace the placeholder line after the matching \annexurechapter{}
+    const escapedTitle = annexureTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const placeholderRe = new RegExp(
+      `(\\\\annexurechapter\\{${escapedTitle}\\}\\s*\\n)\\s*%%\\s*\\[\\[PLACEHOLDER\\s*---\\s*Phase 10\\]\\]`,
+    );
+
+    const safeContent = escapeBareAmpersands(content);
+    const sanitised = sanitiseChapterLatex(safeContent);
+
+    if (placeholderRe.test(tex)) {
+      tex = tex.replace(placeholderRe, `$1\n${sanitised}`);
+      injectedCount++;
+    }
+  }
+
+  if (injectedCount === 0) {
+    warnings.push("Phase 10: appendices content found but no template placeholders matched");
+  }
+
+  return tex;
+}
+
+// ── Abbreviations injection ────────────────────────────────────────────────
+
+/**
+ * Inject abbreviations list into the template's \begin{abbreviations}...\end{abbreviations}.
+ */
+function injectAbbreviations(
+  tex: string,
+  abbreviations: Abbreviation[]
+): string {
+  if (abbreviations.length === 0) return tex;
+
+  const abbrLatex = generateAbbreviationsLatex(abbreviations);
+  if (!abbrLatex) return tex;
+
+  return tex.replace(
+    /\\begin\{abbreviations\}[\s\S]*?\\end\{abbreviations\}/,
+    abbrLatex.trim()
+  );
+}
+
 // ── Main assembly function ──────────────────────────────────────────────────
 
 export interface AssembleResult {
@@ -410,7 +507,8 @@ export function assembleThesisContent(
   template: string,
   project: Project,
   sections: Section[],
-  citations: Citation[]
+  citations: Citation[],
+  abbreviations: Abbreviation[] = []
 ): AssembleResult {
   const warnings: string[] = [];
 
@@ -419,7 +517,7 @@ export function assembleThesisContent(
   warnings.push(...metaWarnings);
 
   // Step 1b: Inject Phase 1 front matter (acknowledgements + abstract)
-  const tex = injectFrontMatter(metadataTex, sections, warnings);
+  let tex = injectFrontMatter(metadataTex, sections, warnings);
   const bibParts: string[] = [];
   const chapterFiles: Record<string, string> = {};
 
@@ -499,6 +597,12 @@ export function assembleThesisContent(
       bibParts.push(citation.bibtex_entry.trim());
     }
   }
+
+  // Step 3b: Inject Phase 10 appendices into template annexure placeholders
+  tex = injectAppendices(tex, sections, warnings);
+
+  // Step 3c: Inject abbreviations into template
+  tex = injectAbbreviations(tex, abbreviations);
 
   // Step 4: Deduplicate and sanitise BibTeX
   const rawBib = bibParts.join("\n\n");

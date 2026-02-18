@@ -1,18 +1,20 @@
-import type { Project, SectionStatus } from "@/lib/types/database";
+import type { Project } from "@/lib/types/database";
 import { getPhase, MAX_PHASE } from "./constants";
 
 export interface TransitionCheck {
   allowed: boolean;
   reason?: string;
-  code?: "LICENCE_REQUIRED" | "INVALID_TRANSITION" | "SECTION_NOT_APPROVED";
+  code?: "LICENCE_REQUIRED" | "INVALID_TRANSITION";
 }
 
 /**
  * Check whether a project can advance from its current phase to the next.
+ *
+ * Section status validation is handled by the approve route itself (lines 76-93)
+ * before calling this function, so we only check phase bounds + licence here.
  */
 export function canAdvancePhase(
   project: Project,
-  currentSectionStatus: SectionStatus | null
 ): TransitionCheck {
   const { current_phase, status } = project;
 
@@ -22,15 +24,6 @@ export function canAdvancePhase(
       allowed: false,
       reason: "Already beyond the final phase",
       code: "INVALID_TRANSITION",
-    };
-  }
-
-  // Current section must be approved before advancing
-  if (currentSectionStatus !== "approved") {
-    return {
-      allowed: false,
-      reason: `Phase ${current_phase} section must be approved before advancing`,
-      code: "SECTION_NOT_APPROVED",
     };
   }
 

@@ -317,39 +317,72 @@ export const APPENDICES_SYSTEM_PROMPT = `You are a medical thesis assistant spec
 ${COMMON_RULES}
 Phase-specific instructions for APPENDICES:
 
-Generate the following annexures in order. Use \\section{} for each annexure heading.
+Generate the following annexures in order. You MUST use \\section*{} with these EXACT headings (they map to the template's annexure chapters):
 
-1. Patient Information Sheet (PIS) --- per ICMR 2017 National Ethical Guidelines:
-   - Study title, principal investigator, institution
-   - Purpose of the study (plain language)
-   - Procedures involved
-   - Risks and benefits
-   - Confidentiality assurance
-   - Voluntary participation statement
-   - Contact information placeholder
+1. \\section*{Patient Information Sheet and Informed Consent Form}
 
-2. Informed Consent Form (ICF) --- standard template:
-   - Declaration of understanding
-   - Consent for procedures specific to this study
-   - Right to withdraw
-   - Signature blocks (participant, witness, investigator)
+   PATIENT INFORMATION SHEET (PIS) --- per ICMR 2017 National Ethical Guidelines.
+   Extract ALL study-specific details from the synopsis provided:
+   - Study title: use the EXACT title from the synopsis
+   - Principal Investigator: use candidate name and guide name from metadata
+   - Institution/department: from metadata
+   - Purpose of the study: rewrite the synopsis aims in plain language (reading age ~12)
+   - Study procedures: describe EXACTLY what will happen to participants, derived from the synopsis methodology section (e.g., "blood samples will be collected", "you will be asked to fill a questionnaire"). Be specific --- do not use vague placeholders
+   - Risks and discomforts: derive from the study procedures (e.g., venipuncture pain, radiation exposure, time commitment). Be honest and specific
+   - Benefits: direct benefits to participant (if any) and contribution to medical knowledge
+   - Duration of participation: from synopsis (e.g., "single visit", "follow-up over 6 months")
+   - Inclusion and exclusion criteria: extract VERBATIM from the synopsis
+   - Confidentiality assurance: data coded, no personal identifiers published
+   - Voluntary participation: right to refuse/withdraw without affecting treatment
+   - Contact information: use \\texttt{[To be filled]} placeholders for phone/email
 
-3. Master Chart --- column headers derived from the dataset:
-   - Use a longtable with appropriate column headers
-   - Include a note: "[Data to be filled from study records]"
+   Format the PIS with clear \\subsection*{} headings for each element. Use numbered points or bullet lists for procedures and criteria.
 
-4. List of Abbreviations --- auto-extracted from all chapters:
-   - Alphabetical list in a longtable: Abbreviation | Full Form
+   INFORMED CONSENT FORM (ICF) --- standard ICMR 2017 template:
+   - "I, \\underline{\\hspace{5cm}}, have been informed about the study entitled \\textit{[exact thesis title]}"
+   - Declaration that the participant has read/been explained the PIS
+   - Consent for SPECIFIC procedures from this study (list them, derived from synopsis methodology)
+   - Right to withdraw at any time without giving reason
+   - Consent for use of data for research and publication (anonymised)
+   - Signature blocks using a \\begin{tabular} layout:
+     Participant: Name, Signature, Date
+     Witness: Name, Signature, Date
+     Investigator: Name, Signature, Date
 
-5. Ethics Approval Certificate --- placeholder:
-   - Institution name, committee name
-   - "Approval No: [To be filled]"
-   - "Date of Approval: [To be filled]"
+2. \\section*{Data Collection Proforma}
+
+   Create a structured data collection form that matches the dataset columns.
+   You will receive the dataset column definitions in the user message.
+
+   Format as a clear form using LaTeX:
+   - Use \\textbf{} for field labels
+   - Group related variables under \\subsection*{} headings:
+     -- Demographics (age, sex, etc.)
+     -- Clinical parameters (symptoms, signs, investigations)
+     -- Study-specific variables (outcome measures, exposure variables)
+     -- Laboratory investigations (if applicable)
+   - For each variable, include:
+     -- Field label (human-readable name from column definition)
+     -- Unit of measurement where applicable (e.g., mg/dL, mm Hg)
+     -- For categorical variables: list all possible values as checkboxes using $\\square$ (e.g., $\\square$~Male \\quad $\\square$~Female)
+     -- For numeric variables: a blank line or box using \\underline{\\hspace{3cm}}
+   - Include Serial No. and Subject ID fields at the top
+   - Add a note at the bottom: "\\textit{Note: All data to be recorded from clinical records/direct examination.}"
+
+3. \\section*{Master Chart}
+   - Create a longtable with ALL dataset column headers
+   - Use \\begin{longtable} with appropriate column widths
+   - Include column headers matching the dataset (abbreviated if needed for width)
+   - Add 3--5 empty rows with serial numbers (1, 2, 3...) to show the format
+   - Include a note: "\\textit{[Complete data available in electronic format]}"
 
 Writing rules:
 - Use formal language appropriate for regulatory documents
 - PIS should be understandable to a lay person (reading age ~12)
 - ICF must include all mandatory elements per ICMR 2017 guidelines
+- Extract study-specific details from the synopsis --- NEVER use generic placeholders when the synopsis provides the actual information
+- Do NOT generate abbreviation lists (handled separately by the system)
+- Do NOT generate ethics approval certificates (handled by scanned PDF upload)
 - Do NOT include a ---BIBTEX--- section (appendices have no citations)`;
 
 export const REFERENCES_CONSOLIDATION_SYSTEM_PROMPT = `You are a medical thesis reference manager and bibliographer specialising in Indian postgraduate medical theses. You review, consolidate, and quality-check BibTeX reference entries.
@@ -544,7 +577,8 @@ export function getPhaseUserMessage(
   phaseNumber: number,
   synopsis: string,
   metadata: Record<string, unknown>,
-  previousSections: { phaseName: string; content: string }[]
+  previousSections: { phaseName: string; content: string }[],
+  extra?: { datasetColumns?: Record<string, unknown>[] }
 ): string {
   const metadataStr = Object.entries(metadata)
     .filter(([, v]) => v !== null && v !== undefined && v !== "")
@@ -596,8 +630,13 @@ export function getPhaseUserMessage(
       return `Review and consolidate all BibTeX references from this medical thesis.\n\nProject metadata:\n${metadataStr}\n\n${bibSections || "No BibTeX entries found in approved sections."}`;
     }
 
-    case 10:
-      return `Generate the Appendices for this medical thesis. Include: Patient Information Sheet (PIS), Informed Consent Form (ICF), Master Chart headers, List of Abbreviations, and Ethics Approval Certificate placeholder.\n\nSynopsis:\n${synopsis}\n\nMetadata:\n${metadataStr}${prevContext}`;
+    case 10: {
+      let msg = `Generate the Appendices for this medical thesis.\n\nIMPORTANT: Use the synopsis below as the PRIMARY source for the Patient Information Sheet and Informed Consent Form. Extract the study title, procedures, risks, benefits, inclusion/exclusion criteria, and duration DIRECTLY from the synopsis text. Do NOT use generic placeholders when the synopsis provides the actual information.\n\nSynopsis:\n${synopsis}\n\nMetadata:\n${metadataStr}${prevContext}`;
+      if (extra?.datasetColumns && extra.datasetColumns.length > 0) {
+        msg += `\n\n--- DATASET COLUMNS ---\nUse these column definitions for the Data Collection Proforma and Master Chart:\n${JSON.stringify(extra.datasetColumns, null, 2)}`;
+      }
+      return msg;
+    }
 
     default:
       return `Generate content for this phase of the medical thesis.\n\nSynopsis:\n${synopsis}\n\nMetadata:\n${metadataStr}${prevContext}`;

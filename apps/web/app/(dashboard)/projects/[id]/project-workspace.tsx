@@ -35,6 +35,8 @@ import { FigureGallery } from "@/components/project/figure-gallery";
 import { MermaidEditor } from "@/components/project/mermaid-editor";
 import { ProgressDashboard } from "@/components/project/progress-dashboard";
 import { AnalysisPlanReview } from "@/components/project/analysis-plan-review";
+import { FinalQCDashboard } from "@/components/project/final-qc-dashboard";
+import type { QCReport } from "@/lib/qc/final-qc";
 import type { AnalysisPlanStatus } from "@/lib/types/database";
 
 // Dynamic imports — heavy editor/viewer components
@@ -249,8 +251,28 @@ export function ProjectWorkspace({
     }
   }, [project.id, viewingPhase, doApprove]);
 
+  // Parse stored QC report for Phase 11
+  const storedQCReport: QCReport | null = (() => {
+    if (viewingPhase !== 11 || !currentSection?.latex_content) return null;
+    try {
+      return JSON.parse(currentSection.latex_content) as QCReport;
+    } catch {
+      return null;
+    }
+  })();
+
   // Render the editor pane based on mode
   const renderEditor = () => {
+    // Phase 11: show Final QC Dashboard instead of regular editor
+    if (viewingPhase === 11) {
+      return (
+        <FinalQCDashboard
+          projectId={project.id}
+          initialReport={storedQCReport}
+        />
+      );
+    }
+
     // No section yet — show viewer placeholder
     if (!currentSection) {
       return (
@@ -375,6 +397,7 @@ export function ProjectWorkspace({
         )}
 
         {isCurrentPhase &&
+          viewingPhase !== 11 &&
           (currentSection?.status === "review" ||
             currentSection?.status === "draft") &&
           currentSection?.latex_content && (

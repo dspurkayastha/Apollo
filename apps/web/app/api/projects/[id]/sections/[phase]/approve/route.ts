@@ -9,8 +9,7 @@ import {
   badRequest,
 } from "@/lib/api/errors";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { isValidPhase } from "@/lib/phases/transitions";
-import { canAdvancePhase } from "@/lib/phases/transitions";
+import { isValidPhase, canAdvancePhase } from "@/lib/phases/transitions";
 import { getPhase } from "@/lib/phases/constants";
 import { generateFrontMatterLatex } from "@/lib/latex/front-matter";
 import { auditCitations } from "@/lib/citations/audit";
@@ -140,13 +139,15 @@ export async function POST(
         );
       }
 
-      // Count tables from analysis results + LaTeX table environments in content
+      // Count tables: use the HIGHER of analysis-produced tables vs LaTeX table
+      // environments in content. These overlap (AI embeds analysis tables verbatim),
+      // so summing would double-count.
       const tableLatexCount = (
         typedSection.latex_content?.match(
           /\\begin\{(table|longtable|tabular)\}/g
         ) ?? []
       ).length;
-      const totalTables = (analysisTableCount ?? 0) + tableLatexCount;
+      const totalTables = Math.max(analysisTableCount ?? 0, tableLatexCount);
 
       if (totalTables < MIN_TABLES) {
         return badRequest(
@@ -179,8 +180,65 @@ export async function POST(
       }
     }
 
+    // Phase 11: Final QC gate — MUST run BEFORE section approval.
+    // If QC fails, we return early without changing section status, so the
+    // student can fix issues and re-attempt.
+    if (phaseNumber === 11) {
+      const { finalQC } = await import("@/lib/qc/final-qc");
+      const [
+        { data: allSections },
+        { data: allCitations },
+        { data: latestCompilation },
+        { count: figs },
+        { data: qcAnalyses },
+      ] = await Promise.all([
+        supabase
+          .from("sections")
+          .select("*")
+          .eq("project_id", id)
+          .order("phase_number", { ascending: true }),
+        supabase.from("citations").select("*").eq("project_id", id),
+        supabase
+          .from("compilations")
+          .select("log_text")
+          .eq("project_id", id)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("figures")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", id),
+        supabase
+          .from("analyses")
+          .select("results_json")
+          .eq("project_id", id)
+          .eq("status", "completed"),
+      ]);
+
+      const qcTableCount = (qcAnalyses ?? []).filter(
+        (a) => (a.results_json as Record<string, unknown>)?.table_latex
+      ).length;
+
+      const qcReport = finalQC(
+        (allSections ?? []) as Section[],
+        (allCitations ?? []) as import("@/lib/types/database").Citation[],
+        (latestCompilation?.log_text as string) ?? null,
+        figs ?? 0,
+        qcTableCount,
+      );
+
+      if (!qcReport.overallPass) {
+        return badRequest(
+          `Final QC failed: ${qcReport.blockingCount} blocking issue(s). ` +
+          "Run Final QC from the dashboard for details."
+        );
+      }
+    }
+
     // Check if project can advance
-    const transitionCheck = canAdvancePhase(typedProject, "approved");
+    const transitionCheck = canAdvancePhase(typedProject);
 
     if (!transitionCheck.allowed) {
       if (transitionCheck.code === "LICENCE_REQUIRED") {
@@ -351,7 +409,7 @@ export async function POST(
       );
     }
 
-    // Phase 11 approval: verify QC passed + set project to completed
+    // Phase 11 approved + QC passed (checked above) → mark project completed
     if (phaseNumber === 11) {
       await supabase
         .from("projects")

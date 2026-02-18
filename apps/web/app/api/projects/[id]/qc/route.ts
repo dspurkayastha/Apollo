@@ -44,7 +44,7 @@ export async function POST(
       supabase.from("citations").select("*").eq("project_id", id),
       supabase
         .from("compilations")
-        .select("compile_log")
+        .select("log_text")
         .eq("project_id", id)
         .eq("status", "completed")
         .order("created_at", { ascending: false })
@@ -66,7 +66,7 @@ export async function POST(
       (a) => (a.results_json as Record<string, unknown>)?.table_latex
     ).length;
 
-    const compileLog = (compilation?.compile_log as string) ?? null;
+    const compileLog = (compilation?.log_text as string) ?? null;
     const report = finalQC(
       (sections ?? []) as Section[],
       (citations ?? []) as Citation[],

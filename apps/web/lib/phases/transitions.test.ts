@@ -25,61 +25,47 @@ function makeProject(overrides: Partial<Project> = {}): Project {
 }
 
 describe("canAdvancePhase", () => {
-  it("should allow advancing from Phase 0 to Phase 1 when section is approved (sandbox)", () => {
+  it("should allow advancing from Phase 0 to Phase 1 (sandbox)", () => {
     const project = makeProject({ current_phase: 0, status: "sandbox" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(true);
-  });
-
-  it("should deny advancing when section is not approved", () => {
-    const project = makeProject({ current_phase: 0 });
-    const result = canAdvancePhase(project, "draft");
-    expect(result.allowed).toBe(false);
-    expect(result.code).toBe("SECTION_NOT_APPROVED");
-  });
-
-  it("should deny advancing when section status is null", () => {
-    const project = makeProject({ current_phase: 0 });
-    const result = canAdvancePhase(project, null);
-    expect(result.allowed).toBe(false);
-    expect(result.code).toBe("SECTION_NOT_APPROVED");
   });
 
   it("should allow advancing from Phase 1 to Phase 2 in sandbox (sandbox includes Phase 2)", () => {
     const project = makeProject({ current_phase: 1, status: "sandbox" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(true);
   });
 
   it("should deny advancing from Phase 2 to Phase 3 without licence", () => {
     const project = makeProject({ current_phase: 2, status: "sandbox" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("LICENCE_REQUIRED");
   });
 
   it("should allow advancing from Phase 2 to Phase 3 with licence", () => {
     const project = makeProject({ current_phase: 2, status: "licensed" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(true);
   });
 
   it("should allow approving the final phase (Phase 11) to complete the thesis", () => {
     const project = makeProject({ current_phase: 11, status: "licensed" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(true);
   });
 
   it("should deny advancing beyond the final phase", () => {
     const project = makeProject({ current_phase: 12, status: "completed" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("INVALID_TRANSITION");
   });
 
   it("should allow licensed projects to advance through middle phases", () => {
     const project = makeProject({ current_phase: 5, status: "licensed" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(true);
   });
 
@@ -87,7 +73,7 @@ describe("canAdvancePhase", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("DEV_LICENCE_BYPASS", "true");
     const project = makeProject({ current_phase: 2, status: "sandbox" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("LICENCE_REQUIRED");
     vi.unstubAllEnvs();
@@ -97,7 +83,7 @@ describe("canAdvancePhase", () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("DEV_LICENCE_BYPASS", "true");
     const project = makeProject({ current_phase: 2, status: "sandbox" });
-    const result = canAdvancePhase(project, "approved");
+    const result = canAdvancePhase(project);
     expect(result.allowed).toBe(true);
     vi.unstubAllEnvs();
   });

@@ -6,7 +6,7 @@ import {
   stripInvalidCitations,
   assembleThesisContent,
 } from "./assemble";
-import type { Project, Section, Citation } from "@/lib/types/database";
+import type { Project, Section, Citation, Abbreviation } from "@/lib/types/database";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -131,9 +131,28 @@ const TEMPLATE = `\\documentclass{sskm-thesis}
 \\input{chapters/conclusion}
 
 \\listoffigures
+
+\\begin{abbreviations}
+%% [[PLACEHOLDER --- Phase 11: Generate complete alphabetical list]]
+%% Format: ABBREVIATION & Full Form \\\\
+\\end{abbreviations}
+
 \\backmatter
 \\bibliography{references}
 \\annexurematter
+
+\\annexurechapter{Patient Information Sheet and Informed Consent Form}
+
+%% [[PLACEHOLDER --- Phase 10]]
+
+\\annexurechapter{Data Collection Proforma}
+
+%% [[PLACEHOLDER --- Phase 10]]
+
+\\annexurechapter{Master Chart}
+
+%% [[PLACEHOLDER --- Phase 10]]
+
 \\end{document}`;
 
 // ── splitBibtex ─────────────────────────────────────────────────────────────
@@ -276,8 +295,8 @@ describe("assembleThesisContent", () => {
     expect(chapterFiles["chapters/results.tex"]).toContain("Results content here.");
     expect(chapterFiles["chapters/discussion.tex"]).toContain("Discussion content here.");
     expect(chapterFiles["chapters/conclusion.tex"]).toContain("Conclusion content here.");
-    // No missing-phase warnings for 2-8 (phase 10 appendices may warn if not present)
-    expect(warnings.filter((w) => w.includes("no approved/review content") && !w.includes("Phase 10")).length).toBe(0);
+    // No missing-phase warnings for 2-8
+    expect(warnings.filter((w) => w.includes("no approved/review content")).length).toBe(0);
   });
 
   it("uses latex_content directly (LaTeX is canonical)", () => {
@@ -412,7 +431,7 @@ describe("assembleThesisContent", () => {
     const project = makeProject();
     const { chapterFiles, warnings } = assembleThesisContent(TEMPLATE, project, [], []);
 
-    // All chapter files should exist (as empty strings)
+    // All chapter files should exist (as empty strings) — phases 2-8 only (Phase 10 now injected into template)
     expect(chapterFiles["chapters/introduction.tex"]).toBe("");
     expect(chapterFiles["chapters/aims.tex"]).toBe("");
     expect(chapterFiles["chapters/literature.tex"]).toBe("");
@@ -420,9 +439,9 @@ describe("assembleThesisContent", () => {
     expect(chapterFiles["chapters/results.tex"]).toBe("");
     expect(chapterFiles["chapters/discussion.tex"]).toBe("");
     expect(chapterFiles["chapters/conclusion.tex"]).toBe("");
-    expect(chapterFiles["chapters/appendices.tex"]).toBe("");
-    // Should have warnings for each missing phase (2-8 + 10)
-    expect(warnings.filter((w) => w.includes("no approved/review content")).length).toBe(8);
+    expect(chapterFiles["chapters/appendices.tex"]).toBeUndefined();
+    // Should have warnings for each missing phase (2-8)
+    expect(warnings.filter((w) => w.includes("no approved/review content")).length).toBe(7);
   });
 
   it("does not produce chapter files for phase 0 or phase 1", () => {
@@ -659,5 +678,96 @@ describe("stripInvalidCitations", () => {
     const { stripped, replacedKeys } = stripInvalidCitations(input, validKeys);
     expect(stripped).toBe(input);
     expect(replacedKeys).toHaveLength(0);
+  });
+});
+
+// ── Appendices injection ────────────────────────────────────────────────────
+
+describe("assembleThesisContent — appendices injection", () => {
+  it("injects Phase 10 content into annexure placeholders", () => {
+    const project = makeProject();
+    const sections = [
+      makeSection({
+        id: "s10",
+        phase_number: 10,
+        phase_name: "appendices",
+        latex_content: [
+          "\\section*{Patient Information Sheet and Informed Consent Form}",
+          "This is the PIS and ICF content.",
+          "",
+          "\\section*{Data Collection Proforma}",
+          "This is the proforma content.",
+          "",
+          "\\section*{Master Chart}",
+          "This is the master chart.",
+        ].join("\n"),
+        status: "approved",
+      }),
+    ];
+
+    const { tex } = assembleThesisContent(TEMPLATE, project, sections, []);
+
+    // Annexure placeholders should be replaced with content
+    expect(tex).toContain("This is the PIS and ICF content.");
+    expect(tex).toContain("This is the proforma content.");
+    expect(tex).toContain("This is the master chart.");
+    // Placeholders should be gone
+    expect(tex).not.toContain("[[PLACEHOLDER --- Phase 10]]");
+  });
+
+  it("leaves template unchanged when no Phase 10 content exists", () => {
+    const project = makeProject();
+    const { tex } = assembleThesisContent(TEMPLATE, project, [], []);
+
+    // Placeholders remain
+    expect(tex).toContain("[[PLACEHOLDER --- Phase 10]]");
+  });
+});
+
+// ── Abbreviations injection ─────────────────────────────────────────────────
+
+describe("assembleThesisContent — abbreviations injection", () => {
+  it("injects abbreviations into the template environment", () => {
+    const project = makeProject();
+    const now = new Date().toISOString();
+    const abbreviations: Abbreviation[] = [
+      {
+        id: "a1",
+        project_id: "test-id",
+        short_form: "BMI",
+        long_form: "Body Mass Index",
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: "a2",
+        project_id: "test-id",
+        short_form: "ANC",
+        long_form: "Antenatal Care",
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    const { tex } = assembleThesisContent(TEMPLATE, project, [], [], abbreviations);
+
+    // Abbreviations should be injected (sorted: ANC before BMI)
+    expect(tex).toContain("\\begin{abbreviations}");
+    expect(tex).toContain("ANC");
+    expect(tex).toContain("Antenatal Care");
+    expect(tex).toContain("BMI");
+    expect(tex).toContain("Body Mass Index");
+    // Placeholder comment should be gone
+    expect(tex).not.toContain("[[PLACEHOLDER --- Phase 11");
+  });
+
+  it("leaves abbreviations placeholder unchanged when no abbreviations exist", () => {
+    const project = makeProject();
+    const { tex } = assembleThesisContent(TEMPLATE, project, [], [], []);
+
+    // Original placeholder preserved
+    expect(tex).toContain("\\begin{abbreviations}");
+    expect(tex).toContain("[[PLACEHOLDER --- Phase 11");
+    expect(tex).toContain("\\end{abbreviations}");
   });
 });

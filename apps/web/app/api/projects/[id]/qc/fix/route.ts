@@ -9,30 +9,7 @@ import {
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveAllEntries } from "@/lib/citations/resolve";
 import { searchCrossRef, lookupDOI } from "@/lib/citations/crossref";
-
-const AMERICAN_TO_BRITISH: [RegExp, string][] = [
-  [/\banalyze\b/gi, "analyse"],
-  [/\banalyzed\b/gi, "analysed"],
-  [/\banalyzing\b/gi, "analysing"],
-  [/\bbehavior\b/gi, "behaviour"],
-  [/\bcolor\b/gi, "colour"],
-  [/\bcenter\b/gi, "centre"],
-  [/\brandomized\b/gi, "randomised"],
-  [/\borganize\b/gi, "organise"],
-  [/\borganized\b/gi, "organised"],
-  [/\brecognize\b/gi, "recognise"],
-  [/\brecognized\b/gi, "recognised"],
-  [/\bspecialized\b/gi, "specialised"],
-  [/\bfavor\b/gi, "favour"],
-  [/\bhonor\b/gi, "honour"],
-  [/\blabor\b/gi, "labour"],
-  [/\btumor\b/gi, "tumour"],
-  [/\bfetus\b/gi, "foetus"],
-  [/\bpediatric\b/gi, "paediatric"],
-  [/\banesthesia\b/gi, "anaesthesia"],
-  [/\bhemoglobin\b/gi, "haemoglobin"],
-  [/\besophagus\b/gi, "oesophagus"],
-];
+import { AMERICAN_TO_BRITISH } from "@/lib/compliance/spelling-dictionary";
 
 interface FixRequest {
   action: "re-resolve-citations" | "auto-fix-spelling" | "expand-section";

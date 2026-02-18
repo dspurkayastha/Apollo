@@ -180,11 +180,28 @@ async function handleSectionGenerate(
 
   // Get prompts
   const systemPrompt = getPhaseSystemPrompt(phaseNumber)!;
+
+  // Phase 10 (Appendices): fetch dataset columns for proforma context
+  let extraContext: { datasetColumns?: Record<string, unknown>[] } | undefined;
+  if (phaseNumber === 10) {
+    const { data: dataset } = await supabase
+      .from("datasets")
+      .select("columns_json")
+      .eq("project_id", project.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (dataset?.columns_json) {
+      extraContext = { datasetColumns: dataset.columns_json as Record<string, unknown>[] };
+    }
+  }
+
   let userMessage = getPhaseUserMessage(
     phaseNumber,
     project.synopsis_text,
     (project.metadata_json ?? {}) as Record<string, unknown>,
-    previousSections
+    previousSections,
+    extraContext
   );
 
   // Phase 6 (Results): gate on 6a completion then gather analysis context

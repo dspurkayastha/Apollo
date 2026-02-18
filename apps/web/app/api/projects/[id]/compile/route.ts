@@ -18,7 +18,7 @@ import { compileTex } from "@/lib/latex/compile";
 import { preflightChapter, aiValidateChapters } from "@/lib/latex/validate";
 import { uploadToR2, downloadFromR2 } from "@/lib/r2/client";
 import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
-import type { Section, Citation, Figure, Compilation } from "@/lib/types/database";
+import type { Section, Citation, Figure, Compilation, Abbreviation } from "@/lib/types/database";
 
 /** Tmpdir location for figure downloads during compilation */
 const FIGURES_TMP_DIR = path.join(os.tmpdir(), "apollo-figures");
@@ -119,8 +119,8 @@ export async function POST(
         return internalError("LaTeX template not found");
       }
 
-      // Fetch sections, citations, and figures for assembly
-      const [sectionsResult, citationsResult, figuresResult] = await Promise.all([
+      // Fetch sections, citations, figures, and abbreviations for assembly
+      const [sectionsResult, citationsResult, figuresResult, abbreviationsResult] = await Promise.all([
         supabase
           .from("sections")
           .select("*")
@@ -134,11 +134,16 @@ export async function POST(
           .from("figures")
           .select("*")
           .eq("project_id", id),
+        supabase
+          .from("abbreviations")
+          .select("*")
+          .eq("project_id", id),
       ]);
 
       const sections = (sectionsResult.data ?? []) as Section[];
       const citations = (citationsResult.data ?? []) as Citation[];
       const figures = (figuresResult.data ?? []) as Figure[];
+      const abbreviations = (abbreviationsResult.data ?? []) as Abbreviation[];
 
       // Resolve figure files: download from R2 to tmpdir, fall back to local disk
       const figureFiles: Record<string, string> = {};
@@ -173,7 +178,8 @@ export async function POST(
         template,
         typedProject,
         sections,
-        citations
+        citations,
+        abbreviations
       );
 
       // Pre-flight validation on each chapter
