@@ -1,0 +1,14 @@
+# Production overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Adds AppArmor profile for R Plumber (Linux only — not available on macOS).
+# Load the profile first:
+#   sudo cp apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber
+#   sudo apparmor_parser -r /etc/apparmor.d/apollo-r-plumber
+
+services:
+  r-plumber:
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./seccomp-r.json
+      - apparmor:apollo-r-plumber

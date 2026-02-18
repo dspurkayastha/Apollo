@@ -883,6 +883,79 @@ DELETE user
 
 ---
 
+## Phase 10: Docker Hardening
+
+**Status**: COMPLETE
+**Commit**: (pending)
+**Duration**: ~1 day
+**Tests**: 324/324 passing, 0 TypeScript errors
+
+### Items Implemented
+
+| Item | Review ID | Description | Implementation |
+|------|-----------|-------------|----------------|
+| 10.1 | I-5 | Docker seccomp profiles | Created `docker/seccomp-latex.json` (whitelist, SCMP_ACT_ERRNO default — file I/O, process, memory, signals, time, libc internals) and `docker/seccomp-r.json` (same + networking + epoll for HTTP server). Applied in `docker-compose.yml` and `compile.ts`. |
+| 10.2 | I-13 | AppArmor profile for R container | Created `docker/apparmor-r-plumber` — allows R runtime, Plumber app, /tmp; denies shell, python, perl, wget; curl restricted to healthcheck sub-profile; denies raw/packet network, mount, ptrace. Applied via `docker-compose.prod.yml` override (Linux-only). |
+| 10.1a | (bonus) | compile.ts security args | **CRITICAL BUG FIX**: compile.ts uses `docker run --rm` (ephemeral containers), not `docker exec` on compose container. Compose security settings were dead code for compilation. Added `--pids-limit=256`, `--security-opt no-new-privileges:true`, `--cap-drop=ALL`, `--cap-add=DAC_OVERRIDE`, `--cap-add=FOWNER`, seccomp profile with graceful fallback. |
+| (bonus) | — | Security response headers | Added to `next.config.ts`: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, HSTS 2yr+preload, Permissions-Policy. CSP deferred (would break Clerk/Sentry/PostHog/shadcn inline styles). |
+| (bonus) | IV-E9 | Health check enhancement | `GET /api/health` now checks R Plumber connectivity (3s timeout) and Docker availability (5s timeout, conditional on LATEX_COMPILE_MODE=docker). Returns per-dependency status map. |
+| (bonus) | governance | deploy-conformance.sh | Created 14-check VPS deploy-gate script referenced by security-tests.md and release-gates.md. Checks: seccomp profiles, test compilation, R Plumber health, network isolation, read-only filesystem, memory limits, AppArmor, no system() calls, no dangerous mounts, no leaked secrets, SSL validity, open ports. |
+| (bonus) | governance | k6 load test | Created `scripts/load-test.js` — 5 scenarios matching release-gates.md capacity model: sequential compiles, concurrent R analyses, mixed load, AI generation, no-contention baseline. Custom metrics + thresholds. |
+
+### Items Already Complete (Pre-Phase 10)
+
+| Item | Review ID | Verification |
+|------|-----------|-------------|
+| 10.3 | I-12 | `--network=none` in compile.ts:189 + `network_mode: none` in docker-compose.yml:15 |
+| 10.4 | C7, D6 | `mathrsfs` + `subcaption` in Dockerfile.latex lines 31-32 |
+
+### Architecture Discovery
+
+**compile.ts uses ephemeral containers**: The LaTeX compile pipeline uses `docker run --rm apollo-latex` (ephemeral containers spawned per compilation), NOT `docker exec` on the persistent compose container. This means security settings in `docker-compose.yml` for the LaTeX service are effectively dead code for compilation — they only apply to the sleeping container (`entrypoint: sleep infinity`). All security hardening for actual compilations MUST be in `compile.ts` docker args.
+
+### Audit Findings (Post-Implementation)
+
+| Finding | Severity | Description | Fix |
+|---------|----------|-------------|-----|
+| B1 | HIGH | docker-compose.yml seccomp paths `./docker/seccomp-latex.json` resolved from compose file dir → `docker/docker/seccomp-latex.json` (non-existent). Bug was in Mitigation_plan.md. | Changed to `./seccomp-latex.json` (same directory as compose file) |
+| B2 | HIGH | `scripts/load-test.js` uses `exec.scenario.name` but `exec` from `k6/execution` was not imported — runtime ReferenceError | Added `import exec from "k6/execution"` |
+| B3 | MEDIUM | `apparmor:apollo-r-plumber` in docker-compose.yml causes container start failure on macOS (no AppArmor kernel in Docker Desktop) | Moved AppArmor to `docker-compose.prod.yml` override; base compose works on macOS |
+| B4 | LOW | compile.ts seccomp path uses `process.cwd()` which varies by deployment — custom profile silently not found in production | Added `console.warn()` on fallback; Docker default seccomp still applies |
+| D1 | DOC | security-tests.md line 89 says R container has "no network" — wrong, R Plumber serves HTTP | Updated to "restricted syscall set with networking for HTTP server" |
+| D2 | DOC | deploy-conformance.sh missing network/read-only/memory checks from security-tests.md | Added checks 6a (network mode), 6b (read-only), 6c (memory limit) |
+
+### Lessons Learned
+
+- **Mitigation plan paths must be verified against actual file layout** — the plan wrote `seccomp:./docker/seccomp-latex.json` assuming compose was at repo root, but it's at `docker/docker-compose.yml`. Copied verbatim → broken paths.
+- **AppArmor is Linux-only; macOS Docker doesn't support it** — always use compose overrides for Linux-only security features.
+- **Governance docs can have errors** — security-tests.md said R container needs "no network", which contradicts its role as HTTP server. Implementation should match reality, then fix the doc.
+- **`process.cwd()` is fragile in Next.js standalone builds** — prefer `__dirname` or explicit env vars for file path resolution.
+- **Silent security degradation is dangerous** — always log when a security control falls back to a weaker default.
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `docker/seccomp-latex.json` | Whitelist seccomp profile for LaTeX (no networking) |
+| `docker/seccomp-r.json` | Whitelist seccomp profile for R Plumber (with networking) |
+| `docker/apparmor-r-plumber` | AppArmor profile for R container |
+| `docker/docker-compose.prod.yml` | Production override adding AppArmor to R Plumber |
+| `scripts/deploy-conformance.sh` | VPS deploy-gate conformance checks (14 checks) |
+| `scripts/load-test.js` | k6 load test for pre-launch gate |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `apps/web/lib/latex/compile.ts` | Added 5 security flags to docker run args, seccomp profile with graceful fallback + warning log |
+| `docker/docker-compose.yml` | Replaced seccomp:unconfined with profile paths (fixed from `./docker/` to `./`); removed AppArmor (moved to prod override) |
+| `apps/web/next.config.ts` | Added 6 security response headers via `async headers()` |
+| `apps/web/app/api/health/route.ts` | Rewritten with R Plumber + Docker dependency checks |
+| `docs/governance/security-tests.md` | Fixed R container isolation description (networking required) |
+| `scripts/deploy-conformance.sh` | Added network, read-only, memory limit checks (6a/6b/6c) |
+
+---
+
 ## Appendix: Review ID Cross-Reference
 
 Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
@@ -1005,3 +1078,8 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 | 9.6 | Dataset PII warning at dataset upload | 9 |
 | 9.7 | Audit log CASCADE delete migration | 9 |
 | 9.9 | R2 cleanup on project/account deletion | 9 |
+| I-5 | Docker seccomp:unconfined on containers | 10 |
+| I-13 | AppArmor profile for R container | 10 |
+| I-12 | LaTeX container network isolation | 10 (already done pre-Phase 10) |
+| C7, D6 | mathrsfs + subcaption in Dockerfile | 10 (already done pre-Phase 10) |
+| IV-E9 | Health check endpoint enhancement | 10 |

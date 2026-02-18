@@ -86,7 +86,7 @@ Run via `./scripts/deploy-conformance.sh`. Fail the deploy if any check fails.
 - [ ] Timeout: 120 seconds enforced
 
 ### R Container Isolation
-- [ ] Same isolation as LaTeX container (seccomp, no network, read-only, /tmp only)
+- [ ] Seccomp profile active (restricted syscall set with networking for HTTP server)
 - [ ] AppArmor profile loaded (`apparmor_status` confirms)
 - [ ] No `system()` calls in Plumber endpoints (static analysis of R code)
 - [ ] Runtime limits enforced per analysis type (15s-60s depending on type)

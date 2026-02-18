@@ -3,6 +3,10 @@ services:
   # Use `pnpm dev` in apps/web/ and set LATEX_COMPILE_MODE=docker.
 
   latex:
+    # NOTE: This container is NOT used for compilation.
+    # compile.ts uses `docker run --rm apollo-latex` (ephemeral containers).
+    # Compilation security settings are in apps/web/lib/latex/compile.ts.
+    # Security settings here apply to the sleeping container only.
     build:
       context: ..
       dockerfile: docker/Dockerfile.latex
@@ -16,7 +20,7 @@ services:
     pids_limit: 256
     security_opt:
       - no-new-privileges:true
-      - seccomp:unconfined
+      - seccomp:./seccomp-latex.json
     cap_drop:
       - ALL
     cap_add:
@@ -40,7 +44,7 @@ services:
     pids_limit: 256
     security_opt:
       - no-new-privileges:true
-      - seccomp:unconfined
+      - seccomp:./seccomp-r.json
     cap_drop:
       - ALL
     cap_add:

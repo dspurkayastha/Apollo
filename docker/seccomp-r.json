@@ -1,0 +1,118 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "archMap": [
+    { "architecture": "SCMP_ARCH_X86_64", "subArchitectures": ["SCMP_ARCH_X86", "SCMP_ARCH_X32"] },
+    { "architecture": "SCMP_ARCH_AARCH64", "subArchitectures": ["SCMP_ARCH_ARM"] }
+  ],
+  "syscalls": [
+    {
+      "comment": "File I/O — R reads datasets, writes output files",
+      "names": [
+        "read", "write", "open", "openat", "close",
+        "stat", "fstat", "lstat", "newfstatat",
+        "lseek", "access", "faccessat", "faccessat2",
+        "readlink", "readlinkat", "getcwd",
+        "rename", "renameat", "renameat2",
+        "unlink", "unlinkat",
+        "mkdir", "mkdirat", "rmdir",
+        "dup", "dup2", "dup3",
+        "pipe", "pipe2",
+        "readv", "writev", "pread64", "pwrite64",
+        "ftruncate",
+        "getdents", "getdents64",
+        "statfs", "fstatfs", "statx",
+        "fchmod", "fchmodat",
+        "fchown", "fchownat", "chown",
+        "utimensat",
+        "symlinkat",
+        "copy_file_range"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Process management — R forks child processes",
+      "names": [
+        "fork", "vfork", "clone", "clone3",
+        "execve", "execveat",
+        "wait4", "waitid",
+        "exit", "exit_group",
+        "getpid", "getppid", "gettid",
+        "getuid", "getgid", "geteuid", "getegid",
+        "getresuid", "getresgid",
+        "setuid", "setgid", "setresuid", "setresgid",
+        "getgroups", "setgroups",
+        "setsid", "getpgrp", "setpgid"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Memory management",
+      "names": [
+        "mmap", "munmap", "mprotect",
+        "brk", "mremap",
+        "msync", "madvise", "mincore"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Signal handling",
+      "names": [
+        "rt_sigaction", "rt_sigprocmask", "rt_sigreturn",
+        "rt_sigpending", "rt_sigsuspend",
+        "kill", "tgkill",
+        "sigaltstack"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Time — timestamps and sleeps",
+      "names": [
+        "clock_gettime", "clock_getres",
+        "gettimeofday",
+        "nanosleep", "clock_nanosleep"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Networking — Plumber HTTP server on port 8787 + curl healthcheck",
+      "names": [
+        "socket", "bind", "listen",
+        "accept", "accept4",
+        "connect",
+        "setsockopt", "getsockopt",
+        "getsockname", "getpeername",
+        "sendto", "recvfrom", "sendmsg", "recvmsg",
+        "shutdown"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Event loop — epoll for Plumber async I/O",
+      "names": [
+        "epoll_create", "epoll_create1",
+        "epoll_ctl", "epoll_wait", "epoll_pwait",
+        "eventfd2"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Standard libc internals",
+      "names": [
+        "ioctl", "fcntl",
+        "poll", "ppoll", "select", "pselect6",
+        "futex", "set_robust_list", "get_robust_list",
+        "arch_prctl", "set_tid_address",
+        "prctl",
+        "sched_getaffinity", "sched_yield",
+        "getrandom",
+        "uname",
+        "getcpu",
+        "rseq",
+        "membarrier",
+        "close_range"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    }
+  ]
+}

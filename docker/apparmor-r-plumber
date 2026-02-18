@@ -1,0 +1,55 @@
+#include <tunables/global>
+
+profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Allow R runtime
+  /usr/lib/R/** mr,
+  /usr/local/lib/R/** mr,
+  /usr/share/R/** r,
+  /usr/bin/R ix,
+  /usr/bin/Rscript ix,
+
+  # Allow Plumber app
+  /app/** r,
+  /app/plumber.R r,
+
+  # Temp directory (mapped via tmpfs)
+  /tmp/** rwk,
+
+  # Deny dangerous executables
+  deny /bin/sh x,
+  deny /bin/bash x,
+  deny /bin/dash x,
+  deny /usr/bin/python* x,
+  deny /usr/bin/perl x,
+  deny /usr/bin/wget x,
+
+  # Allow curl ONLY for health check (container-internal)
+  /usr/bin/curl Cx -> healthcheck,
+  profile healthcheck {
+    #include <abstractions/base>
+    #include <abstractions/nameservice>
+    network inet stream,
+    /usr/bin/curl mr,
+  }
+
+  # Network access — HTTP server on 8787
+  network inet stream,
+  network inet6 stream,
+
+  # Deny raw network access
+  deny network raw,
+  deny network packet,
+
+  # Deny mount/umount
+  deny mount,
+  deny umount,
+  deny pivot_root,
+
+  # Deny ptrace
+  deny ptrace,
+
+  # Deny kernel module loading
+  deny @{PROC}/sys/kernel/** w,
+}

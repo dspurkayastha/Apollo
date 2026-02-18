@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile, writeFile, mkdir, rm, copyFile } from "fs/promises";
+import { readFile, writeFile, mkdir, rm, copyFile, access } from "fs/promises";
 import path from "path";
 import os from "os";
 import { parseLatexLog } from "./parse-log";
@@ -171,18 +171,41 @@ async function dockerCompile(
     const outputDir = path.join(workDir, "output");
     await mkdir(outputDir, { recursive: true });
 
-    // Run Docker compile
+    // Run Docker compile with full security hardening
     const containerName = process.env.LATEX_CONTAINER_NAME ?? "apollo-latex";
+
+    // Resolve seccomp profile path (graceful fallback to Docker default)
+    const seccompPath = path.resolve(process.cwd(), "../../docker/seccomp-latex.json");
+    let seccompExists = false;
+    try {
+      await access(seccompPath);
+      seccompExists = true;
+    } catch {
+      // Profile not found — Docker's default seccomp applies (still secure)
+      console.warn(`[compile] Seccomp profile not found at ${seccompPath} — using Docker default`);
+    }
+
     const args = [
-      "run",
-      "--rm",
+      "run", "--rm",
       "--network=none",
       "--read-only",
       "--tmpfs", "/tmp:rw,size=512m",
       "--memory=1g",
+      "--pids-limit=256",
+      "--security-opt", "no-new-privileges:true",
+      "--cap-drop=ALL",
+      "--cap-add=DAC_OVERRIDE",
+      "--cap-add=FOWNER",
       "-v", `${workDir}:/thesis`,
       containerName,
     ];
+
+    // Add custom seccomp profile if available; otherwise Docker default applies
+    if (seccompExists) {
+      // Insert before container name (last element before watermark flags)
+      const containerIdx = args.indexOf(containerName);
+      args.splice(containerIdx, 0, "--security-opt", `seccomp=${seccompPath}`);
+    }
 
     if (options.watermark) {
       args.push("--watermark-mode=sandbox");
