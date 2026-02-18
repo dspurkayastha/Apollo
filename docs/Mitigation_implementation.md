@@ -733,6 +733,94 @@ A second comprehensive audit discovered and fixed 3 additional issues:
 
 ---
 
+## Phase 9: Privacy and Compliance
+
+**Status**: COMPLETE
+**Commit**: (pending)
+**Duration**: ~1 day
+**Tests**: (pending verification)
+
+### Items Implemented
+
+| Item | Description | Implementation |
+|------|-------------|----------------|
+| 9.1 | Privacy Policy, Terms of Service, Refund Policy pages | Legal route group `(legal)/layout.tsx` + `/privacy`, `/terms`, `/refund` pages. British English, DPDP Act 2023 basis, SciScribe entity details. Footer links updated (LOCKED file --- approved). |
+| 9.2 | Account Deletion (7-day cooling-off + purge cron) | `POST /api/account/delete` (request), `DELETE /api/account/delete` (cancel). `account-deletion-cron.ts` Inngest cron (03:00 UTC) purges after 7 days --- R2 cleanup, DB hard-delete (CASCADE), Clerk user deletion. Settings page with typed "DELETE" confirmation. |
+| 9.3 | AI Processing Consent | Checkbox in `synopsis-upload-step.tsx` (blocks Next until checked). Consent timestamp stored on `users.ai_consent_accepted_at` via PATCH route (once per user). |
+| 9.4 | Cookie Consent Banner | `cookie-consent-banner.tsx` --- frosted glass card, bottom-right, slides in on first visit. Stores preference in localStorage. |
+| 9.5 | Medical Data Warning | Amber banner in synopsis upload step: anonymise patient data before uploading. |
+| 9.6 | Dataset PII Warning | Amber banner in `dataset-upload.tsx`: remove all identifiable information. |
+| 9.7 | Audit Log CASCADE | Migration `030_privacy_compliance.sql` --- `ON DELETE CASCADE` on `audit_log.project_id` and `audit_log.user_id` foreign keys. |
+| 9.9 | R2 Cleanup | `deleteR2Prefix()` in `lib/r2/client.ts` --- paginated batch delete. Called on project DELETE and account purge cron. Project DELETE changed from soft-delete (archived) to hard-delete. |
+
+### PostHog Consent Gating (9.4 backend)
+
+`posthog-provider.tsx` updated: PostHog only captures when `localStorage("analytics-consent") === "true"` AND production environment. `updateAnalyticsConsent()` exported for cookie banner and settings page.
+
+### Clerk Webhook Extension (9.2 sync)
+
+`webhooks/clerk/route.ts` extended with `user.deleted` handler: sets `deletion_requested_at` on user row, triggering 7-day cron purge.
+
+### Items Deferred
+
+| Item | Reason |
+|------|--------|
+| 9.8 | Data Retention Auto-Purge --- deferred per DECISIONS.md 6.2 (manual purge sufficient for GA) |
+
+### Items Skipped
+
+| Item | Reason |
+|------|--------|
+| 9.10 | AI Output PII Check --- no `redactPII()` exists; LaTeX content causes massive false positives; real PII risk is in AI input (synopsis/dataset), already addressed by consent + warning banners |
+
+### Audit Findings (Post-Implementation)
+
+| Finding | Severity | Description | Fix |
+|---------|----------|-------------|-----|
+| C1 | CRITICAL | `projects.user_id` FK missing ON DELETE CASCADE --- user deletion fails with FK constraint | Migration 030 extended: drop + re-add FK with CASCADE |
+| C2 | CRITICAL | `thesis_licenses.user_id` FK missing CASCADE --- same failure | Migration 030 extended: drop + re-add FK with CASCADE |
+| C3 | CRITICAL | `review_tokens.created_by` FK missing CASCADE --- same failure | Migration 030 extended: drop + re-add FK with CASCADE |
+| H1 | HIGH | AI consent checkbox props not wired in `setup-wizard.tsx` --- checkbox never rendered | Added `aiConsentAccepted` state, passed props, gated Next button on consent |
+| H2 | HIGH | Account deletion POST not idempotent --- calling twice resets 7-day clock | Added `.is("deletion_requested_at", null)` guard + early return if already requested |
+| H3 | HIGH | `analytics_consent` DB column never written --- settings page only used localStorage | Created `PATCH /api/account/preferences` endpoint, settings page calls it on toggle |
+| H4 | HIGH | Cookie banner slide-in animation broken --- `if (!visible) return null` prevents exit animation | Rewrote with `shouldRender` + `animateIn` two-phase state |
+| M1 | MEDIUM | Settings page: `useRouter` imported but unused | Removed dead import |
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `supabase/migrations/030_privacy_compliance.sql` | User privacy columns + 5 FK CASCADE fixes (projects, thesis_licenses, review_tokens, audit_log x2) |
+| `app/(legal)/layout.tsx` | Shared legal page layout (dashboard-dot-grid bg, frosted glass header) |
+| `app/(legal)/privacy/page.tsx` | Privacy Policy |
+| `app/(legal)/terms/page.tsx` | Terms of Service |
+| `app/(legal)/refund/page.tsx` | Refund Policy |
+| `components/consent/cookie-consent-banner.tsx` | Floating consent card with slide animation |
+| `app/api/account/delete/route.ts` | Account deletion endpoint (idempotent POST, cancel DELETE) |
+| `app/api/account/preferences/route.ts` | User preferences endpoint (analytics_consent sync) |
+| `lib/inngest/functions/account-deletion-cron.ts` | 7-day purge cron |
+| `app/(dashboard)/settings/page.tsx` | Settings with profile, preferences, delete account |
+| `components/ui/checkbox.tsx` | shadcn checkbox (via CLI) |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `lib/r2/client.ts` | Added `deleteR2Prefix()`, imported `ListObjectsV2Command`/`DeleteObjectsCommand` |
+| `lib/types/database.ts` | Added `deletion_requested_at`, `ai_consent_accepted_at`, `analytics_consent` to User |
+| `wizard/steps/synopsis-upload-step.tsx` | AI consent checkbox + medical data warning banner |
+| `wizard/setup-wizard.tsx` | Wire consent state, pass props, gate Next on consent acceptance |
+| `app/api/projects/[id]/route.ts` | Hard-delete + R2 cleanup; consent timestamp on PATCH |
+| `app/api/webhooks/clerk/route.ts` | Handle `user.deleted` event |
+| `app/api/inngest/route.ts` | Register `accountDeletionCronFn` |
+| `providers/posthog-provider.tsx` | Consent-gated init + `updateAnalyticsConsent()` export |
+| `app/layout.tsx` | Added `CookieConsentBanner` |
+| `components/project/dataset-upload.tsx` | PII warning banner |
+| `landing/footer-section.tsx` | Legal links (LOCKED --- approved) |
+| `layout/glass-sidebar.tsx` | Settings nav item (LOCKED --- approved) |
+
+---
+
 ## Appendix: Review ID Cross-Reference
 
 Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
@@ -847,3 +935,11 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 | DECISIONS 8.3 | Onboarding tour wiring | 8 |
 | DECISIONS 8.4 | Export access tiers (sandbox/licensed/completed) | 8 |
 | DECISIONS 8.5 | Compilation history in Progress tab | 8 |
+| 9.1 | Privacy Policy, Terms of Service, Refund Policy | 9 |
+| 9.2 | Account deletion (7-day cooling-off + purge cron) | 9 |
+| 9.3 | AI processing consent (checkbox at synopsis upload) | 9 |
+| 9.4 | Cookie consent banner (floating card, bottom-right) | 9 |
+| 9.5 | Medical data warning at synopsis upload | 9 |
+| 9.6 | Dataset PII warning at dataset upload | 9 |
+| 9.7 | Audit log CASCADE delete migration | 9 |
+| 9.9 | R2 cleanup on project/account deletion | 9 |

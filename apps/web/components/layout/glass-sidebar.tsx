@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   FolderOpen,
   KeyRound,
+  Settings,
   ChevronLeft,
   ChevronRight,
   X,
@@ -17,6 +18,7 @@ const navItems = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { id: "projects", label: "Projects", href: "/projects", icon: FolderOpen },
   { id: "licences", label: "Licences", href: "/licences", icon: KeyRound },
+  { id: "settings", label: "Settings", href: "/settings", icon: Settings },
 ];
 
 /** Collapsed frosted-glass strip width (px) */

@@ -36,6 +36,7 @@ export function SetupWizard({ project }: SetupWizardProps) {
   const [synopsisText, setSynopsisText] = useState<string | null>(
     project.synopsis_text
   );
+  const [aiConsentAccepted, setAiConsentAccepted] = useState(false);
 
   // Step 3 state
   const [parsedData, setParsedData] = useState<ParsedSynopsis | null>(null);
@@ -89,6 +90,10 @@ export function SetupWizard({ project }: SetupWizardProps) {
       }
 
       if (currentStep === 2) {
+        if (!aiConsentAccepted) {
+          toast.error("Please accept the AI processing consent to continue.");
+          return;
+        }
         await patchProject({ synopsis_text: synopsisText ?? "" });
       }
 
@@ -113,6 +118,7 @@ export function SetupWizard({ project }: SetupWizardProps) {
     currentStep,
     universityType,
     synopsisText,
+    aiConsentAccepted,
     parsedData,
     metadata,
     patchProject,
@@ -205,6 +211,8 @@ export function SetupWizard({ project }: SetupWizardProps) {
             projectId={project.id}
             synopsisText={synopsisText}
             onSynopsisChange={setSynopsisText}
+            aiConsentAccepted={aiConsentAccepted}
+            onAiConsentChange={setAiConsentAccepted}
           />
         )}
 

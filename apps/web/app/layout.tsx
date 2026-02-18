@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PostHogProvider } from "@/components/providers/posthog-provider";
 import { PWAProvider } from "@/components/providers/pwa-provider";
+import { CookieConsentBanner } from "@/components/consent/cookie-consent-banner";
 import "./globals.css";
 
 const inter = Inter({
@@ -63,6 +64,7 @@ export default function RootLayout({
               </PWAProvider>
             </PostHogProvider>
             <Toaster position="bottom-right" />
+            <CookieConsentBanner />
           </ThemeProvider>
         </body>
       </html>

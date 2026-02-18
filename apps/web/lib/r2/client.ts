@@ -2,6 +2,8 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -105,6 +107,37 @@ export async function downloadFromR2(key: string): Promise<Buffer> {
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
+}
+
+/**
+ * Delete all R2 objects under a given prefix (e.g. "projects/{id}/").
+ * Paginates in batches of 1000 (S3 DeleteObjects limit).
+ */
+export async function deleteR2Prefix(prefix: string): Promise<number> {
+  let totalDeleted = 0;
+  let continuationToken: string | undefined;
+
+  do {
+    const listCmd = new ListObjectsV2Command({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Prefix: prefix,
+      MaxKeys: 1000,
+      ContinuationToken: continuationToken,
+    });
+    const listResult = await s3Client.send(listCmd);
+    const objects = listResult.Contents ?? [];
+    if (objects.length === 0) break;
+
+    const deleteCmd = new DeleteObjectsCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Delete: { Objects: objects.map((o) => ({ Key: o.Key! })) },
+    });
+    await s3Client.send(deleteCmd);
+    totalDeleted += objects.length;
+    continuationToken = listResult.NextContinuationToken;
+  } while (continuationToken);
+
+  return totalDeleted;
 }
 
 export { ALLOWED_UPLOAD_TYPES, MAX_FILE_SIZE };

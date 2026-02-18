@@ -52,47 +52,70 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Only handle user.created events
-  if (evt.type !== "user.created") {
-    return NextResponse.json({ received: true });
-  }
+  const supabase = createAdminSupabaseClient();
 
-  try {
-    const { id, email_addresses, first_name, last_name } = evt.data;
+  // Handle user.created
+  if (evt.type === "user.created") {
+    try {
+      const { id, email_addresses, first_name, last_name } = evt.data;
 
-    const email = email_addresses?.[0]?.email_address;
-    if (!email) {
-      console.error("No email address found in Clerk user.created event");
-      return internalError("No email address in webhook payload");
-    }
+      const email = email_addresses?.[0]?.email_address;
+      if (!email) {
+        console.error("No email address found in Clerk user.created event");
+        return internalError("No email address in webhook payload");
+      }
 
-    const name = [first_name, last_name].filter(Boolean).join(" ") || email;
+      const name = [first_name, last_name].filter(Boolean).join(" ") || email;
 
-    const supabase = createAdminSupabaseClient();
+      const { error } = await supabase.from("users").insert({
+        clerk_user_id: id,
+        email,
+        name,
+        role: "student",
+      });
 
-    const { error } = await supabase.from("users").insert({
-      clerk_user_id: id,
-      email,
-      name,
-      role: "student",
-    });
-
-    if (error) {
-      console.error("Failed to insert user from webhook:", error);
-      return NextResponse.json(
-        {
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to create user record",
+      if (error) {
+        console.error("Failed to insert user from webhook:", error);
+        return NextResponse.json(
+          {
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "Failed to create user record",
+            },
           },
-        },
-        { status: 500 }
-      );
-    }
+          { status: 500 }
+        );
+      }
 
-    return NextResponse.json({ received: true }, { status: 200 });
-  } catch (err) {
-    console.error("Unexpected error in Clerk webhook handler:", err);
-    return internalError();
+      return NextResponse.json({ received: true }, { status: 200 });
+    } catch (err) {
+      console.error("Unexpected error in Clerk webhook handler:", err);
+      return internalError();
+    }
   }
+
+  // Handle user.deleted — trigger 7-day deletion cooling-off
+  if (evt.type === "user.deleted") {
+    try {
+      const { id } = evt.data;
+
+      const { error } = await supabase
+        .from("users")
+        .update({ deletion_requested_at: new Date().toISOString() })
+        .eq("clerk_user_id", id)
+        .is("deletion_requested_at", null);
+
+      if (error) {
+        console.error("Failed to mark user for deletion from webhook:", error);
+      }
+
+      return NextResponse.json({ received: true }, { status: 200 });
+    } catch (err) {
+      console.error("Error handling user.deleted webhook:", err);
+      return internalError();
+    }
+  }
+
+  // Unhandled event types
+  return NextResponse.json({ received: true });
 }

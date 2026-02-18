@@ -10,12 +10,13 @@ const productLinks = [
 
 const companyLinks = [
   { label: "About", href: "#" },
-  { label: "Contact", href: "mailto:contact@apollo.dev" },
+  { label: "Contact", href: "mailto:support@sciscribesolutions.com" },
 ];
 
 const legalLinks = [
-  { label: "Privacy Policy", href: "#" },
-  { label: "Terms of Service", href: "#" },
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms of Service", href: "/terms" },
+  { label: "Refund Policy", href: "/refund" },
 ];
 
 function FooterLinkGroup({

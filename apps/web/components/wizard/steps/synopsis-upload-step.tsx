@@ -1,18 +1,25 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { FileUploader } from "@/components/upload/file-uploader";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertTriangle } from "lucide-react";
 
 interface SynopsisUploadStepProps {
   projectId: string;
   synopsisText: string | null;
   onSynopsisChange: (text: string) => void;
+  aiConsentAccepted?: boolean;
+  onAiConsentChange?: (accepted: boolean) => void;
 }
 
 export function SynopsisUploadStep({
   projectId,
   synopsisText,
   onSynopsisChange,
+  aiConsentAccepted = false,
+  onAiConsentChange,
 }: SynopsisUploadStepProps) {
   const [uploadedPdf, setUploadedPdf] = useState(false);
 
@@ -35,6 +42,40 @@ export function SynopsisUploadStep({
         title, aims, and study type. You may upload a file or paste the text
         directly.
       </p>
+
+      {/* Medical data warning (9.5) */}
+      <div className="mb-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <p className="text-sm text-amber-800">
+          Please ensure your synopsis does not contain patient-identifiable
+          information (names, MRNs, dates of birth, Aadhaar numbers). Anonymise
+          all patient data before uploading.
+        </p>
+      </div>
+
+      {/* AI processing consent (9.3) */}
+      {onAiConsentChange && (
+        <div className="mb-6 rounded-lg border border-border bg-muted/30 p-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="ai-consent"
+              checked={aiConsentAccepted}
+              onCheckedChange={(checked) =>
+                onAiConsentChange(checked === true)
+              }
+              className="mt-0.5"
+            />
+            <label htmlFor="ai-consent" className="cursor-pointer text-sm leading-relaxed text-foreground">
+              I acknowledge that my thesis content will be processed by AI
+              services (Anthropic, hosted in the US) for generation purposes.
+              Patient data must be anonymised before upload.{" "}
+              <Link href="/privacy" className="text-primary underline underline-offset-2" target="_blank">
+                Privacy Policy
+              </Link>
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* Option 1: File upload */}
       <div className="mb-6">

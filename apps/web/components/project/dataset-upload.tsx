@@ -12,6 +12,7 @@ import {
   Trash2,
   Loader2,
   Download,
+  AlertTriangle,
 } from "lucide-react";
 import type { Dataset } from "@/lib/types/database";
 
@@ -147,6 +148,16 @@ export function DatasetUpload({ projectId, datasets }: DatasetUploadProps) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Datasets</h3>
+
+      {/* PII warning (9.6) */}
+      <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <p className="text-sm text-amber-800">
+          Ensure your dataset is fully anonymised before uploading. Remove all
+          patient names, phone numbers, Aadhaar numbers, and other identifiable
+          information. Apollo processes data via external services.
+        </p>
+      </div>
 
       {/* Existing datasets */}
       {datasets.length > 0 && (

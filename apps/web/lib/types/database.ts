@@ -14,6 +14,9 @@ export interface User {
   name: string;
   role: "student" | "supervisor" | "admin";
   organisation_id: string | null;
+  deletion_requested_at: string | null;
+  ai_consent_accepted_at: string | null;
+  analytics_consent: boolean;
   created_at: string;
 }
 
