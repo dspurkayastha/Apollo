@@ -71,6 +71,27 @@ apply_colour_scheme <- function(plot, colour_scheme = "default") {
   plot
 }
 
+# ── Authentication filter ─────────────────────────────────────────────────────
+
+#* @plumber
+function(pr) {
+  secret <- Sys.getenv("R_PLUMBER_SECRET", "")
+  if (nzchar(secret)) {
+    pr %>% plumber::pr_filter("auth", function(req, res) {
+      # Allow health check without auth for Docker healthcheck
+      if (req$PATH_INFO == "/health") {
+        return(plumber::forward())
+      }
+      auth_header <- req$HTTP_AUTHORIZATION
+      if (is.null(auth_header) || auth_header != paste0("Bearer ", secret)) {
+        res$status <- 401L
+        return(list(error = "Unauthorised"))
+      }
+      plumber::forward()
+    })
+  }
+}
+
 # ── Health check ──────────────────────────────────────────────────────────────
 
 #* Health check

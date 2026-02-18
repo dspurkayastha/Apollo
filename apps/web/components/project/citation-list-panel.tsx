@@ -47,7 +47,7 @@ function TierBadge({ tier }: { tier: ProvenanceTier }) {
 interface CitationListPanelProps {
   projectId: string;
   citations: Citation[];
-  onAddCitation: () => void;
+  onAddCitation?: () => void;
 }
 
 export function CitationListPanel({
@@ -198,15 +198,17 @@ export function CitationListPanel({
         <div className="border-t border-black/[0.06] px-3 pb-3 pt-2 space-y-3">
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onAddCitation}
-              className="gap-1"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Citation
-            </Button>
+            {onAddCitation && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onAddCitation}
+                className="gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Citation
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

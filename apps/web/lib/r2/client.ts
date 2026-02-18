@@ -26,7 +26,8 @@ const s3Client = new S3Client({
 
 export async function generateUploadUrl(
   key: string,
-  contentType: string
+  contentType: string,
+  fileSize?: number
 ): Promise<{ url: string; key: string }> {
   if (!ALLOWED_UPLOAD_TYPES.includes(contentType)) {
     throw new Error(`File type not allowed: ${contentType}`);
@@ -37,10 +38,17 @@ export async function generateUploadUrl(
     throw new Error("Invalid file key");
   }
 
+  // Server-side file size validation (IV-A7)
+  if (fileSize != null && fileSize > MAX_FILE_SIZE) {
+    throw new Error(`File exceeds ${MAX_FILE_SIZE / (1024 * 1024)} MB limit`);
+  }
+
   const command = new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME!,
     Key: key,
     ContentType: contentType,
+    // Encode declared fileSize in signature — R2 rejects if actual Content-Length differs
+    ...(fileSize != null && { ContentLength: fileSize }),
   });
 
   const url = await getSignedUrl(s3Client, command, { expiresIn: 300 }); // 5 min

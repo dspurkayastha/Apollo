@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Download,
   FileText,
-  FileCode,
   FileArchive,
   BarChart3,
   Loader2,
@@ -15,33 +14,57 @@ import {
 interface ExportMenuProps {
   projectId: string;
   projectStatus: string;
+  currentPhase: number;
 }
 
-type ExportType = "pdf" | "docx" | "source" | "stats";
+type ExportType = "pdf" | "source" | "stats";
 
-const EXPORTS: { type: ExportType; label: string; icon: typeof FileText; description: string }[] = [
-  { type: "pdf", label: "PDF", icon: FileText, description: "Clean compiled PDF" },
-  { type: "docx", label: "DOCX", icon: FileCode, description: "Word document" },
+const ALL_EXPORTS: { type: ExportType; label: string; icon: typeof FileText; description: string }[] = [
+  { type: "pdf", label: "PDF", icon: FileText, description: "Compiled PDF" },
   { type: "source", label: "LaTeX Source", icon: FileArchive, description: "main.tex + chapters + .bib" },
   { type: "stats", label: "Statistics", icon: BarChart3, description: "R scripts + data + results" },
 ];
 
-export function ExportMenu({ projectId, projectStatus }: ExportMenuProps) {
+/**
+ * Export access tiers per DECISIONS.md 8.4:
+ *   Sandbox          → PDF download only
+ *   Licensed <6b     → no ExportMenu (gated by workspace)
+ *   Licensed >=6b    → full export (PDF/Source/Stats)
+ *   Completed        → full export (clean)
+ */
+function getAvailableExports(projectStatus: string, _currentPhase: number) {
+  if (projectStatus === "sandbox") {
+    return ALL_EXPORTS.filter((e) => e.type === "pdf");
+  }
+  // Licensed Phase 6b+ or Completed — full export
+  return ALL_EXPORTS;
+}
+
+export function ExportMenu({ projectId, projectStatus, currentPhase }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<ExportType | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const isLicensed = projectStatus === "licensed" || projectStatus === "completed";
+  const canExport = projectStatus === "licensed" || projectStatus === "completed" || projectStatus === "sandbox";
+  const exports = getAvailableExports(projectStatus, currentPhase);
 
   const handleExport = async (type: ExportType) => {
-    if (!isLicensed) return;
+    if (!canExport) return;
     setLoading(type);
+    setErrorMsg(null);
 
     try {
       const url = `/api/projects/${projectId}/export/${type}`;
       const res = await fetch(url);
 
       if (res.status === 402) {
-        // Not licensed — show message
+        setErrorMsg("A licence is required to export. Purchase one from the dashboard.");
+        return;
+      }
+
+      if (res.status === 403) {
+        const body = await res.json().catch(() => null);
+        setErrorMsg(body?.error?.message ?? "Export not available for this phase.");
         return;
       }
 
@@ -65,12 +88,13 @@ export function ExportMenu({ projectId, projectStatus }: ExportMenuProps) {
         const blob = await res.blob();
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `thesis.${type === "docx" ? "tex" : type}`;
+        a.download = `thesis.${type}`;
         a.click();
         URL.revokeObjectURL(a.href);
       }
     } catch (err) {
       console.error(`Export ${type} failed:`, err);
+      setErrorMsg("Export failed. Please try again.");
     } finally {
       setLoading(null);
     }
@@ -83,26 +107,32 @@ export function ExportMenu({ projectId, projectStatus }: ExportMenuProps) {
         variant="outline"
         onClick={() => setOpen((o) => !o)}
         className="gap-1.5"
-        disabled={!isLicensed}
+        disabled={!canExport}
       >
         <Download className="h-4 w-4" />
         Export
         <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </Button>
 
-      {!isLicensed && (
+      {!canExport && (
         <p className="mt-1 text-xs text-muted-foreground">
           Purchase a licence to unlock exports
         </p>
       )}
 
-      {open && isLicensed && (
+      {errorMsg && (
+        <p className="mt-1 max-w-[220px] text-xs text-red-600">
+          {errorMsg}
+        </p>
+      )}
+
+      {open && canExport && (
         <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border bg-white p-1 shadow-lg">
-          {EXPORTS.map(({ type, label, icon: Icon, description }) => (
+          {exports.map(({ type, label, icon: Icon, description }) => (
             <button
               key={type}
               onClick={() => {
-                handleExport(type);
+                void handleExport(type);
                 setOpen(false);
               }}
               disabled={loading === type}

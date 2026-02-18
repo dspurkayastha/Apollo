@@ -18,13 +18,17 @@ export async function GET(
     const gateResult = await checkLicenceGate(id, authResult.user.id);
     if (gateResult instanceof NextResponse) return gateResult;
 
-    // Block downloads for licensed projects before Phase 6
-    if (gateResult.status === "licensed" && gateResult.currentPhase < 6) {
+    // Block downloads for licensed projects before Phase 6b (DECISIONS.md 8.4)
+    if (
+      gateResult.status === "licensed" &&
+      (gateResult.currentPhase < 6 ||
+        (gateResult.currentPhase === 6 && gateResult.analysisPlanStatus !== "approved"))
+    ) {
       return NextResponse.json(
         {
           error: {
             code: "DOWNLOAD_RESTRICTED",
-            message: "DOCX download available from Phase 6 onwards. Use the preview panel.",
+            message: "Download available from Phase 6b onwards. Use the preview panel.",
           },
         },
         { status: 403 }
@@ -77,10 +81,11 @@ export async function GET(
       .join("\n\n");
 
     // Return as plain text for now — pandoc conversion requires Docker
+    const safeFilename = (project.title || "thesis").replace(/[^\w\s.-]/g, "_");
     return new NextResponse(fullBody, {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${project.title || "thesis"}.tex"`,
+        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${safeFilename}.tex"; filename*=UTF-8''${encodeURIComponent(safeFilename)}.tex`,
       },
     });
   } catch (err) {

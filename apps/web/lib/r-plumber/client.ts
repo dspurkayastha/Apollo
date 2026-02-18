@@ -30,9 +30,16 @@ export async function callRPlumber<T>(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (process.env.R_PLUMBER_SECRET) {
+      headers["Authorization"] = `Bearer ${process.env.R_PLUMBER_SECRET}`;
+    }
+
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -87,7 +94,13 @@ export async function callRPlumber<T>(
  */
 export async function checkRPlumberHealth(): Promise<boolean> {
   try {
+    const headers: Record<string, string> = {};
+    if (process.env.R_PLUMBER_SECRET) {
+      headers["Authorization"] = `Bearer ${process.env.R_PLUMBER_SECRET}`;
+    }
+
     const response = await fetch(`${R_PLUMBER_URL}/health`, {
+      headers,
       signal: AbortSignal.timeout(5000),
     });
     return response.ok;

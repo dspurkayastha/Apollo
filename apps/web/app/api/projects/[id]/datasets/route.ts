@@ -74,12 +74,29 @@ export async function POST(
 
     if (!project) return notFound("Project not found");
 
+    // Server-side file size enforcement (50 MB limit)
+    const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+    const contentLength = request.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: { code: "FILE_TOO_LARGE", message: "Upload exceeds 50 MB limit" } },
+        { status: 413 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
     const columnsRaw = formData.get("columns");
 
     if (!file || !(file instanceof File)) {
       return badRequest("No file provided");
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: { code: "FILE_TOO_LARGE", message: "Upload exceeds 50 MB limit" } },
+        { status: 413 }
+      );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

@@ -10,6 +10,7 @@ import type {
   Analysis,
   Figure,
   ComplianceCheck,
+  Compilation,
 } from "@/lib/types/database";
 import { PHASES } from "@/lib/phases/constants";
 import { ProjectWorkspace } from "./project-workspace";
@@ -106,6 +107,16 @@ export default async function ProjectDetailPage({
     ? `/api/projects/${id}/preview.pdf`
     : null;
 
+  // Fetch last 3 compilations for Progress tab (DECISIONS.md 8.5)
+  const { data: compilationsData } = await supabase
+    .from("compilations")
+    .select("id, status, warnings, errors, compile_time_ms, created_at")
+    .eq("project_id", id)
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  const compilations = (compilationsData ?? []) as Compilation[];
+
   const metadata = project.metadata_json ?? {};
   const metadataEntries = Object.entries(metadata).filter(
     ([, value]) => value !== undefined && value !== null && value !== ""
@@ -190,6 +201,7 @@ export default async function ProjectDetailPage({
         analyses={analyses}
         figures={figures}
         complianceChecks={complianceChecks}
+        compilations={compilations}
         latestPdfUrl={latestPdfUrl}
         devLicenceBypass={process.env.DEV_LICENCE_BYPASS === "true"}
       />

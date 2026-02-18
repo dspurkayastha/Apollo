@@ -634,6 +634,105 @@ A comprehensive audit was performed cross-referencing every changed file against
 
 ---
 
+## Phase 8: Frontend Integration and Polish
+
+**Status**: COMPLETE
+**Commit**: (pending)
+**Duration**: ~1 day
+**Tests**: 324 passing, 0 TypeScript errors
+
+### Items Implemented
+
+| Item | Review IDs | Description | Files Changed |
+|------|-----------|-------------|---------------|
+| 8.1 | W5--W8, C-III-5 | ExportMenu in workspace (Phase 6+ gate) | `project-workspace.tsx` (import + render), `export-menu.tsx` (add `currentPhase` prop, tiered access per DECISIONS.md 8.4), `thesis-completion.tsx` (pass `currentPhase`) |
+| 8.2 | X2 | React ErrorBoundary wrapping editor/preview panels | `error-boundary.tsx` (new), `project-workspace.tsx` (wrap 4 panels --- desktop editor, desktop preview, mobile editor, mobile preview) |
+| 8.3 | M3 | Wire onboarding TourOverlay | `project-workspace.tsx` (import + render), `tour-overlay.tsx` (update steps to match DECISIONS.md 8.3: pipeline timeline, editor, citation panel, compile button) |
+| 8.4 | W2 | Compilation history in Progress tab | `page.tsx` (fetch last 3 compilations), `project-workspace.tsx` (add `compilations` prop), `progress-dashboard.tsx` (add Recent Compilations section with status, warnings, errors, compile time, relative timestamp) |
+| 8.5 | C-III-1 | CitationSearchDialog deduplication | `project-workspace.tsx` (remove duplicate instance + state), `citation-list-panel.tsx` (make `onAddCitation` optional). Kept editor instance (inserts at cursor) --- see Deviations |
+| 8.7 | IV-A4 | XSS fix in title-page-preview | `title-page-preview.tsx` (DOMPurify sanitisation via dynamic `import()` --- SSR-safe) |
+| 8.8 | IV-A5 | Content-Disposition header fix (DOCX export) | `export/docx/route.ts` (sanitise filename, RFC 5987 `filename*`, correct Content-Type to `text/plain`) |
+| 8.12 | IV-A7, IV-A8 | Server-side file upload size enforcement | `datasets/route.ts` (50 MB dual check: Content-Length + file.size), `figures/route.ts` (same), `lib/r2/client.ts` (`generateUploadUrl` accepts optional `fileSize`, validates against `MAX_FILE_SIZE`, passes as `ContentLength` to `PutObjectCommand`), `upload/signed-url/route.ts` (accept+validate `fileSize` from client, pass to `generateUploadUrl`), `file-uploader.tsx` (send `file.size` as `fileSize` in signed-url request) |
+| 8.13 | IV-C6 | R Plumber Bearer authentication | `lib/r-plumber/client.ts` (add `Authorization: Bearer` header), `docker-compose.yml` (`ports` changed to `expose`, add `R_PLUMBER_SECRET` env), `docker/plumber.R` (add `@plumber` auth filter, exempt `/health`), `.env.example` (add `R_PLUMBER_SECRET`) |
+| 8.14 | W11 | Review PDF access for token-based reviewers | `app/api/review/[token]/preview.pdf/route.ts` (new --- validates review token, serves PDF via R2 signed URL or local fallback), `app/api/review/[token]/route.ts` (update `pdf_url` to token-scoped path) |
+| 8.15 (NEW) | (SSOT violation) | ProgressDashboard word count SSOT fix | `progress-dashboard.tsx` (removed hardcoded `wordTargets`, imported `getWordCountConfig` from SSOT) |
+
+### Items Skipped
+
+| Item | Review IDs | Reason |
+|------|-----------|--------|
+| 8.6 | W10 | Licence transfer --- admin-only per DECISIONS.md 8.6, no UI code needed |
+| 8.9 | C-III-2 | Editor toggle visibility --- post-Phase 4 migration to CodeMirror 6, the toggle is already correct |
+| 8.10 | C-III-3 | Mobile tab reset --- `mobileTab` state resets correctly via React re-render on phase change |
+| 8.11 | X1 | Phase navigation loading state --- phase navigation is synchronous (`setViewingPhase` is state-only), no async fetch involved |
+
+### Deviations from Mitigation Plan
+
+1. **8.5 direction reversed.** Plan says "Remove the instance in SectionEditor. Use workspace-level state consistently." Implementation did the opposite: removed the workspace instance and kept the `latex-editor.tsx` instance. This is correct because the editor instance inserts `\cite{key}` at cursor position --- the workspace-level instance has no editor reference and cannot do cursor insertion. SectionEditor was already removed in Phase 4.
+
+2. **8.13 auth header name changed.** Plan specifies `X-Service-Auth` header. Implementation uses `Authorization: Bearer <token>` instead. Bearer authentication is the HTTP standard (RFC 6750) and is better supported by middleware/proxies. The shared secret is the same --- only the transport mechanism changed.
+
+3. **DOCX export option removed from ExportMenu.** The "DOCX" export was a duplicate of "LaTeX Source" --- both returned raw `.tex` files (pandoc conversion requires Docker, which is deferred). Removed to avoid user confusion.
+
+### Audit Findings (Post-Implementation)
+
+During the Phase 8 audit, the following additional issues were discovered and fixed:
+
+| Finding | Severity | Description | Fix |
+|---------|----------|-------------|-----|
+| C1 | CRITICAL | Item 8.4 (Compilation History) was not implemented | Added compilations fetch + display in ProgressDashboard |
+| C2 | CRITICAL | IV-A7: R2 signed URL had no ContentLength constraint | ~~First fix (`ContentLength: MAX_FILE_SIZE`) was catastrophically wrong~~ --- hardcoded 50 MB forces exact-match, breaking all smaller uploads. Corrected: `generateUploadUrl` now accepts optional `fileSize` from client, validates it server-side, passes as `ContentLength` only when provided. Client sends `file.size` in signed-url request. |
+| C3 | CRITICAL | Export access tiers didn't match DECISIONS.md 8.4 | Added `currentPhase` prop, sandbox=PDF-only, licensed 6b+=full |
+| H1 | HIGH | DOMPurify SSR risk (top-level import requires `window`) | Changed to dynamic `import()` inside `useEffect` |
+| H3+H4 | HIGH | DOCX option misleading + duplicate of LaTeX Source | Removed DOCX from ExportMenu |
+| M3 | MEDIUM | Redundant `return()` after `plumber::forward()` in plumber.R | Changed to `return(plumber::forward())` |
+| M4 | MEDIUM | Unsafe `Uint8Array` cast in review PDF route | Changed to `new Uint8Array(pdfBytes)` for type safety |
+| L1 | LOW | Tour steps didn't match DECISIONS.md 8.3 spec | Updated to: pipeline timeline, editor, citation panel, compile button |
+
+### Second Audit Findings (Post-Fix Verification)
+
+A second comprehensive audit discovered and fixed 3 additional issues:
+
+| Finding | Severity | Description | Fix |
+|---------|----------|-------------|-----|
+| SA-1 | CRITICAL | C2 first fix was catastrophically wrong: `ContentLength: MAX_FILE_SIZE` on `PutObjectCommand` forces exact 50 MB match on presigned uploads, breaking ALL smaller files | Rewrote: `generateUploadUrl` accepts optional `fileSize`, validates server-side, passes as `ContentLength` only when provided. Updated signed-url route + client uploader to pass `file.size`. |
+| SA-2 | HIGH | Tour overlay `data-tour` attributes missing from workspace DOM --- tour steps targeted `[data-tour='pipeline']` etc. but no elements had these attributes | Added `data-tour="pipeline"` on PipelineTimeline wrapper, `data-tour="compile"` on action bar, `data-tour="citations"` on CitationListPanel wrapper, `data-tour="editor"` on editor panel |
+| SA-3 | HIGH | Phase 6a vs 6b export gating: all export routes checked `currentPhase < 6` which allows Phase 6a access. DECISIONS.md 8.4 says "Phase 6b+" | Updated `licence-gate.ts` to return `analysisPlanStatus`. All 4 export routes now check `currentPhase === 6 && analysisPlanStatus !== "approved"`. UI gate in workspace updated to `currentPhase > 6 \|\| (currentPhase === 6 && analysis_plan_status === "approved")`. |
+
+### Files Created
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `app/api/review/[token]/preview.pdf/route.ts` | ~105 | Token-scoped PDF proxy for reviewers |
+| `components/error-boundary.tsx` | ~63 | React class component ErrorBoundary |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `project-workspace.tsx` | Import/render ExportMenu, ErrorBoundary, TourOverlay; add `compilations` prop; remove CitationSearchDialog |
+| `page.tsx` | Fetch last 3 compilations, pass to workspace |
+| `progress-dashboard.tsx` | SSOT word counts, compilation history section |
+| `export-menu.tsx` | Remove DOCX option, add `currentPhase` prop, tiered export access |
+| `thesis-completion.tsx` | Pass `currentPhase` to ExportMenu |
+| `title-page-preview.tsx` | DOMPurify dynamic import (SSR-safe) |
+| `export/docx/route.ts` | Sanitised filename, RFC 5987, correct Content-Type |
+| `datasets/route.ts` | 50 MB dual upload size check |
+| `figures/route.ts` | 50 MB dual upload size check |
+| `lib/r2/client.ts` | `generateUploadUrl` accepts optional `fileSize`, validates against `MAX_FILE_SIZE`, conditionally passes `ContentLength` |
+| `upload/signed-url/route.ts` | Accept `fileSize` from client, validate server-side (413 on exceed), pass to `generateUploadUrl` |
+| `file-uploader.tsx` | Send `file.size` as `fileSize` in signed-url request body |
+| `lib/api/licence-gate.ts` | Return `analysisPlanStatus` in gate result, query `analysis_plan_status` column |
+| `lib/r-plumber/client.ts` | Bearer token auth on both functions |
+| `docker/plumber.R` | `@plumber` auth filter with `/health` exemption |
+| `docker/docker-compose.yml` | `expose` instead of `ports`, `R_PLUMBER_SECRET` env |
+| `apps/web/.env.example` | Add `R_PLUMBER_SECRET` |
+| `review/[token]/route.ts` | Token-scoped `pdf_url` |
+| `citation-list-panel.tsx` | `onAddCitation` optional |
+| `tour-overlay.tsx` | Updated steps to match DECISIONS.md 8.3 |
+
+---
+
 ## Appendix: Review ID Cross-Reference
 
 Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
@@ -729,3 +828,22 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 | C4 | Appendices content never rendered in PDF | 7 |
 | C5 | Abbreviations never injected into template | 7 |
 | C7 | `mathrsfs` package missing from Docker | 7 |
+| W2 | Compilation history API exists but not displayed | 8 |
+| W5--W8 | Export routes exist but not in workspace | 8 |
+| W10 | Licence transfer UI missing | 8 (skipped --- admin-only) |
+| W11 | Review PDF URL requires auth session | 8 |
+| X1 | No loading state for phase navigation | 8 (skipped --- synchronous) |
+| X2 | No error boundary in workspace | 8 |
+| M3 | `tour-overlay.tsx` exists but not rendered | 8 |
+| C-III-1 | Duplicate CitationSearchDialog | 8 |
+| C-III-2 | Editor toggle visible when non-editable | 8 (skipped --- already correct post-Phase 4) |
+| C-III-3 | Mobile tab resets on phase change | 8 (skipped --- correct behaviour) |
+| C-III-5 | ExportMenu only in ThesisCompletion | 8 |
+| IV-A4 | XSS via `dangerouslySetInnerHTML` | 8 |
+| IV-A5 | Content-Disposition header injection | 8 |
+| IV-A7 | File size not enforced on R2 signed URLs | 8 |
+| IV-A8 | Dataset upload no size check | 8 |
+| IV-C6 | R Plumber no inter-service auth | 8 |
+| DECISIONS 8.3 | Onboarding tour wiring | 8 |
+| DECISIONS 8.4 | Export access tiers (sandbox/licensed/completed) | 8 |
+| DECISIONS 8.5 | Compilation history in Progress tab | 8 |

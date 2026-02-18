@@ -52,8 +52,8 @@ export async function GET(
       .in("status", ["approved", "review"])
       .order("phase_number");
 
-    // Build PDF URL
-    const pdfUrl = `/api/projects/${reviewToken.project_id}/preview.pdf`;
+    // Build PDF URL — token-scoped so unauthenticated reviewers can access
+    const pdfUrl = `/api/review/${token}/preview.pdf`;
 
     return NextResponse.json({
       data: {

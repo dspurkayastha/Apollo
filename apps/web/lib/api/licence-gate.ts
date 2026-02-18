@@ -1,7 +1,7 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkLicenceExpiry } from "./licence-expiry";
-import type { ProjectStatus } from "@/lib/types/database";
+import type { ProjectStatus, AnalysisPlanStatus } from "@/lib/types/database";
 
 /**
  * Check that a project is licensed or completed before allowing export.
@@ -11,12 +11,12 @@ import type { ProjectStatus } from "@/lib/types/database";
 export async function checkLicenceGate(
   projectId: string,
   userId: string
-): Promise<{ status: ProjectStatus; currentPhase: number } | NextResponse> {
+): Promise<{ status: ProjectStatus; currentPhase: number; analysisPlanStatus: AnalysisPlanStatus } | NextResponse> {
   const supabase = createAdminSupabaseClient();
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, status, user_id, license_id, current_phase")
+    .select("id, status, user_id, license_id, current_phase, analysis_plan_status")
     .eq("id", projectId)
     .single();
 
@@ -65,5 +65,9 @@ export async function checkLicenceGate(
     }
   }
 
-  return { status, currentPhase: project.current_phase as number };
+  return {
+    status,
+    currentPhase: project.current_phase as number,
+    analysisPlanStatus: (project.analysis_plan_status ?? "pending") as AnalysisPlanStatus,
+  };
 }

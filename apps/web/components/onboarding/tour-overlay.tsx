@@ -9,29 +9,36 @@ const TOUR_STEPS = [
   {
     title: "Welcome to Apollo",
     description:
-      "Apollo helps you generate a publication-ready medical thesis step by step. Let's take a quick tour!",
+      "Apollo helps you generate a publication-ready medical thesis step by step. Let\u2019s take a quick tour of the workspace!",
     target: null, // No specific element
     position: "center" as const,
   },
   {
-    title: "Navigation Sidebar",
+    title: "Pipeline Timeline",
     description:
-      "Use the sidebar to navigate between your dashboard, projects, and settings. It collapses when you're in the editor.",
-    target: "[data-tour='sidebar']",
-    position: "right" as const,
-  },
-  {
-    title: "Create Your First Project",
-    description:
-      "Click 'New Project' to start. Upload your synopsis, select your university, and Apollo will guide you through each phase.",
-    target: "[data-tour='new-project']",
+      "Your thesis follows the GOLD Standard 12-phase methodology. Each dot represents a phase \u2014 complete and approve each one before moving to the next.",
+    target: "[data-tour='pipeline']",
     position: "bottom" as const,
   },
   {
-    title: "Phase Pipeline",
+    title: "Editor",
     description:
-      "Each thesis follows the GOLD Standard 12-phase methodology. Complete and approve each phase before moving to the next.",
-    target: "[data-tour='pipeline']",
+      "Write and refine your thesis here. The AI generates LaTeX content for each phase, and you can edit it directly in the code editor.",
+    target: "[data-tour='editor']",
+    position: "right" as const,
+  },
+  {
+    title: "Citation Panel",
+    description:
+      "Track your references and their verification status. Tier A citations are fully verified; Tier D need attention before Final QC.",
+    target: "[data-tour='citations']",
+    position: "top" as const,
+  },
+  {
+    title: "Compile & Export",
+    description:
+      "Hit Compile to generate your PDF preview. Once you reach Phase 6, the Export menu unlocks PDF, LaTeX source, and statistics downloads.",
+    target: "[data-tour='compile']",
     position: "bottom" as const,
   },
 ];

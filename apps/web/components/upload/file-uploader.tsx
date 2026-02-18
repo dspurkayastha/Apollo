@@ -130,6 +130,7 @@ export function FileUploader({
             fileName: file.name,
             contentType: file.type,
             projectId,
+            fileSize: file.size,
           }),
         });
 

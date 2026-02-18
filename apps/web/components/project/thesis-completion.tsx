@@ -306,7 +306,7 @@ export function ThesisCompletion({
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Button>
-        <ExportMenu projectId={project.id} projectStatus={project.status} />
+        <ExportMenu projectId={project.id} projectStatus={project.status} currentPhase={project.current_phase} />
       </motion.div>
     </div>
   );

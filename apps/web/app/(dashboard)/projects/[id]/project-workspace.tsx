@@ -12,6 +12,7 @@ import type {
   Analysis,
   Figure,
   ComplianceCheck,
+  Compilation,
 } from "@/lib/types/database";
 import type { ReviewIssue } from "@/lib/ai/review-section";
 import { PHASES } from "@/lib/phases/constants";
@@ -26,8 +27,10 @@ import { useGlassSidebar } from "@/components/layout/glass-sidebar-provider";
 import { useSupabaseClient } from "@/lib/supabase/client";
 import { FileText, Eye, CheckCircle2, Loader2 } from "lucide-react";
 import { CitationListPanel } from "@/components/project/citation-list-panel";
-import { CitationSearchDialog } from "@/components/project/citation-search-dialog";
 import { ThesisCompletion } from "@/components/project/thesis-completion";
+import { ExportMenu } from "@/components/project/export-menu";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { TourOverlay } from "@/components/onboarding/tour-overlay";
 import { DatasetUpload } from "@/components/project/dataset-upload";
 import { AnalysisWizard } from "@/components/project/analysis-wizard";
 import { ComplianceDashboard } from "@/components/project/compliance-dashboard";
@@ -83,6 +86,7 @@ interface ProjectWorkspaceProps {
   analyses: Analysis[];
   figures: Figure[];
   complianceChecks: ComplianceCheck[];
+  compilations: Compilation[];
   latestPdfUrl?: string | null;
   devLicenceBypass?: boolean;
 }
@@ -98,6 +102,7 @@ export function ProjectWorkspace({
   analyses,
   figures,
   complianceChecks,
+  compilations,
   latestPdfUrl,
   devLicenceBypass,
 }: ProjectWorkspaceProps) {
@@ -111,7 +116,6 @@ export function ProjectWorkspace({
   const [pdfKey, setPdfKey] = useState(0);
   const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([]);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
-  const [citationSearchOpen, setCitationSearchOpen] = useState(false);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("editor");
   const [mermaidEditorOpen, setMermaidEditorOpen] = useState(false);
 
@@ -363,13 +367,15 @@ export function ProjectWorkspace({
       )}
 
       {/* Pipeline Timeline */}
-      <PipelineTimeline
-        currentPhase={project.current_phase}
-        phasesCompleted={project.phases_completed}
-        projectStatus={project.status}
-        devLicenceBypass={devLicenceBypass}
-        onPhaseClick={isCompleted ? undefined : setViewingPhase}
-      />
+      <div data-tour="pipeline">
+        <PipelineTimeline
+          currentPhase={project.current_phase}
+          phasesCompleted={project.phases_completed}
+          projectStatus={project.status}
+          devLicenceBypass={devLicenceBypass}
+          onPhaseClick={isCompleted ? undefined : setViewingPhase}
+        />
+      </div>
 
       {/* Completed — show celebration view */}
       {isCompleted && (
@@ -383,7 +389,7 @@ export function ProjectWorkspace({
 
       {!isCompleted && <>
       {/* Action Bar */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3" data-tour="compile">
         {isCurrentPhase && AI_GENERATABLE_PHASES.has(viewingPhase) && (
           <AIGenerateButton
             projectId={project.id}
@@ -423,6 +429,12 @@ export function ProjectWorkspace({
             setPdfKey((k) => k + 1);
           }}
         />
+
+        {/* Show export menu from Phase 6b onwards (DECISIONS.md 8.4) */}
+        {(project.current_phase > 6 ||
+          (project.current_phase === 6 && project.analysis_plan_status === "approved")) && (
+          <ExportMenu projectId={project.id} projectStatus={project.status} currentPhase={project.current_phase} />
+        )}
 
       </div>
 
@@ -595,6 +607,7 @@ export function ProjectWorkspace({
           sections={sections}
           citations={citations}
           complianceChecks={complianceChecks}
+          compilations={compilations}
         />
       )}
 
@@ -602,11 +615,12 @@ export function ProjectWorkspace({
       {workspaceTab === "editor" && (
         <>
       {/* Citations panel */}
-      <CitationListPanel
-        projectId={project.id}
-        citations={citations}
-        onAddCitation={() => setCitationSearchOpen(true)}
-      />
+      <div data-tour="citations">
+        <CitationListPanel
+          projectId={project.id}
+          citations={citations}
+        />
+      </div>
 
       {/* Mobile tab toggle */}
       <div className="flex gap-1 rounded-full border border-black/[0.06] bg-white p-0.5 md:hidden">
@@ -634,8 +648,10 @@ export function ProjectWorkspace({
       <div className="hidden md:block">
         <PanelGroup orientation="horizontal" className="min-h-[70vh]">
           <Panel defaultSize={50} minSize={30} className="pr-0">
-            <div className="h-full rounded-2xl bg-white p-10 landing-card-elevated">
-              {renderEditor()}
+            <div className="h-full rounded-2xl bg-white p-10 landing-card-elevated" data-tour="editor">
+              <ErrorBoundary>
+                {renderEditor()}
+              </ErrorBoundary>
             </div>
           </Panel>
           <PanelResizeHandle className="group flex w-12 items-center justify-center">
@@ -643,7 +659,9 @@ export function ProjectWorkspace({
           </PanelResizeHandle>
           <Panel defaultSize={50} minSize={25} className="pl-0">
             <div className="h-full overflow-auto rounded-2xl bg-[#FDFDFD] landing-card-elevated">
-              <PdfViewer key={pdfKey} url={pdfUrl} projectId={project.id} isSandbox={project.status === "sandbox"} />
+              <ErrorBoundary>
+                <PdfViewer key={pdfKey} url={pdfUrl} projectId={project.id} isSandbox={project.status === "sandbox"} />
+              </ErrorBoundary>
             </div>
           </Panel>
         </PanelGroup>
@@ -654,12 +672,16 @@ export function ProjectWorkspace({
         <div
           className={mobileTab === "preview" ? "hidden" : ""}
         >
-          {renderEditor()}
+          <ErrorBoundary>
+            {renderEditor()}
+          </ErrorBoundary>
         </div>
         <div
           className={mobileTab === "edit" ? "hidden" : ""}
         >
-          <PdfViewer key={pdfKey} url={pdfUrl} projectId={project.id} isSandbox={project.status === "sandbox"} />
+          <ErrorBoundary>
+            <PdfViewer key={pdfKey} url={pdfUrl} projectId={project.id} isSandbox={project.status === "sandbox"} />
+          </ErrorBoundary>
         </div>
       </div>
         </>
@@ -750,18 +772,10 @@ export function ProjectWorkspace({
         }}
       />
 
-      {/* Citation search dialog */}
-      <CitationSearchDialog
-        projectId={project.id}
-        open={citationSearchOpen}
-        onOpenChange={setCitationSearchOpen}
-        onInsert={(citeKey) => {
-          setCitationSearchOpen(false);
-          // Refresh to show new citation in panel
-          router.refresh();
-        }}
-      />
       </>}
+
+      {/* Onboarding tour — shows once for first-time users */}
+      <TourOverlay />
     </div>
   );
 }

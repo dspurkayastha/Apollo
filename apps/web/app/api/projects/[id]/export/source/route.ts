@@ -20,13 +20,17 @@ export async function GET(
     const gateResult = await checkLicenceGate(id, authResult.user.id);
     if (gateResult instanceof NextResponse) return gateResult;
 
-    // Block downloads for licensed projects before Phase 6
-    if (gateResult.status === "licensed" && gateResult.currentPhase < 6) {
+    // Block downloads for licensed projects before Phase 6b (DECISIONS.md 8.4)
+    if (
+      gateResult.status === "licensed" &&
+      (gateResult.currentPhase < 6 ||
+        (gateResult.currentPhase === 6 && gateResult.analysisPlanStatus !== "approved"))
+    ) {
       return NextResponse.json(
         {
           error: {
             code: "DOWNLOAD_RESTRICTED",
-            message: "Source download available from Phase 6 onwards. Use the preview panel.",
+            message: "Source download available from Phase 6b onwards. Use the preview panel.",
           },
         },
         { status: 403 }
