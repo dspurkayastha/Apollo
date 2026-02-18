@@ -325,6 +325,141 @@ Rollback: No schema changes to reverse (column comment only). To reverse Phase 4
 
 ---
 
+## Phase 5: AI Pipeline Overhaul
+
+**Status**: COMPLETE
+**Commit**: (pending)
+**Duration**: ~3 days (including comprehensive audit + fixes)
+**Tests**: 314 passing (31 files), 0 TypeScript errors, 0 lint errors
+**Scope**: 5 new files + 2 migrations + 32 modified files + 2 deleted files. ~1,000 lines added/changed, ~650 removed.
+
+### Items Implemented
+
+| Item | Review IDs | Description | Files Changed |
+|------|-----------|-------------|---------------|
+| 5.1 | A5, E6, F2 | Unified word count targets --- single source of truth in `word-count-config.ts` matching DECISIONS.md 4.1. All prompts use `wordCountInstruction()` helper. Hard ceiling = `ceil(softMax * 1.15)`. | `lib/phases/word-count-config.ts` (new), `lib/phases/word-count-targets.ts` (imports from config), `lib/ai/prompts.ts` (dynamic word counts), `lib/ai/review-section.ts` (uses config for checks) |
+| 5.2 | A3 | Remove context truncation --- `.slice(0, 3000)` removed from `getPhaseUserMessage()`. Discussion now receives full ROL context. | `lib/ai/prompts.ts` |
+| 5.3 + 5.4 | A7, A8, E4, F4 | Token budget enforcement --- split input/output tracking, budget check on refine + dataset generate routes, recording on all AI routes (synopsis parse, auto-detect, compliance checker, dataset generate) | `lib/ai/token-budget.ts`, `sections/[phase]/refine/route.ts`, `datasets/generate/route.ts` (budget check), `synopsis/parse/route.ts`, `analyses/auto-detect/route.ts`, `compliance/checker.ts`, `datasets/generate.ts` (recording) |
+| 5.5 | A1 | Phase 9 References Consolidation prompt --- AI reviews all BibTeX entries for duplicates, formatting, missing fields, Vancouver compliance. Produces consolidated BibTeX + quality report. | `lib/ai/prompts.ts` (`REFERENCES_CONSOLIDATION_SYSTEM_PROMPT`, `case 9` in both `getPhaseSystemPrompt` and `getPhaseUserMessage`) |
+| 5.6 | A10, A11 | AI-powered section review --- `aiReviewSection()` calls Haiku with 6 quality dimensions (completeness, logical flow, citation adequacy, methodological rigour, academic tone, synopsis alignment). M&M section check corrected from 8 to 12 headings per NBEMS mandate. Wired into approve route as non-blocking quality check. | `lib/ai/review-section.ts` (150+ lines), `lib/ai/prompts.ts` (`SECTION_REVIEW_SYSTEM_PROMPT`), `sections/[phase]/approve/route.ts` (integration) |
+| 5.7 | A12 | Opus model routing --- Professional plan users get Opus for Introduction (Phase 2) and Discussion (Phase 7). Uses `gateResult.planConfig.modelTier` from licence gate. Dead conditional eliminated. | `sections/[phase]/generate/route.ts` |
+| 5.8 | A4, F3 | Unicode avoidance in COMMON\_RULES --- rule 10 mandates ASCII/LaTeX equivalents for em-dash, en-dash, smart quotes, accented characters. BibTeX trailer completeness rule strengthened (rule 9). | `lib/ai/prompts.ts` |
+| 5.9 | A13, A14 | Anthropic client retry + singleton --- `maxRetries: 3`, `timeout: 120_000`. Standalone `new Anthropic()` instances in `datasets/generate.ts` and `compliance/checker.ts` replaced with `getAnthropicClient()` singleton. | `lib/ai/client.ts`, `lib/datasets/generate.ts`, `lib/compliance/checker.ts` |
+| 5.10 | IV-E4, DECISIONS 3.5 | Inngest background generation + Supabase Realtime --- AI generation runs as Inngest background job (5-step function: stream, save, record tokens, BibTeX completion, resolve citations). Frontend subscribes to `streaming_content` column via Realtime for live preview. Generation continues if student closes tab. | `lib/inngest/functions/ai-generate.ts` (new), `sections/[phase]/generate/route.ts` (enqueues Inngest job), `projects/[id]/project-workspace.tsx` (Realtime subscription), `app/api/inngest/route.ts` (register), `components/project/ai-generate-button.tsx` (polling fallback) |
+| 5.11 | E5 | Refine route state management --- refining an approved section now rolls back `phases_completed` and `current_phase`, preventing state inconsistency. | `sections/[phase]/refine/route.ts` |
+| 5.12 | B1 | Orphan cite key stripping --- `stripInvalidCitations()` replaces `stripTierDCitations()`. Strips both Tier D and completely unknown cite keys from compiled output. | `lib/latex/assemble.ts` |
+| 5.13 | B2 | CrossRef/PubMed exponential backoff --- `fetchWithRetry()` wrapper with 3 retries, `1000 * 2^attempt` ms delay. ROL citation timeout increased to 45s (from 15s). | `lib/citations/crossref.ts`, `sections/[phase]/generate/route.ts` |
+| 5.14 | B3, IV-E6 | Citation pipeline batch upserts --- N+1 upsert loop in `auto-resolve.ts` replaced with single batch `supabase.from("citations").upsert(toUpsert)`. Same for orphan Tier D placeholders. | `lib/citations/auto-resolve.ts` |
+| 5.15 | A6 | Synopsis parse prompt deduplication --- merged inline wizard prompt with `SYNOPSIS_PARSE_SYSTEM_PROMPT`. Both routes now use shared prompt extracting all fields (title, study\_type, study\_design, department, aims, objectives, methodology\_summary, sample\_size, duration, setting, inclusion/exclusion criteria, keywords). Synopsis parse route uses shared `parseSynopsisResponse()`. | `lib/ai/prompts.ts`, `lib/ai/parse-synopsis-response.ts`, `app/api/synopsis/parse/route.ts` |
+| NEW | --- | BibTeX trailer integrity validation --- `checkBibtexIntegrity()` verifies every `\cite{key}` has a matching BibTeX entry. `requestMissingBibtexEntries()` makes a targeted follow-up AI request for missing entries. `max_tokens` increased for citation-heavy phases (ROL: 16K, Discussion: 12K, Intro/M\&M: 10K). | `lib/ai/bibtex-completion.ts` (new), `lib/inngest/functions/ai-generate.ts` (integration) |
+
+### Items Deferred from Phase 1 (Resolved)
+
+| Item | Review IDs | Original Deferral | Resolution |
+|------|-----------|-------------------|------------|
+| 1.8 | IV-D1, IV-D2, IV-D3 | PII redaction / metadata sanitisation deferred to Phase 5 | **Removed entirely.** Analysis determined: (a) `synopsis_text` is a research protocol, not patient data --- no PHI present; (b) `metadata_json` contains public academic info (candidate name, guide name, institution) printed on every thesis title page; (c) `redactPII()` caught phone/Aadhaar/PAN which are extremely unlikely in a synopsis; (d) `sanitiseMetadataForAI()` stripped guide names needed for Phase 1 acknowledgements. Both functions deleted. Log sanitisation in `logger.ts` (strips `synopsis_text` from logs) retained as a separate concern. |
+
+### Items Deferred from Phase 2 (Resolved)
+
+| Item | Description | Resolution |
+|------|-------------|------------|
+| 2.5 (full) | Inngest thesis workflow refactor | Implemented in 5.10. Generate route now enqueues `thesis/section.generate` Inngest event. AI streaming runs as background job with Realtime live preview. |
+
+### Items Deferred from Phase 3 (Resolved)
+
+| Item | Description | Resolution |
+|------|-------------|------------|
+| 3.4 | Opus model routing | Implemented in 5.7. `planConfig.modelTier === "opus"` gates Phases 2 and 7 to `claude-opus-4-5-20250514`. |
+
+### Supporting Changes
+
+| Change | Description | Files Changed |
+|--------|-------------|---------------|
+| Database migration 026 | Split token tracking: `input_tokens` and `output_tokens` columns on `ai_conversations`, backfill from `total_tokens` (70/30 split) | `supabase/migrations/026_split_token_tracking.sql` |
+| Database migration 027 | Streaming content column: `streaming_content` text column on `sections` for Realtime live preview | `supabase/migrations/027_add_streaming_content.sql` |
+| TypeScript types | Added `streaming_content` to `Section`, `input_tokens`/`output_tokens` to `AiConversation` | `lib/types/database.ts` |
+| Test mock updates | Added `streaming_content: ""` to all `makeSection()` helpers across 7 test files | `audit.test.ts`, `checker.test.ts`, `nbems.test.ts`, `prisma-flow.test.ts`, `assemble.test.ts`, `citations-e2e.test.ts`, `pipeline-e2e.test.ts` |
+| New tests | Word count config (13 tests), BibTeX completion (6 tests) | `lib/phases/word-count-config.test.ts` (new), `lib/ai/bibtex-completion.test.ts` (new) |
+| Updated tests | CrossRef retry tests, auto-resolve batch tests, word count target import tests, orphan cite key stripping tests, pipeline E2E updates | `crossref.test.ts`, `auto-resolve.test.ts`, `word-count-targets.test.ts`, `assemble.test.ts`, `pipeline-e2e.test.ts` |
+| Stale timeout fix | `STALE_GENERATING_MS` corrected from 2 min to 5 min (matching Inngest job duration) | `sections/[phase]/generate/route.ts` |
+
+### Deviations from Plan
+
+1. **`sanitiseMetadataForAI()` removed instead of applied everywhere (1.8/Step 15).** The mitigation plan specified applying metadata sanitisation to all AI routes. During the audit, analysis showed: synopsis text is a public research protocol (not PHI), metadata fields are public academic info printed on the thesis, and stripping guide names broke Phase 1 front matter generation. Both `redactPII()` and `sanitiseMetadataForAI()` were deleted as unnecessary security theatre. Log sanitisation in `logger.ts` retained independently.
+
+2. **Inngest generation is 5 steps, not 4.** The plan specified 4 steps (stream, save, record tokens, resolve citations). The implementation adds a 5th step: BibTeX integrity check + follow-up request for missing entries. This addresses the truncation problem where `max_tokens` cut off the BibTeX trailer.
+
+3. **Phase 0 retains SSE streaming (not Inngest).** The plan specified moving all generation to Inngest. Phase 0 (synopsis parsing) was kept as SSE because: (a) it's a small, fast operation (~2K tokens), (b) the response is JSON (parsed metadata), not LaTeX, and (c) the setup wizard needs synchronous feedback for the next step. Only Phases 1--8 use Inngest background generation.
+
+4. **Frontend uses polling fallback alongside Realtime.** The plan specified pure Supabase Realtime subscription. The implementation adds a 3-second polling fallback (`setInterval` checking section status) to handle cases where Realtime subscriptions fail silently (e.g., browser tab throttling, WebSocket disconnection). The Realtime subscription remains the primary mechanism; polling is defence-in-depth.
+
+### Bugs Found During Post-Implementation Audit
+
+A comprehensive audit was performed cross-referencing every changed file against REVIEW.md, DECISIONS.md, Mitigation\_plan.md, and the Phase 5 implementation plan. Seven issues were found and fixed:
+
+| Bug | Severity | Description | Resolution |
+|-----|----------|-------------|------------|
+| `aiReviewSection()` dead code | CRITICAL | Function was exported from `review-section.ts` but never called anywhere. AI-powered quality review (DECISIONS.md 3.2) was implemented but not integrated. | Fixed: wired into `approve/route.ts` as non-blocking quality check. Results returned in API response as `ai_review` field. |
+| Missing token recording (4 routes) | HIGH | `recordTokenUsage()` not called in: `datasets/generate.ts`, `analyses/auto-detect/route.ts`, `compliance/checker.ts`, `synopsis/parse/route.ts`. Token budget could never be enforced on these routes. | Fixed: added `recordTokenUsage()` calls with correct phase numbers and model identifiers to all 4 routes. |
+| Missing local migration files | MEDIUM | Migrations 026/027 applied via Supabase MCP but no local SQL files existed. `supabase db reset` would fail to reproduce the schema. | Fixed: created `026_split_token_tracking.sql` and `027_add_streaming_content.sql` in `supabase/migrations/`. |
+| TypeScript type drift | MEDIUM | `Section` interface missing `streaming_content`, `AiConversation` missing `input_tokens`/`output_tokens`. Code writing these columns compiled but types were incomplete. | Fixed: added fields to `lib/types/database.ts`. Updated 7 test files with missing `streaming_content` in mock objects. |
+| Synopsis parse code duplication | LOW | `synopsis/parse/route.ts` had inline JSON parsing (~40 lines) instead of using shared `parseSynopsisResponse()`. Different error handling and coercion logic. | Fixed: rewrote to use `parseSynopsisResponse()`. |
+| `compliance/checker.ts` missing `projectId` | LOW | `batchAICheck()` had no `projectId` parameter, making `recordTokenUsage()` impossible to call with the correct project. | Fixed: added `projectId` parameter, threaded through from `runComplianceCheck()`. |
+| Stale timeout mismatch | LOW | `STALE_GENERATING_MS` was 2 minutes but comment said 5 minutes. With Inngest background generation (which can take 2--3 minutes for ROL), 2 minutes would prematurely reset active generations. | Fixed: changed to 5 minutes, matching both the comment and Inngest job expectations. |
+
+### Lessons Learned
+
+1. **Dead exported functions are invisible bugs.** `aiReviewSection()` was properly implemented, exported, and even had correct types --- but was never called. TypeScript, linting, and tests all passed. The function could have sat unused indefinitely. Lesson: after implementing a function that's designed to be called from a specific integration point, immediately verify the call site exists. A `grep` for the function name across the codebase is the minimum check.
+
+2. **Token recording must be verified at every AI call site, not assumed.** Four routes were missing `recordTokenUsage()`. The token budget system was architecturally sound but operationally incomplete. When adding a cross-cutting concern (logging, budgets, rate limiting), audit ALL call sites --- not just the ones modified in the current PR.
+
+3. **MCP-applied migrations need local counterparts.** Supabase MCP applies migrations directly to the hosted database, bypassing local migration files. This is convenient for development but breaks reproducibility (`supabase db reset` needs local SQL files). Always create the local file alongside or immediately after MCP application.
+
+4. **PII redaction should be proportionate to actual risk.** `redactPII()` and `sanitiseMetadataForAI()` were designed for a threat model that doesn't exist in this application. The synopsis is a public research protocol; the metadata is public academic information. Both functions added complexity (inconsistent application across routes, breaking front matter generation) for zero security benefit. Lesson: evaluate what data actually is before building redaction layers around it.
+
+5. **Inngest background jobs need a stale-detection timeout that exceeds the expected job duration.** The original 2-minute timeout would have incorrectly reset ROL generations that legitimately take 2--3 minutes (16K tokens, citation resolution, BibTeX completion). The timeout must account for the worst-case job duration, not just the streaming phase.
+
+6. **BibTeX trailer truncation is a predictable failure mode.** When `max_tokens` is tight and the AI prioritises chapter content over BibTeX entries, the trailer gets truncated. This was addressed with three mitigations: (a) increased `max_tokens` for citation-heavy phases, (b) strengthened the prompt instruction to prioritise completing all entries, (c) post-generation integrity check with targeted follow-up request for missing entries. Defence-in-depth is appropriate for AI output reliability.
+
+### Migration Note
+
+Two migrations must be applied before the code goes live:
+
+**Migration `026_split_token_tracking.sql`**:
+- Adds `input_tokens` (integer, default 0) and `output_tokens` (integer, default 0) to `ai_conversations`
+- Backfills from `total_tokens` (70% input, 30% output approximation)
+
+**Migration `027_add_streaming_content.sql`**:
+- Adds `streaming_content` (text, default '') to `sections`
+- Used by Realtime subscriptions for live preview during generation
+
+Rollback:
+```sql
+ALTER TABLE public.ai_conversations DROP COLUMN IF EXISTS input_tokens, output_tokens;
+ALTER TABLE public.sections DROP COLUMN IF EXISTS streaming_content;
+```
+
+### Deleted Files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `lib/ai/redact.ts` | 66 | PII redaction (`redactPII`) and metadata sanitisation (`sanitiseMetadataForAI`) --- removed as unnecessary (no PHI in system) |
+| `lib/ai/redact.test.ts` | 125 | Tests for deleted redaction functions (12 tests) |
+
+### New Files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `lib/phases/word-count-config.ts` | 60 | Canonical word count SSOT (soft/hard limits, AI aim ranges) |
+| `lib/phases/word-count-config.test.ts` | 50 | Tests for word count config (13 tests) |
+| `lib/ai/bibtex-completion.ts` | 80 | BibTeX trailer integrity check + missing entry follow-up |
+| `lib/ai/bibtex-completion.test.ts` | 45 | Tests for BibTeX completion (6 tests) |
+| `lib/inngest/functions/ai-generate.ts` | 100 | Inngest background AI generation function (5-step) |
+| `supabase/migrations/026_split_token_tracking.sql` | 10 | Split token tracking migration |
+| `supabase/migrations/027_add_streaming_content.sql` | 5 | Streaming content column migration |
+
+---
+
 ## Appendix: Review ID Cross-Reference
 
 Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
@@ -374,3 +509,28 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 | C3 | `\label{}` permanently stripped | 4 |
 | C6 | `front-matter.ts` alleged dead code (found to be live) | 4 (not deleted) |
 | DECISIONS 2 | CodeMirror 6 as primary editor, LaTeX canonical | 4 |
+| A1 | Phase 9 prompt missing (no `case 9` in `getPhaseSystemPrompt`) | 5 |
+| A3 | Context truncated to 3,000 chars in `getPhaseUserMessage` | 5 |
+| A4, F3 | No Unicode avoidance rule in COMMON\_RULES | 5 |
+| A5, E6, F2 | Word count targets disagree across 3 files | 5 |
+| A6 | Synopsis parse prompt duplicated (inline vs prompts.ts) | 5 |
+| A7, E4, F4 | Token budget bypassed on refine + dataset routes | 5 |
+| A8 | Input/output tokens conflated in recording | 5 |
+| A10 | Section review is purely rule-based (no AI evaluation) | 5 |
+| A11 | M\&M heading check requires 8, NBEMS mandates 12 | 5 |
+| A12 | Opus model routing dead code (both branches return Sonnet) | 5 |
+| A13 | No retry configuration on Anthropic client | 5 |
+| A14 | Standalone `new Anthropic()` instances bypass singleton | 5 |
+| B1 | Orphan cite keys survive in compiled output | 5 |
+| B2 | No retry for CrossRef/PubMed API failures | 5 |
+| B3 | Re-resolve lacks title verification | 5 |
+| B5 | ROL citation resolution timeout too short (15s) | 5 |
+| E5 | Refine route un-approves without rolling back phases\_completed | 5 |
+| IV-E4 | Inngest + Realtime background generation | 5 |
+| IV-E6 | N+1 citation upsert loop | 5 |
+| IV-D1 | Metadata sanitisation (removed --- no PHI in system) | 5 |
+| DECISIONS 3.1 | Phase 9 AI reviews BibTeX entries | 5 |
+| DECISIONS 3.2 | AI evaluates content quality before approval | 5 |
+| DECISIONS 3.3 | Opus routing for Intro/Discussion (Professional plan) | 5 |
+| DECISIONS 3.5 | Inngest background generation + Realtime live preview | 5 |
+| DECISIONS 4.1 | Canonical word count targets | 5 |

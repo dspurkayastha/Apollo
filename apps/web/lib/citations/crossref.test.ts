@@ -81,10 +81,15 @@ describe("lookupDOI", () => {
   });
 
   it("should return null on timeout/error", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("AbortError"));
+    // fetchWithRetry retries up to 3 times — reject all attempts
+    mockFetch
+      .mockRejectedValueOnce(new Error("AbortError"))
+      .mockRejectedValueOnce(new Error("AbortError"))
+      .mockRejectedValueOnce(new Error("AbortError"))
+      .mockRejectedValueOnce(new Error("AbortError"));
     const result = await lookupDOI("10.1234/timeout");
     expect(result).toBeNull();
-  });
+  }, 30_000);
 
   it("should strip https://doi.org/ prefix", async () => {
     mockFetch

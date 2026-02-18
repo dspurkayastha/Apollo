@@ -69,6 +69,33 @@ export function stripDoiField(bibtex: string): string {
   return bibtex.replace(/^\s*doi\s*=\s*\{[^}]*\},?\s*$/gm, "").trim();
 }
 
+// ── Fetch with exponential backoff retry ─────────────────────────────────────
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || response.status === 404) return response;
+      if (attempt < maxRetries && response.status >= 500) {
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      return response;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
@@ -85,7 +112,7 @@ export async function lookupDOI(
 
   try {
     // Fetch BibTeX via content negotiation
-    const bibtexRes = await fetch(`https://doi.org/${encodeURIComponent(cleanDoi)}`, {
+    const bibtexRes = await fetchWithRetry(`https://doi.org/${encodeURIComponent(cleanDoi)}`, {
       headers: {
         Accept: "application/x-bibtex",
         ...getMailtoHeader(),
@@ -103,7 +130,7 @@ export async function lookupDOI(
     const bibtex = stripDoiField(rawBibtex);
 
     // Fetch structured metadata
-    const metaRes = await fetch(
+    const metaRes = await fetchWithRetry(
       `${CROSSREF_API}/works/${encodeURIComponent(cleanDoi)}`,
       {
         headers: {
@@ -155,7 +182,7 @@ export async function searchCrossRef(
     url.searchParams.set("query", query);
     url.searchParams.set("rows", String(Math.min(rows, 20)));
 
-    const res = await fetch(url.toString(), {
+    const res = await fetchWithRetry(url.toString(), {
       headers: {
         Accept: "application/json",
         ...getMailtoHeader(),

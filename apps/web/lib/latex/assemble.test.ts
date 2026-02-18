@@ -3,6 +3,7 @@ import {
   splitBibtex,
   deduplicateBibEntries,
   stripTierDCitations,
+  stripInvalidCitations,
   assembleThesisContent,
 } from "./assemble";
 import type { Project, Section, Citation } from "@/lib/types/database";
@@ -48,6 +49,7 @@ function makeSection(overrides: Partial<Section> = {}): Section {
     latex_content: "\\section{Background}\nAnaemia is a common condition.",
     rich_content_json: null,
     ai_generated_latex: null,
+    streaming_content: "",
     word_count: 50,
     citation_keys: [],
     status: "approved",
@@ -527,7 +529,7 @@ describe("assembleThesisContent", () => {
     expect(intro).not.toContain("\\cite{unverified2024}");
     expect(intro).toContain("% UNRESOLVED: unverified2024");
     // Warning emitted
-    expect(warnings.some((w) => w.includes("stripped Tier D"))).toBe(true);
+    expect(warnings.some((w) => w.includes("stripped invalid citations"))).toBe(true);
     // Tier D BibTeX excluded from output
     expect(bib).toContain("verified2024");
     expect(bib).not.toContain("unverified2024");
@@ -599,5 +601,61 @@ describe("stripTierDCitations", () => {
     expect(stripped).not.toContain("\\cite{d2}");
     expect(stripped).toContain("\\cite{good}");
     expect(replacedKeys).toEqual(["d1", "d2"]);
+  });
+});
+
+// ── stripInvalidCitations ──────────────────────────────────────────────────
+
+describe("stripInvalidCitations", () => {
+  it("preserves citations with keys in the valid set", () => {
+    const validKeys = new Set(["known"]);
+    const input = "Text\\cite{known} end.";
+    const { stripped, replacedKeys } = stripInvalidCitations(input, validKeys);
+    expect(stripped).toBe(input);
+    expect(replacedKeys).toHaveLength(0);
+  });
+
+  it("strips citations with keys NOT in the valid set (orphans)", () => {
+    const validKeys = new Set(["known"]);
+    const { stripped, replacedKeys } = stripInvalidCitations(
+      "Text\\cite{orphan} end.",
+      validKeys
+    );
+    expect(stripped).not.toContain("\\cite{orphan}");
+    expect(stripped).toContain("% UNRESOLVED: orphan");
+    expect(replacedKeys).toEqual(["orphan"]);
+  });
+
+  it("partially strips mixed commands: \\cite{a,orphan,b} becomes \\cite{a,b}", () => {
+    const validKeys = new Set(["a", "b"]);
+    const { stripped, replacedKeys } = stripInvalidCitations(
+      "Text\\cite{a,orphan,b} end.",
+      validKeys
+    );
+    expect(stripped).toContain("\\cite{a, b}");
+    // orphan key removed from \cite{} (appears only in UNRESOLVED comment)
+    expect(stripped).not.toContain("\\cite{a, orphan");
+    expect(stripped).toContain("% UNRESOLVED: orphan");
+    expect(replacedKeys).toEqual(["orphan"]);
+  });
+
+  it("strips entire \\cite{} when all keys are invalid", () => {
+    const validKeys = new Set<string>();
+    const { stripped, replacedKeys } = stripInvalidCitations(
+      "Text\\cite{bad1,bad2} end.",
+      validKeys
+    );
+    expect(stripped).not.toContain("\\cite{");
+    expect(stripped).toContain("% UNRESOLVED: bad1");
+    expect(stripped).toContain("% UNRESOLVED: bad2");
+    expect(replacedKeys).toEqual(["bad1", "bad2"]);
+  });
+
+  it("handles text with no citations at all", () => {
+    const validKeys = new Set(["anything"]);
+    const input = "No citations here.";
+    const { stripped, replacedKeys } = stripInvalidCitations(input, validKeys);
+    expect(stripped).toBe(input);
+    expect(replacedKeys).toHaveLength(0);
   });
 });

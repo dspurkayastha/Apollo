@@ -15,6 +15,7 @@ function makeSection(
     latex_content: "",
     rich_content_json: null,
     ai_generated_latex: null,
+    streaming_content: "",
     word_count: 100,
     citation_keys: citationKeys,
     status: "approved",

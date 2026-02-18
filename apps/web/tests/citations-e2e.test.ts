@@ -243,6 +243,7 @@ describe("Citation E2E Pipeline", () => {
       latex_content: "",
       rich_content_json: null,
       ai_generated_latex: null,
+      streaming_content: "",
       word_count: 100,
       citation_keys: keys,
       status: "approved",

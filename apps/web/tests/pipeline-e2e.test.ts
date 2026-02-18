@@ -128,6 +128,7 @@ function makeSection(overrides: Partial<Section> = {}): Section {
     latex_content: "",
     rich_content_json: null,
     ai_generated_latex: null,
+    streaming_content: "",
     word_count: 0,
     citation_keys: [],
     status: "approved",
@@ -221,11 +222,33 @@ describe("Pipeline E2E: AI content → compile", () => {
         }),
       ];
 
+      // Provide citation records so cite keys are not stripped as orphans
+      const introCitations: Citation[] = [
+        "Sanders2013", "Muysoms2016EHS", "Jaykar2022Clinical",
+        "Mishra2022Prospective", "Thompson2023Review",
+      ].map((key, i) => ({
+        id: `c-intro-${i}`,
+        project_id: "pipeline-test",
+        cite_key: key,
+        bibtex_entry: `@article{${key}, title={${key}}}`,
+        provenance_tier: "A" as const,
+        evidence_type: "doi",
+        evidence_value: `10.1000/${key}`,
+        source_doi: `10.1000/${key}`,
+        source_pmid: null,
+        attested_by_user_id: null,
+        attested_at: null,
+        used_in_sections: ["introduction"],
+        serial_number: i + 1,
+        verified_at: null,
+        created_at: new Date().toISOString(),
+      }));
+
       const { chapterFiles, bib, warnings } = assembleThesisContent(
         template,
         makeProject(),
         sections,
-        []
+        introCitations
       );
 
       const intro = chapterFiles["chapters/introduction.tex"];

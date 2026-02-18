@@ -10,6 +10,7 @@ import {
 import { checkRateLimit } from "@/lib/ai/rate-limit";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getAnthropicClient } from "@/lib/ai/client";
+import { recordTokenUsage } from "@/lib/ai/token-budget";
 import {
   autoDetectSchema,
   analysisTypes,
@@ -131,6 +132,11 @@ Respond with ONLY a JSON array of recommendations, no markdown fences or other t
       max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
     });
+
+    // Record token usage (fire-and-forget)
+    const inputTokens = msg.usage?.input_tokens ?? 0;
+    const outputTokens = msg.usage?.output_tokens ?? 0;
+    void recordTokenUsage(id, 6, inputTokens, outputTokens, "claude-haiku-4-5-20251001").catch(console.error);
 
     const text =
       msg.content[0].type === "text" ? msg.content[0].text.trim() : "";

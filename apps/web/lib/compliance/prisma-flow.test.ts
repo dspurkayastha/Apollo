@@ -12,6 +12,7 @@ const makeSection = (phase: number, content: string): Section =>
     rich_content_json: null,
     ai_generated_latex: null,
     ai_conversation_id: null,
+    streaming_content: "",
     word_count: content.split(/\s+/).length,
     citation_keys: [],
     status: "approved",

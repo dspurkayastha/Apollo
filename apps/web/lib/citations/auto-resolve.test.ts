@@ -70,11 +70,13 @@ describe("resolveSectionCitations", () => {
     expect(splitBibtex).toHaveBeenCalledWith("content---BIBTEX---bib");
     expect(resolveAllEntries).toHaveBeenCalled();
     expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        project_id: "project-1",
-        cite_key: "smith2024",
-        provenance_tier: "A",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          project_id: "project-1",
+          cite_key: "smith2024",
+          provenance_tier: "A",
+        }),
+      ]),
       expect.objectContaining({ onConflict: "project_id,cite_key" })
     );
   });
@@ -190,11 +192,13 @@ describe("resolveSectionCitations", () => {
     await resolveSectionCitations("project-1", "content---BIBTEX---bib");
 
     expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cite_key: "new2024",
-        provenance_tier: "D",
-        verified_at: null,
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          cite_key: "new2024",
+          provenance_tier: "D",
+          verified_at: null,
+        }),
+      ]),
       expect.anything()
     );
   });

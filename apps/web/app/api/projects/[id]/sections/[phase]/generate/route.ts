@@ -1,9 +1,7 @@
-import { NextRequest } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/api/auth";
 import {
   unauthorised,
-  notFound,
   badRequest,
   internalError,
   rateLimited,
@@ -13,7 +11,6 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isValidPhase } from "@/lib/phases/transitions";
 import { getPhase } from "@/lib/phases/constants";
 import { getAnthropicClient } from "@/lib/ai/client";
-import { redactPII } from "@/lib/ai/redact";
 import { checkRateLimit } from "@/lib/ai/rate-limit";
 import {
   SYNOPSIS_PARSE_SYSTEM_PROMPT,
@@ -21,16 +18,14 @@ import {
   getPhaseUserMessage,
 } from "@/lib/ai/prompts";
 import { parseSynopsisResponse } from "@/lib/ai/parse-synopsis-response";
-import { extractCiteKeys } from "@/lib/citations/extract-keys";
-import { resolveSectionCitations, type CitationResolutionSummary } from "@/lib/citations/auto-resolve";
 import { preSeedReferences, formatReferencesForPrompt } from "@/lib/citations/pre-seed";
-import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
-import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
+import { checkTokenBudget } from "@/lib/ai/token-budget";
+import { checkLicenceForPhase, type LicenceGateResult } from "@/lib/api/licence-phase-gate";
+import { inngest } from "@/lib/inngest/client";
 import type { Project } from "@/lib/types/database";
-import { NextResponse } from "next/server";
 
 // Sections stuck in "generating" for longer than this are considered stale
-const STALE_GENERATING_MS = 2 * 60 * 1000; // 2 minutes
+const STALE_GENERATING_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function POST(
   request: NextRequest,
@@ -71,7 +66,7 @@ export async function POST(
       return badRequest(`AI generation for Phase ${phaseNumber} is not yet supported`);
     }
 
-    return handleSectionGenerate(phaseNumber, typedProject, supabase);
+    return handleSectionGenerate(phaseNumber, typedProject, supabase, gateResult);
   } catch (err) {
     console.error("Unexpected error in POST generate:", err);
     return internalError();
@@ -143,7 +138,8 @@ function makeStreamCancelHandler(
 async function handleSectionGenerate(
   phaseNumber: number,
   project: Project,
-  supabase: ReturnType<typeof createAdminSupabaseClient>
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  gateResult: LicenceGateResult,
 ) {
   if (!project.synopsis_text) {
     return badRequest("Project has no synopsis text — upload a synopsis first");
@@ -181,14 +177,11 @@ async function handleSectionGenerate(
       content: s.latex_content as string,
     }));
 
-  // Redact PII from synopsis
-  const { redacted: redactedSynopsis } = redactPII(project.synopsis_text);
-
   // Get prompts
   const systemPrompt = getPhaseSystemPrompt(phaseNumber)!;
   let userMessage = getPhaseUserMessage(
     phaseNumber,
-    redactedSynopsis,
+    project.synopsis_text,
     (project.metadata_json ?? {}) as Record<string, unknown>,
     previousSections
   );
@@ -265,6 +258,7 @@ async function handleSectionGenerate(
       phase_number: phaseNumber,
       phase_name: phaseDef?.name ?? `phase_${phaseNumber}`,
       latex_content: "",
+      streaming_content: "",
       word_count: 0,
       citation_keys: [],
       status: "generating",
@@ -272,191 +266,33 @@ async function handleSectionGenerate(
     { onConflict: "project_id,phase_number" }
   );
 
-  // Model routing: Opus for Introduction/Discussion, Sonnet for others
-  // (Haiku used separately for QC/review — see review route)
-  const model = [2, 7].includes(phaseNumber)
-    ? "claude-sonnet-4-5-20250929" // TODO: Switch to Opus when API access available
+  // Model routing: Opus for Introduction/Discussion (Professional plan), Sonnet for others
+  const useOpus = [2, 7].includes(phaseNumber) && gateResult.planConfig?.modelTier === "opus";
+  const model = useOpus
+    ? "claude-opus-4-5-20250514"
     : "claude-sonnet-4-5-20250929";
   // ROL needs most tokens; citation-heavy phases need extra for BibTeX trailer
-  const maxTokens = phaseNumber === 4 ? 12000 : [2, 5, 7].includes(phaseNumber) ? 8000 : 6000;
+  const maxTokens = phaseNumber === 4 ? 16000   // ROL: ~5K body + ~5K BibTeX (30+ refs)
+    : phaseNumber === 7 ? 12000                  // Discussion: ~5K body + ~3K BibTeX (20 refs)
+    : [2, 5].includes(phaseNumber) ? 10000       // Intro/M&M: ~3K body + ~2.5K BibTeX
+    : 6000;                                      // Aims, Conclusion, others
 
-  // Track whether the stream completed normally
-  let streamCompleted = false;
-
-  // Stream response via SSE
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        const client = getAnthropicClient();
-        let fullResponse = "";
-
-        const finalMessage = await Sentry.startSpan(
-          {
-            name: "claude.generate",
-            op: "ai.generate",
-            attributes: {
-              "ai.model": model,
-              "ai.phase": phaseNumber,
-              "ai.max_tokens": maxTokens,
-              "project.id": project.id,
-            },
-          },
-          async () => {
-            const messageStream = client.messages.stream({
-              model,
-              max_tokens: maxTokens,
-              // Prompt caching: system prompt (GOLD Standard rules + phase instructions)
-              // is stable across turns → cache for 60-70% token savings
-              system: [
-                {
-                  type: "text" as const,
-                  text: systemPrompt,
-                  cache_control: { type: "ephemeral" as const },
-                },
-              ],
-              messages: [
-                { role: "user", content: userMessage },
-              ],
-            });
-
-            messageStream.on("text", (text) => {
-              fullResponse += text;
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ type: "delta", text })}\n\n`)
-              );
-            });
-
-            return messageStream.finalMessage();
-          }
-        );
-
-        // Record token usage for budget tracking
-        const totalTokens =
-          (finalMessage.usage?.input_tokens ?? 0) +
-          (finalMessage.usage?.output_tokens ?? 0);
-        void recordTokenUsage(
-          project.id,
-          phaseNumber,
-          totalTokens,
-          model
-        ).catch((err) =>
-          console.error("Failed to record token usage:", err)
-        );
-
-        // Extract citation keys directly from LaTeX (no round-trip)
-        const citationKeys = extractCiteKeys(fullResponse);
-
-        // Count words (rough: strip LaTeX commands)
-        const plainText = fullResponse
-          .replace(/\\[a-zA-Z]+\{[^}]*\}/g, " ")
-          .replace(/\\[a-zA-Z]+/g, " ")
-          .replace(/[{}\\]/g, " ");
-        const wordCount = plainText.split(/\s+/).filter(Boolean).length;
-
-        // Update section with generated content (LaTeX is canonical — no rich_content_json)
-        const { error: updateError } = await supabase
-          .from("sections")
-          .update({
-            latex_content: fullResponse,
-            rich_content_json: null,
-            ai_generated_latex: fullResponse,
-            word_count: wordCount,
-            citation_keys: citationKeys,
-            status: "review",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("project_id", project.id)
-          .eq("phase_number", phaseNumber);
-
-        // Fallback: if update failed (e.g. ai_generated_latex column missing),
-        // retry without ai_generated_latex
-        if (updateError) {
-          console.warn(
-            `Section update failed (phase ${phaseNumber}), retrying without ai_generated_latex:`,
-            updateError.message,
-          );
-          const { error: fallbackError } = await supabase
-            .from("sections")
-            .update({
-              latex_content: fullResponse,
-              rich_content_json: null,
-              word_count: wordCount,
-              citation_keys: citationKeys,
-              status: "review",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("project_id", project.id)
-            .eq("phase_number", phaseNumber);
-
-          if (fallbackError) {
-            console.error(
-              `Section fallback update also failed (phase ${phaseNumber}):`,
-              fallbackError.message,
-            );
-          }
-        }
-
-        streamCompleted = true;
-
-        // Resolve citations from BibTeX trailer (15-second timeout)
-        let citationSummary: CitationResolutionSummary | null = null;
-        try {
-          citationSummary = await Promise.race([
-            resolveSectionCitations(project.id, fullResponse),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
-          ]);
-        } catch (err) {
-          console.error("Citation resolution failed:", err);
-        }
-
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              type: "complete",
-              wordCount,
-              citationKeys,
-              citationSummary,
-            })}\n\n`
-          )
-        );
-
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      } catch (err) {
-        // Reset section status on error
-        await supabase
-          .from("sections")
-          .update({ status: "draft", updated_at: new Date().toISOString() })
-          .eq("project_id", project.id)
-          .eq("phase_number", phaseNumber);
-
-        streamCompleted = true; // Error handled, don't reset again in cancel
-
-        const errorMessage =
-          err instanceof Error ? err.message : "AI generation failed";
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({ type: "error", message: errorMessage })}\n\n`
-          )
-        );
-        controller.close();
-      }
-    },
-    cancel: async () => {
-      // Client disconnected before stream completed — reset section status
-      if (!streamCompleted) {
-        await makeStreamCancelHandler(supabase, project.id, phaseNumber)();
-      }
+  // Enqueue Inngest background job for AI generation
+  await inngest.send({
+    name: "thesis/section.generate",
+    data: {
+      projectId: project.id,
+      phaseNumber,
+      systemPrompt,
+      userMessage,
+      model,
+      maxTokens,
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
+  // Return immediately --- generation continues in background
+  return NextResponse.json({
+    data: { status: "generating", message: "Generation started" },
   });
 }
 
@@ -482,9 +318,6 @@ async function handlePhase0Generate(
   if (isActivelyGenerating) {
     return conflict("Generation already in progress for this section");
   }
-
-  // Redact PII before sending to AI
-  const { redacted: redactedSynopsis } = redactPII(project.synopsis_text);
 
   // Create/update section as "generating"
   const phaseDef = getPhase(0);
@@ -518,7 +351,7 @@ async function handlePhase0Generate(
           messages: [
             {
               role: "user",
-              content: `Parse the following medical thesis synopsis and extract structured metadata as JSON:\n\n${redactedSynopsis}`,
+              content: `Parse the following medical thesis synopsis and extract structured metadata as JSON:\n\n${project.synopsis_text}`,
             },
           ],
         });

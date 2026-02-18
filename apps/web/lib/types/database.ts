@@ -92,6 +92,7 @@ export interface Section {
   latex_content: string;
   rich_content_json: Record<string, unknown> | null;
   ai_generated_latex: string | null;
+  streaming_content: string;
   word_count: number;
   citation_keys: string[];
   status: SectionStatus;
@@ -207,6 +208,8 @@ export interface AiConversation {
   phase_number: number;
   messages_json: Record<string, unknown>[];
   model_used: string;
+  input_tokens: number;
+  output_tokens: number;
   total_tokens: number;
   created_at: string;
 }

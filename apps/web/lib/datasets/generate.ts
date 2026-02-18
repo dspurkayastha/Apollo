@@ -1,7 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
+import { getAnthropicClient } from "@/lib/ai/client";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { DATASET_GENERATION_SYSTEM_PROMPT } from "@/lib/ai/prompts";
+import { recordTokenUsage } from "@/lib/ai/token-budget";
 import type { DatasetGenerateInput } from "@/lib/validation/dataset-schemas";
 import type { ParsedColumn } from "./parse";
 
@@ -79,13 +80,18 @@ export async function generateDataset(
   userPrompt += `\nOutput exactly ${effectiveSampleSize} rows as CSV with headers. No explanation, no markdown fences — just CSV.`;
 
   // 4. Call Claude to generate the dataset
-  const anthropic = new Anthropic();
+  const anthropic = getAnthropicClient();
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-5-20250929",
     max_tokens: 8192,
     system: DATASET_GENERATION_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
   });
+
+  // Record token usage (fire-and-forget)
+  const inputTokens = response.usage?.input_tokens ?? 0;
+  const outputTokens = response.usage?.output_tokens ?? 0;
+  void recordTokenUsage(projectId, 6, inputTokens, outputTokens, "claude-sonnet-4-5-20250929").catch(console.error);
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {

@@ -14,6 +14,7 @@ import { canAdvancePhase } from "@/lib/phases/transitions";
 import { getPhase } from "@/lib/phases/constants";
 import { generateFrontMatterLatex } from "@/lib/latex/front-matter";
 import { auditCitations } from "@/lib/citations/audit";
+import { aiReviewSection } from "@/lib/ai/review-section";
 import type { Project, Section } from "@/lib/types/database";
 import { inngest } from "@/lib/inngest/client";
 import { getPlanConfig } from "@/lib/pricing/config";
@@ -91,6 +92,22 @@ export async function POST(
     }
 
     // At this point status is "review" (either originally or just promoted)
+
+    // AI-powered review (non-blocking — warnings only, never blocks approval)
+    let aiReviewIssues: { severity: string; category: string; message: string }[] = [];
+    if (typedProject.synopsis_text && typedSection.latex_content) {
+      try {
+        aiReviewIssues = await aiReviewSection(
+          typedSection.latex_content,
+          phaseNumber,
+          id,
+          typedProject.synopsis_text,
+          (typedProject.metadata_json ?? {}) as Record<string, unknown>,
+        );
+      } catch {
+        // Non-blocking — AI review failure doesn't prevent approval
+      }
+    }
 
     // Check if project can advance
     const transitionCheck = canAdvancePhase(typedProject, "approved");
@@ -238,7 +255,7 @@ export async function POST(
             latex_content: auditLatex,
             word_count: auditLatex.split(/\s+/).length,
             citation_keys: [],
-            status: "review",
+            status: "draft",
           },
           { onConflict: "project_id,phase_number" }
         );
@@ -297,6 +314,7 @@ export async function POST(
         section: sectionResult.data,
         project: projectResult.data,
         advanced_to_phase: newPhase,
+        ai_review: aiReviewIssues.length > 0 ? aiReviewIssues : undefined,
       },
     });
   } catch (err) {

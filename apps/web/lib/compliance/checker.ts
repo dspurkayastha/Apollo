@@ -1,5 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { getAnthropicClient } from "@/lib/ai/client";
+import { recordTokenUsage } from "@/lib/ai/token-budget";
 import { getChecklist, type ChecklistItem } from "./checklists";
 import type { GuidelineType, Section } from "@/lib/types/database";
 
@@ -106,7 +107,7 @@ export async function runComplianceCheck(
   // Run AI semantic check for ambiguous items (batch)
   if (itemsNeedingAI.length > 0) {
     try {
-      const aiResults = await batchAICheck(itemsNeedingAI);
+      const aiResults = await batchAICheck(projectId, itemsNeedingAI);
       for (const result of aiResults) {
         checkedItems[result.index] = result.checkedItem;
       }
@@ -161,9 +162,10 @@ function quickKeywordCheck(item: ChecklistItem, content: string): number {
  * checking couldn't confidently classify.
  */
 async function batchAICheck(
+  projectId: string,
   items: { item: ChecklistItem; sectionContent: string; index: number }[]
 ): Promise<{ index: number; checkedItem: CheckedItem }[]> {
-  const anthropic = new Anthropic();
+  const anthropic = getAnthropicClient();
 
   // Build a single prompt for all items
   const itemDescriptions = items
@@ -185,6 +187,11 @@ async function batchAICheck(
       },
     ],
   });
+
+  // Record token usage (compliance checks count towards Phase 11 / Final QC)
+  const inputTk = response.usage?.input_tokens ?? 0;
+  const outputTk = response.usage?.output_tokens ?? 0;
+  void recordTokenUsage(projectId, 11, inputTk, outputTk, "claude-haiku-4-5-20251001").catch(console.error);
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") return [];

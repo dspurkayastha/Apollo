@@ -11,6 +11,7 @@ function makeSection(phase: number, wordCount: number, content = ""): Section {
     latex_content: content,
     rich_content_json: null,
     ai_generated_latex: null,
+    streaming_content: "",
     word_count: wordCount,
     citation_keys: [],
     status: "approved",

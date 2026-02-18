@@ -7,7 +7,6 @@
  * - Hard-stop at budget (no partial generation)
  *
  * Uses Supabase `ai_conversations` table for persistent tracking.
- * Falls back to in-memory cache if DB unavailable.
  */
 
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -26,6 +25,7 @@ export interface TokenBudgetResult {
 
 /**
  * Check if a project has budget remaining for the given phase.
+ * Phase budget checks output_tokens only; thesis budget checks total.
  */
 export async function checkTokenBudget(
   projectId: string,
@@ -36,41 +36,42 @@ export async function checkTokenBudget(
   // Fetch all AI conversations for this project
   const { data: conversations } = await supabase
     .from("ai_conversations")
-    .select("phase_number, total_tokens")
+    .select("phase_number, total_tokens, output_tokens")
     .eq("project_id", projectId);
 
   const records = conversations ?? [];
 
   // Calculate totals
   let totalTokensUsed = 0;
-  let phaseTokensUsed = 0;
+  let phaseOutputTokensUsed = 0;
 
   for (const conv of records) {
-    const tokens = (conv.total_tokens as number) ?? 0;
-    totalTokensUsed += tokens;
+    const total = (conv.total_tokens as number) ?? 0;
+    const output = (conv.output_tokens as number) ?? 0;
+    totalTokensUsed += total;
     if ((conv.phase_number as number) === phaseNumber) {
-      phaseTokensUsed += tokens;
+      phaseOutputTokensUsed += output;
     }
   }
 
-  const phaseRemaining = MAX_OUTPUT_TOKENS_PER_PHASE - phaseTokensUsed;
+  const phaseRemaining = MAX_OUTPUT_TOKENS_PER_PHASE - phaseOutputTokensUsed;
   const totalRemaining = MAX_TOTAL_TOKENS_PER_THESIS - totalTokensUsed;
 
-  if (phaseTokensUsed >= MAX_OUTPUT_TOKENS_PER_PHASE) {
+  if (phaseOutputTokensUsed >= MAX_OUTPUT_TOKENS_PER_PHASE) {
     return {
       allowed: false,
-      phaseTokensUsed,
+      phaseTokensUsed: phaseOutputTokensUsed,
       totalTokensUsed,
       phaseRemaining: 0,
       totalRemaining: Math.max(0, totalRemaining),
-      reason: `Phase ${phaseNumber} token budget exhausted (${phaseTokensUsed.toLocaleString()} / ${MAX_OUTPUT_TOKENS_PER_PHASE.toLocaleString()})`,
+      reason: `Phase ${phaseNumber} output token budget exhausted (${phaseOutputTokensUsed.toLocaleString()} / ${MAX_OUTPUT_TOKENS_PER_PHASE.toLocaleString()})`,
     };
   }
 
   if (totalTokensUsed >= MAX_TOTAL_TOKENS_PER_THESIS) {
     return {
       allowed: false,
-      phaseTokensUsed,
+      phaseTokensUsed: phaseOutputTokensUsed,
       totalTokensUsed,
       phaseRemaining: Math.max(0, phaseRemaining),
       totalRemaining: 0,
@@ -80,7 +81,7 @@ export async function checkTokenBudget(
 
   return {
     allowed: true,
-    phaseTokensUsed,
+    phaseTokensUsed: phaseOutputTokensUsed,
     totalTokensUsed,
     phaseRemaining: Math.max(0, phaseRemaining),
     totalRemaining: Math.max(0, totalRemaining),
@@ -89,12 +90,14 @@ export async function checkTokenBudget(
 
 /**
  * Record token usage after a successful generation.
+ * Accepts separate input/output token counts.
  * Returns the conversation ID for linking to the section.
  */
 export async function recordTokenUsage(
   projectId: string,
   phaseNumber: number,
-  totalTokens: number,
+  inputTokens: number,
+  outputTokens: number,
   modelUsed: string
 ): Promise<string | null> {
   const supabase = createAdminSupabaseClient();
@@ -106,7 +109,9 @@ export async function recordTokenUsage(
       phase_number: phaseNumber,
       messages_json: [],
       model_used: modelUsed,
-      total_tokens: totalTokens,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      total_tokens: inputTokens + outputTokens,
     })
     .select("id")
     .single();

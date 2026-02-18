@@ -8,7 +8,11 @@ export function getAnthropicClient(): Anthropic {
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY environment variable is not set");
     }
-    _client = new Anthropic({ apiKey });
+    _client = new Anthropic({
+      apiKey,
+      maxRetries: 3,
+      timeout: 120_000,
+    });
   }
   return _client;
 }

@@ -78,19 +78,23 @@ export function deduplicateBibEntries(bibContent: string): string {
   return Array.from(seen.values()).join("\n\n");
 }
 
-// ── Tier D citation stripping ────────────────────────────────────────────────
+// ── Invalid citation stripping ───────────────────────────────────────────────
 
 /**
- * Replace \cite{key} commands for Tier D citations with a LaTeX comment.
- * Per PLAN.md §358-362: Tier D citations must NEVER appear as \cite{key}
- * in compiled output — they are replaced with:
- *   % UNRESOLVED: key — provide source or remove
+ * Strip \cite{key} commands where the key is either:
+ * (a) Tier D (unverified) --- existing behaviour
+ * (b) Not in the citations table at all (orphan)
+ *
+ * Per PLAN.md §358-362: invalid citations are replaced with:
+ *   % UNRESOLVED: key --- provide source or remove
  */
-export function stripTierDCitations(
+export function stripInvalidCitations(
   chapterBody: string,
-  tierDKeys: Set<string>
+  validCiteKeys: Set<string>,
 ): { stripped: string; replacedKeys: string[] } {
-  if (tierDKeys.size === 0) return { stripped: chapterBody, replacedKeys: [] };
+  if (validCiteKeys.size === 0) {
+    // No valid keys at all --- strip everything
+  }
 
   const replacedKeys: string[] = [];
 
@@ -99,34 +103,51 @@ export function stripTierDCitations(
     /\\cite\{([^}]+)\}/g,
     (_match, keysStr: string) => {
       const keys = keysStr.split(",").map((k) => k.trim());
-      const kept = keys.filter((k) => !tierDKeys.has(k));
-      const removed = keys.filter((k) => tierDKeys.has(k));
+      const kept = keys.filter((k) => validCiteKeys.has(k));
+      const removed = keys.filter((k) => !validCiteKeys.has(k));
 
       for (const k of removed) {
         if (!replacedKeys.includes(k)) replacedKeys.push(k);
       }
 
       if (kept.length === 0 && removed.length > 0) {
-        // All keys are Tier D — replace entire \cite{} with comment
         return removed
           .map((k) => `% UNRESOLVED: ${k} --- provide source or remove`)
           .join("\n");
       }
 
       if (removed.length > 0) {
-        // Mixed — keep valid keys, comment out Tier D ones
         const comments = removed
           .map((k) => `% UNRESOLVED: ${k} --- provide source or remove`)
           .join("\n");
         return `\\cite{${kept.join(", ")}}\n${comments}`;
       }
 
-      // No Tier D keys in this cite command
       return _match;
     }
   );
 
   return { stripped, replacedKeys };
+}
+
+/** @deprecated Use stripInvalidCitations instead */
+export function stripTierDCitations(
+  chapterBody: string,
+  tierDKeys: Set<string>
+): { stripped: string; replacedKeys: string[] } {
+  // Build a set of all keys EXCEPT Tier D (inverse)
+  // For backwards compatibility, we invert the logic
+  const allKeysInBody = new Set<string>();
+  const re = /\\cite\{([^}]+)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(chapterBody)) !== null) {
+    for (const k of m[1].split(",")) {
+      const trimmed = k.trim();
+      if (trimmed) allKeysInBody.add(trimmed);
+    }
+  }
+  const validKeys = new Set([...allKeysInBody].filter((k) => !tierDKeys.has(k)));
+  return stripInvalidCitations(chapterBody, validKeys);
 }
 
 // ── Chapter body sanitisation ────────────────────────────────────────────────
@@ -402,10 +423,10 @@ export function assembleThesisContent(
   const bibParts: string[] = [];
   const chapterFiles: Record<string, string> = {};
 
-  // Build set of Tier D cite keys (to strip from compiled output)
-  const tierDKeys = new Set<string>(
+  // Build set of valid cite keys (non-Tier D entries in the citations table)
+  const validCiteKeys = new Set<string>(
     citations
-      .filter((c) => c.provenance_tier === "D")
+      .filter((c) => c.provenance_tier !== "D")
       .map((c) => c.cite_key)
   );
 
@@ -439,13 +460,13 @@ export function assembleThesisContent(
       warnings.push(`Phase ${phaseNum}: section exists but body is empty`);
     }
 
-    // Strip Tier D \cite{key} → replace with % UNRESOLVED comment
-    if (chapterBody && tierDKeys.size > 0) {
-      const { stripped, replacedKeys } = stripTierDCitations(chapterBody, tierDKeys);
+    // Strip invalid \cite{key} (Tier D or orphan) --- replace with % UNRESOLVED comment
+    if (chapterBody) {
+      const { stripped, replacedKeys } = stripInvalidCitations(chapterBody, validCiteKeys);
       chapterBody = stripped;
       if (replacedKeys.length > 0) {
         warnings.push(
-          `Phase ${phaseNum}: stripped Tier D citations: ${replacedKeys.join(", ")}`
+          `Phase ${phaseNum}: stripped invalid citations: ${replacedKeys.join(", ")}`
         );
       }
     }

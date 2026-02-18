@@ -89,7 +89,10 @@ export async function resolveSectionCitations(
         ])
       );
 
-      // Upsert only new or unverified citations
+      // Batch upsert: collect all records, then single DB call
+      const toUpsert: Record<string, unknown>[] = [];
+      const now = new Date().toISOString();
+
       for (const citation of resolved) {
         resolvedKeys.add(citation.citeKey);
         summary.total++;
@@ -100,22 +103,23 @@ export async function resolveSectionCitations(
         // Skip if already verified or attested by user
         if (ex?.verifiedAt || ex?.attestedAt) continue;
 
-        const now = new Date().toISOString();
+        toUpsert.push({
+          project_id: projectId,
+          cite_key: citation.citeKey,
+          bibtex_entry: citation.bibtex,
+          provenance_tier: citation.provenanceTier,
+          evidence_type: citation.evidenceType,
+          evidence_value: citation.evidenceValue,
+          source_doi: citation.sourceDoi,
+          source_pmid: citation.sourcePmid,
+          verified_at: citation.provenanceTier === "A" ? now : null,
+        });
+      }
 
-        await supabase.from("citations").upsert(
-          {
-            project_id: projectId,
-            cite_key: citation.citeKey,
-            bibtex_entry: citation.bibtex,
-            provenance_tier: citation.provenanceTier,
-            evidence_type: citation.evidenceType,
-            evidence_value: citation.evidenceValue,
-            source_doi: citation.sourceDoi,
-            source_pmid: citation.sourcePmid,
-            verified_at: citation.provenanceTier === "A" ? now : null,
-          },
-          { onConflict: "project_id,cite_key" }
-        );
+      if (toUpsert.length > 0) {
+        await supabase
+          .from("citations")
+          .upsert(toUpsert, { onConflict: "project_id,cite_key" });
       }
     }
   }
@@ -145,21 +149,20 @@ export async function resolveSectionCitations(
   if (trueOrphans.length === 0) return summary;
 
   // Step 3: For each orphan, attempt a quick CrossRef search by parsing
-  // the cite key (e.g., "smith2023" → "smith 2023")
+  // the cite key (e.g., "smith2023" -> "smith 2023")
+  const orphanUpserts: Record<string, unknown>[] = [];
+
   for (const key of trueOrphans) {
     let bibtexEntry = "";
-    const tier: "A" | "D" = "D";
     let sourceDoi: string | null = null;
 
     try {
-      // Parse key into author + year for search
       const keyMatch = key.match(/^([a-zA-Z]+)(\d{4})$/);
       if (keyMatch) {
         const searchQuery = `${keyMatch[1]} ${keyMatch[2]}`;
         const results = await searchCrossRef(searchQuery, 1);
         if (results.items.length > 0 && results.items[0].doi) {
           sourceDoi = results.items[0].doi;
-          // Try to get actual BibTeX from DOI so the entry is not empty
           try {
             const doiResult = await lookupDOI(results.items[0].doi);
             if (doiResult?.bibtex) {
@@ -169,31 +172,34 @@ export async function resolveSectionCitations(
               );
             }
           } catch {
-            // DOI lookup failed — keep empty bibtex
+            // DOI lookup failed
           }
         }
       }
     } catch {
-      // Search failed — just create Tier D placeholder
+      // Search failed
     }
 
     summary.total++;
     summary.tierD++;
 
-    await supabase.from("citations").upsert(
-      {
-        project_id: projectId,
-        cite_key: key,
-        bibtex_entry: bibtexEntry,
-        provenance_tier: tier,
-        evidence_type: null,
-        evidence_value: null,
-        source_doi: sourceDoi,
-        source_pmid: null,
-        verified_at: null,
-      },
-      { onConflict: "project_id,cite_key" }
-    );
+    orphanUpserts.push({
+      project_id: projectId,
+      cite_key: key,
+      bibtex_entry: bibtexEntry,
+      provenance_tier: "D",
+      evidence_type: null,
+      evidence_value: null,
+      source_doi: sourceDoi,
+      source_pmid: null,
+      verified_at: null,
+    });
+  }
+
+  if (orphanUpserts.length > 0) {
+    await supabase
+      .from("citations")
+      .upsert(orphanUpserts, { onConflict: "project_id,cite_key" });
   }
 
   return summary;

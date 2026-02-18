@@ -23,7 +23,8 @@ import { AIGenerateButton } from "@/components/project/ai-generate-button";
 import { ReviewDialog } from "@/components/project/review-dialog";
 import { Button } from "@/components/ui/button";
 import { useGlassSidebar } from "@/components/layout/glass-sidebar-provider";
-import { FileText, Eye, CheckCircle2 } from "lucide-react";
+import { useSupabaseClient } from "@/lib/supabase/client";
+import { FileText, Eye, CheckCircle2, Loader2 } from "lucide-react";
 import { CitationListPanel } from "@/components/project/citation-list-panel";
 import { CitationSearchDialog } from "@/components/project/citation-search-dialog";
 import { ThesisCompletion } from "@/components/project/thesis-completion";
@@ -98,7 +99,9 @@ export function ProjectWorkspace({
 }: ProjectWorkspaceProps) {
   const router = useRouter();
   const { setExpanded, isMobile } = useGlassSidebar();
+  const supabase = useSupabaseClient();
   const [viewingPhase, setViewingPhase] = useState(project.current_phase);
+  const [streamingContent, setStreamingContent] = useState("");
   const [mobileTab, setMobileTab] = useState<MobileTab>("edit");
   const [pdfUrl, setPdfUrl] = useState(latestPdfUrl ?? null);
   const [pdfKey, setPdfKey] = useState(0);
@@ -124,6 +127,43 @@ export function ProjectWorkspace({
 
   const currentSection =
     sections.find((s) => s.phase_number === viewingPhase) ?? null;
+
+  // Subscribe to section changes for Realtime live preview during generation
+  useEffect(() => {
+    if (currentSection?.status !== "generating") {
+      setStreamingContent("");
+      return;
+    }
+
+    const channel = supabase
+      .channel(`section-${project.id}-${viewingPhase}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sections",
+          filter: `project_id=eq.${project.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as Record<string, unknown>;
+          if ((updated.phase_number as number) === viewingPhase) {
+            if (updated.streaming_content) {
+              setStreamingContent(updated.streaming_content as string);
+            }
+            if (updated.status !== "generating") {
+              setStreamingContent("");
+              router.refresh();
+            }
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentSection?.status, project.id, viewingPhase, supabase, router]); // eslint-disable-line react-hooks/exhaustive-deps
   const phaseDef = PHASES.find((p) => p.number === viewingPhase);
   const isCurrentPhase = viewingPhase === project.current_phase;
   const isEditable =
@@ -220,6 +260,25 @@ export function ProjectWorkspace({
       );
     }
 
+    // Generating with streaming content — show live Realtime preview
+    if (currentSection.status === "generating" && streamingContent) {
+      return (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-[#8B9D77]" />
+            <h3 className="font-serif text-lg font-semibold text-[#2F2F2F]">
+              Generating {phaseDef?.label ?? `Phase ${viewingPhase}`}...
+            </h3>
+          </div>
+          <div className="rounded-lg bg-[#FAFAFA] p-4">
+            <pre className="whitespace-pre-wrap break-words font-mono text-sm text-[#2F2F2F]/80">
+              {streamingContent}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+
     // Section with no content (e.g., just set to "generating" and content is empty)
     if (!hasViewableContent) {
       return (
@@ -306,6 +365,8 @@ export function ProjectWorkspace({
             projectId={project.id}
             phaseNumber={viewingPhase}
             hasContent={hasViewableContent}
+            backgroundMode={viewingPhase !== 0}
+            onGenerating={() => router.refresh()}
             onComplete={handleGenerateComplete}
             onRefine={() => setRefineDialogOpen(true)}
           />

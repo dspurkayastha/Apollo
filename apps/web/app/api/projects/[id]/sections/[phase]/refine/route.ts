@@ -14,6 +14,7 @@ import { getAnthropicClient } from "@/lib/ai/client";
 import { REFINE_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { extractCiteKeys } from "@/lib/citations/extract-keys";
 import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
+import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
 import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
 import type { Section } from "@/lib/types/database";
 import { NextResponse } from "next/server";
@@ -68,10 +69,16 @@ export async function POST(
       typedSection.ai_generated_latex || typedSection.latex_content;
 
     if (!currentLatex) {
-      return badRequest("Section has no content to refine — generate first");
+      return badRequest("Section has no content to refine --- generate first");
     }
 
-    // Don't change status to "generating" — the client consumes the stream
+    // Token budget check
+    const budgetCheck = await checkTokenBudget(id, phaseNumber);
+    if (!budgetCheck.allowed) {
+      return badRequest(budgetCheck.reason ?? "Token budget exhausted");
+    }
+
+    // Don't change status to "generating" --- the client consumes the stream
     // and refreshes when done. Keeping current status avoids a broken UI state
     // if the page is refreshed mid-stream.
     let streamCompleted = false;
@@ -107,7 +114,12 @@ export async function POST(
             );
           });
 
-          await messageStream.finalMessage();
+          const finalMsg = await messageStream.finalMessage();
+
+          // Record token usage
+          const inputTokens = finalMsg.usage?.input_tokens ?? 0;
+          const outputTokens = finalMsg.usage?.output_tokens ?? 0;
+          void recordTokenUsage(id, phaseNumber, inputTokens, outputTokens, "claude-sonnet-4-5-20250929").catch(console.error);
 
           // Extract citation keys directly from LaTeX (no round-trip)
           const citationKeys = extractCiteKeys(fullResponse);
@@ -119,7 +131,30 @@ export async function POST(
             .replace(/[{}\\]/g, " ");
           const wordCount = plainText.split(/\s+/).filter(Boolean).length;
 
-          // Update section (LaTeX is canonical — no rich_content_json)
+          // If section was previously approved, roll back phases_completed
+          if (typedSection.status === "approved") {
+            const { data: proj } = await supabase
+              .from("projects")
+              .select("phases_completed, current_phase")
+              .eq("id", id)
+              .single();
+
+            if (proj) {
+              const updatedPhases = ((proj.phases_completed ?? []) as number[]).filter(
+                (p) => p !== phaseNumber
+              );
+              await supabase
+                .from("projects")
+                .update({
+                  phases_completed: updatedPhases,
+                  current_phase: phaseNumber,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", id);
+            }
+          }
+
+          // Update section (LaTeX is canonical --- no rich_content_json)
           const { error: updateError } = await supabase
             .from("sections")
             .update({
