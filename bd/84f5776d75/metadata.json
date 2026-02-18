@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 198,
+  "checkpoints_count": 202,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -137,6 +137,8 @@
     "apps/web/e2e/dataset-upload.spec.ts",
     "apps/web/hooks/use-sse.ts",
     "apps/web/lib/ai/analysis-explanations.ts",
+    "apps/web/lib/ai/bibtex-completion.test.ts",
+    "apps/web/lib/ai/bibtex-completion.ts",
     "apps/web/lib/ai/client.ts",
     "apps/web/lib/ai/parse-synopsis-response.ts",
     "apps/web/lib/ai/prompts.ts",
@@ -181,6 +183,7 @@
     "apps/web/lib/env.ts",
     "apps/web/lib/inngest/client.ts",
     "apps/web/lib/inngest/events.ts",
+    "apps/web/lib/inngest/functions/ai-generate.ts",
     "apps/web/lib/inngest/functions/analysis-runner.ts",
     "apps/web/lib/inngest/functions/licence-expiry-cron.ts",
     "apps/web/lib/inngest/functions/stale-cleanup.ts",
@@ -214,6 +217,8 @@
     "apps/web/lib/phases/constants.ts",
     "apps/web/lib/phases/transitions.test.ts",
     "apps/web/lib/phases/transitions.ts",
+    "apps/web/lib/phases/word-count-config.test.ts",
+    "apps/web/lib/phases/word-count-config.ts",
     "apps/web/lib/phases/word-count-targets.test.ts",
     "apps/web/lib/phases/word-count-targets.ts",
     "apps/web/lib/pricing/config.ts",
@@ -262,6 +267,8 @@
     "apps/web/supabase/migrations/023_create_review_system.sql",
     "apps/web/supabase/migrations/024_fix_role_escalation.sql",
     "apps/web/supabase/migrations/025_pricing_licence_overhaul.sql",
+    "apps/web/supabase/migrations/026_split_token_tracking.sql",
+    "apps/web/supabase/migrations/027_add_streaming_content.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -281,6 +288,7 @@
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
+    "docs/mitigation_implementation.md",
     "scripts/backfill-latex-content.ts",
     "supabase/migrations/016_create_abbreviations.sql",
     "supabase/migrations/017_add_rich_content_to_sections.sql",
@@ -476,13 +484,20 @@
       "context": "/bd/84f5776d75/26/context.md",
       "content_hash": "/bd/84f5776d75/26/content_hash.txt",
       "prompt": "/bd/84f5776d75/26/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/27/metadata.json",
+      "transcript": "/bd/84f5776d75/27/full.jsonl",
+      "context": "/bd/84f5776d75/27/context.md",
+      "content_hash": "/bd/84f5776d75/27/content_hash.txt",
+      "prompt": "/bd/84f5776d75/27/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 91798,
-    "cache_creation_tokens": 6782315,
-    "cache_read_tokens": 242953068,
-    "output_tokens": 501045,
-    "api_call_count": 2589
+    "input_tokens": 92024,
+    "cache_creation_tokens": 7418067,
+    "cache_read_tokens": 267165722,
+    "output_tokens": 520066,
+    "api_call_count": 2793
   }
 }

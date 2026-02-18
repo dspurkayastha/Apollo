@@ -1,0 +1,2169 @@
+Implement the following plan:
+
+# Phase 5: AI Pipeline Overhaul — Implementation Plan
+
+## Context
+
+**Problem**: The AI pipeline has 15 known issues spanning word count disagreements, missing token budget enforcement, truncated context, dead model routing, no AI-powered review, and fragile SSE streaming. These directly impact thesis quality (wrong word counts, incomplete context for Discussion), cost control (unbounded token usage), and reliability (no retries, N+1 DB queries).
+
+**Source**: Mitigation Plan items 5.1–5.15, plus deferred items from Phases 1 (1.8: metadata sanitisation), 2 (2.5: Inngest workflow), and 3 (3.4: Opus routing).
+
+**Outcome**: Unified word count config, full context passing, token budget on all AI routes, AI-powered section review via Haiku, Opus routing for key chapters, Phase 9 References prompt, Inngest background generation with Realtime live preview, and citation pipeline hardening.
+
+---
+
+## Pre-requisites
+
+- Phase 4 complete ✅ (committed `f46f42a`, CI green)
+- Upstash Redis configured ✅ (Phase 2)
+- Licence phase gate with `planConfig.modelTier` ✅ (Phase 3)
+- `extractCiteKeys()` utility ✅ (`lib/citations/extract-keys.ts`)
+- Inngest client + stale cleanup cron ✅ (Phase 2)
+
+---
+
+## Step 1: Unify Word Count Targets (5.1)
+
+**Review IDs**: A5, E6, F2
+
+**Problem**: Three files specify different word count ranges. Introduction is 700–1,200 in prompts.ts, 750–1,200 in word-count-targets.ts. DECISIONS.md 4.1 is canonical.
+
+**New file**: `apps/web/lib/phases/word-count-config.ts`
+
+```typescript
+/**
+ * Canonical word count configuration — Single Source of Truth.
+ * Source: DECISIONS.md Section 4.1–4.2.
+ *
+ * soft_min/soft_max: AI target range (used in prompts + UI badge)
+ * hard_floor: QC fail below this (= soft_min, no margin)
+ * hard_ceiling: QC fail above this (= soft_max * 1.15)
+ * ai_aim: "Attempt to stay on the higher end" per DECISIONS.md 4.2
+ */
+
+export interface WordCountConfig {
+  softMin: number;
+  softMax: number;
+  hardFloor: number;   // = softMin
+  hardCeiling: number; // = Math.ceil(softMax * 1.15)
+  aiAimLow: number;    // high end of soft range
+  aiAimHigh: number;   // = softMax
+}
+
+export const WORD_COUNT_CONFIG: Record<number, WordCountConfig> = {
+  2: { softMin: 1000, softMax: 1400, hardFloor: 1000, hardCeiling: 1610, aiAimLow: 1300, aiAimHigh: 1400 },  // Introduction
+  3: { softMin: 300,  softMax: 500,  hardFloor: 300,  hardCeiling: 575,  aiAimLow: 450,  aiAimHigh: 500  },  // Aims
+  4: { softMin: 3500, softMax: 5000, hardFloor: 3500, hardCeiling: 5750, aiAimLow: 4500, aiAimHigh: 5000 },  // ROL
+  5: { softMin: 1500, softMax: 2500, hardFloor: 1500, hardCeiling: 2875, aiAimLow: 2200, aiAimHigh: 2500 },  // M&M
+  6: { softMin: 1500, softMax: 2500, hardFloor: 1500, hardCeiling: 2875, aiAimLow: 2200, aiAimHigh: 2500 },  // Results
+  7: { softMin: 2000, softMax: 3500, hardFloor: 2000, hardCeiling: 4025, aiAimLow: 3000, aiAimHigh: 3500 },  // Discussion
+  8: { softMin: 500,  softMax: 800,  hardFloor: 500,  hardCeiling: 920,  aiAimLow: 700,  aiAimHigh: 800  },  // Conclusion
+};
+
+export function getWordCountConfig(phaseNumber: number): WordCountConfig | null {
+  return WORD_COUNT_CONFIG[phaseNumber] ?? null;
+}
+```
+
+**Edit file**: `apps/web/lib/phases/word-count-targets.ts`
+
+Replace hardcoded `WORD_COUNT_TARGETS` record with import from `word-count-config.ts`. Map `softMin` → `min`, `softMax` → `max` to preserve existing `WordCountTarget` interface used by UI and review checks.
+
+**Edit file**: `apps/web/lib/ai/review-section.ts`
+
+Update `checkWordCount()` to use `getWordCountConfig()` instead of `getWordCountTarget()`. Keep the existing signature.
+
+~60 new lines, ~15 lines changed across 2 files.
+
+---
+
+## Step 2: Update All Phase Prompts with Canonical Word Counts (5.1 continued)
+
+**Edit file**: `apps/web/lib/ai/prompts.ts`
+
+Replace hardcoded word count strings in each phase prompt with template literals referencing the config. Each prompt's word count instruction becomes:
+
+```typescript
+import { getWordCountConfig } from "@/lib/phases/word-count-config";
+
+// In each phase prompt, replace hardcoded targets with:
+const cfg = getWordCountConfig(phaseNumber);
+`- Target: ${cfg.softMin}--${cfg.softMax} words of chapter content. Aim for ${cfg.aiAimLow}--${cfg.aiAimHigh} words. HARD LIMIT: do NOT exceed ${cfg.hardCeiling} words of chapter content (BibTeX entries below the ---BIBTEX--- separator do NOT count toward this word limit).`
+```
+
+Since prompts are string constants (not functions), convert the phase prompt constants to functions that embed the word count dynamically, OR use a helper that injects the word count paragraph. The cleanest approach: create a `wordCountInstruction(phase: number)` helper and call it within each prompt string.
+
+Specific changes per prompt:
+- `INTRODUCTION_SYSTEM_PROMPT`: 700–1,200 / 1,380 → 1,000–1,400 / aim 1,300–1,400 / hard limit 1,610
+- `AIMS_SYSTEM_PROMPT`: 150–200 / 230 → 300–500 / aim 450–500 / hard limit 575
+- `ROL_SYSTEM_PROMPT`: 2,500–3,500 / 4,025 → 3,500–5,000 / aim 4,500–5,000 / hard limit 5,750
+- `MATERIALS_METHODS_SYSTEM_PROMPT`: 1,500–2,500 / 2,875 → 1,500–2,500 / aim 2,200–2,500 / hard limit 2,875 (no change needed for this one)
+- `RESULTS_SYSTEM_PROMPT`: 1,500–2,500 / 2,875 → same (no change)
+- `DISCUSSION_SYSTEM_PROMPT`: 2,000–2,500 / 2,875 → 2,000–3,500 / aim 3,000–3,500 / hard limit 4,025
+- `CONCLUSION_SYSTEM_PROMPT`: 500–750 / 860 → 500–800 / aim 700–800 / hard limit 920
+
+Also add to `REFINE_SYSTEM_PROMPT` rule 9: reference the phase word limits dynamically (the refine route knows the phase number).
+
+~40 lines changed.
+
+---
+
+## Step 3: Add Unicode Avoidance to COMMON_RULES (5.8)
+
+**Review IDs**: A4, F3
+
+**Edit file**: `apps/web/lib/ai/prompts.ts`
+
+Add rule 10 to `COMMON_RULES`:
+
+```
+10. NEVER use Unicode characters in your output. Use ASCII/LaTeX equivalents: --- for em-dash (not \u2014), -- for en-dash (not \u2013), \`{}\`{} and '{}'{} for smart quotes (not \u201C\u201D), \\'{e} for accented characters (not \u00E9). BibTeX cannot handle multi-byte UTF-8 sequences.
+```
+
+Also strengthen rule 9 (BibTeX trailer completeness):
+
+```
+9. When citations are required, you MUST append a ---BIBTEX--- section after the chapter content with complete BibTeX entries for every \\cite{key} used. CRITICAL: The number of BibTeX entries MUST exactly equal the number of unique \\cite{key} references in the chapter body. Do NOT truncate or omit any entries. If you are approaching your output limit, prioritise completing all BibTeX entries over adding more chapter content. See phase-specific instructions for the exact format.
+```
+
+2 lines changed.
+
+---
+
+## Step 4: Anthropic Client Retry Configuration (5.9)
+
+**Review IDs**: A13, A14
+
+**Edit file**: `apps/web/lib/ai/client.ts`
+
+Add retry and timeout configuration to the singleton:
+
+```typescript
+_client = new Anthropic({
+  apiKey,
+  maxRetries: 3,
+  timeout: 120_000, // 2 minutes
+});
+```
+
+**Edit file**: `apps/web/lib/datasets/generate.ts`
+
+Replace `const anthropic = new Anthropic();` (line 82) with:
+```typescript
+import { getAnthropicClient } from "@/lib/ai/client";
+const anthropic = getAnthropicClient();
+```
+
+**Edit file**: `apps/web/lib/compliance/checker.ts`
+
+Replace `const anthropic = new Anthropic();` (line 166) with:
+```typescript
+import { getAnthropicClient } from "@/lib/ai/client";
+const anthropic = getAnthropicClient();
+```
+
+Remove standalone `import Anthropic from "@anthropic-ai/sdk"` from both files.
+
+~10 lines changed across 3 files.
+
+---
+
+## Step 5: Synopsis Parse Prompt Deduplication (5.15)
+
+**Review ID**: A6
+
+**Problem**: `synopsis/parse/route.ts` has inline `SYNOPSIS_WIZARD_PROMPT` (extracts `aims`, `objectives`, `study_design`, `sample_size` as number, `inclusion_criteria`, `exclusion_criteria`) that differs from `SYNOPSIS_PARSE_SYSTEM_PROMPT` in `prompts.ts` (extracts `department`, `methodology_summary`, `duration`, `setting`, `keywords`, `sample_size` as string).
+
+Both are used in different flows:
+- `synopsis/parse/route.ts` — standalone synopsis wizard (pre-project creation)
+- `generate/route.ts` Phase 0 — synopsis parsing within project (uses `SYNOPSIS_PARSE_SYSTEM_PROMPT`)
+
+**Merge strategy**: Create a single comprehensive prompt that extracts ALL fields from both. Update `SynopsisParseResult` interface to include the union of fields.
+
+**Edit file**: `apps/web/lib/ai/prompts.ts`
+
+Replace `SYNOPSIS_PARSE_SYSTEM_PROMPT` with a merged prompt that extracts all fields:
+
+```typescript
+export const SYNOPSIS_PARSE_SYSTEM_PROMPT = `You are a medical thesis assistant specialising in Indian postgraduate medical theses. You parse research synopses and extract structured metadata.
+
+Given a synopsis text, extract the following fields as JSON:
+- title: The thesis title (string or null)
+- study_type: The type of study, e.g. "Cross-sectional", "Prospective cohort", "Randomised controlled trial", "Case-control", "Case series", "Meta-analysis" (string or null)
+- study_design: More specific study design details if mentioned (string or null)
+- department: The department or speciality (string or null)
+- aims: An array of study aims --- broader goals (string[])
+- objectives: An array of study objectives --- primary and secondary, specific measurable targets (string[])
+- methodology_summary: A brief summary of the methodology in 2--3 sentences (string or null)
+- sample_size: The planned sample size as a number (number or null)
+- duration: The study duration, e.g. "18 months" (string or null)
+- setting: The study setting, e.g. hospital name, department (string or null)
+- inclusion_criteria: An array of inclusion criteria (string[])
+- exclusion_criteria: An array of exclusion criteria (string[])
+- keywords: An array of 3--7 keywords (string[])
+
+Rules:
+1. Extract ONLY what is explicitly stated in the synopsis. Do NOT invent or assume information.
+2. If a field cannot be determined, set it to null (or empty array for array fields).
+3. Return ONLY valid JSON --- no markdown formatting, no code fences, no explanatory text.
+4. Use British English spellings (e.g., "randomised", "analysed", "behaviour").
+5. Separate aims from objectives --- aims are broader goals, objectives are specific measurable targets.
+6. Keep the study_type concise --- use standard epidemiological terminology.`;
+```
+
+Update `SynopsisParseResult` to include: `aims`, `study_design`, `inclusion_criteria`, `exclusion_criteria` (new fields from wizard prompt).
+
+**Edit file**: `apps/web/app/api/synopsis/parse/route.ts`
+
+Delete inline `SYNOPSIS_WIZARD_PROMPT`. Import `SYNOPSIS_PARSE_SYSTEM_PROMPT` from `@/lib/ai/prompts`. Update response normalisation to handle the merged schema.
+
+~30 lines changed across 2 files.
+
+---
+
+## Step 6: Remove Context Truncation (5.2)
+
+**Review ID**: A3
+
+**Edit file**: `apps/web/lib/ai/prompts.ts`
+
+In `getPhaseUserMessage()` at line 375, remove `.slice(0, 3000)`:
+
+```typescript
+// BEFORE:
+.map((s) => `--- ${s.phaseName} ---\n${s.content.slice(0, 3000)}`)
+
+// AFTER:
+.map((s) => `--- ${s.phaseName} ---\n${s.content}`)
+```
+
+1 line changed.
+
+---
+
+## Step 7: Token Budget Enforcement for All AI Routes (5.3 + 5.4)
+
+**Review IDs**: A7, A8, E4, F4
+
+### 7a: Database migration — split token tracking
+
+**Migration**: `027_split_token_tracking`
+
+```sql
+-- Add separate input/output token columns
+ALTER TABLE public.ai_conversations
+  ADD COLUMN IF NOT EXISTS input_tokens integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS output_tokens integer DEFAULT 0;
+
+-- Backfill from total_tokens (assume 70% input, 30% output as approximation)
+UPDATE public.ai_conversations
+SET input_tokens = ROUND(total_tokens * 0.7),
+    output_tokens = ROUND(total_tokens * 0.3)
+WHERE input_tokens = 0 AND total_tokens > 0;
+
+COMMENT ON COLUMN public.ai_conversations.total_tokens IS 'Legacy combined total. Use input_tokens + output_tokens for new records.';
+```
+
+### 7b: Update token-budget.ts
+
+**Edit file**: `apps/web/lib/ai/token-budget.ts`
+
+- `recordTokenUsage()` signature: add `inputTokens` and `outputTokens` params
+- Insert includes `input_tokens`, `output_tokens`, and `total_tokens` (sum)
+- `checkTokenBudget()` sums `output_tokens` (not `total_tokens`) for phase budget
+- `MAX_OUTPUT_TOKENS_PER_PHASE` (100K) applies to output tokens only
+- `MAX_TOTAL_TOKENS_PER_THESIS` (1.2M) applies to combined total (backwards compatible)
+
+### 7c: Add budget to refine route
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`
+
+Add before streaming:
+```typescript
+import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
+
+// Before streaming:
+const budgetCheck = await checkTokenBudget(id, phaseNumber);
+if (!budgetCheck.allowed) {
+  return badRequest(budgetCheck.reason ?? "Token budget exhausted");
+}
+```
+
+After `finalMessage()`:
+```typescript
+const finalMsg = await messageStream.finalMessage();
+const inputTokens = finalMsg.usage?.input_tokens ?? 0;
+const outputTokens = finalMsg.usage?.output_tokens ?? 0;
+void recordTokenUsage(id, phaseNumber, inputTokens, outputTokens, model).catch(console.error);
+```
+
+### 7d: Add budget to datasets/generate route
+
+**Edit file**: `apps/web/app/api/projects/[id]/datasets/generate/route.ts`
+
+Add `checkTokenBudget()` before generation, `recordTokenUsage()` after.
+
+### 7e: Add recording to synopsis/parse route
+
+**Edit file**: `apps/web/app/api/synopsis/parse/route.ts`
+
+Add `recordTokenUsage()` after AI call. No budget check needed (Phase 0 is lightweight).
+
+### 7f: Add recording to auto-detect route
+
+**Edit file**: `apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts`
+
+Add `recordTokenUsage()` after Haiku call.
+
+### 7g: Update generate route
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+Update `recordTokenUsage()` call (line 338) to pass separate `input_tokens` and `output_tokens`.
+
+~60 lines changed across 6 files + 1 migration.
+
+---
+
+## Step 8: Add Phase 9 (References Consolidation) Prompt (5.5)
+
+**Review ID**: A1
+
+**Problem**: `getPhaseSystemPrompt()` has no `case 9`. Currently, Phase 8 approval auto-creates Phase 9 with a basic citation audit summary (approve route lines 187–247) — but no AI reviews the BibTeX.
+
+**DECISIONS.md 3.1**: "AI reviews all BibTeX entries for: duplicates, formatting consistency, missing fields, Vancouver style compliance. Not pure aggregation."
+
+**Edit file**: `apps/web/lib/ai/prompts.ts`
+
+Add new prompt constant:
+
+```typescript
+export const REFERENCES_CONSOLIDATION_SYSTEM_PROMPT = `You are a medical thesis reference manager and bibliographer specialising in Indian postgraduate medical theses. You review, consolidate, and quality-check BibTeX reference entries.
+
+${COMMON_RULES}
+
+Phase-specific instructions for REFERENCES CONSOLIDATION:
+
+You will receive ALL BibTeX entries collected across all chapters of this thesis. Your task is to produce a single, clean, consolidated BibTeX database and a quality report.
+
+INPUT FORMAT:
+- Each chapter's BibTeX entries are provided under a header indicating the source chapter.
+- Entries may be duplicated across chapters (same reference cited in Introduction and Discussion).
+- Entries may have inconsistent formatting, missing fields, or errors.
+
+REQUIRED OUTPUT — Two sections separated by "---QUALITY-REPORT---":
+
+SECTION 1: Consolidated BibTeX (output first)
+- Merge duplicate entries (same DOI, same title, or same author+year+journal).
+  When merging, keep the entry with the most complete fields.
+  Use the cite key from the FIRST occurrence.
+- Ensure every entry has these mandatory fields:
+  @article: author, title, journal, year, volume (pages recommended)
+  @book: author/editor, title, publisher, year
+  @inproceedings: author, title, booktitle, year
+  @phdthesis/@mastersthesis: author, title, school, year
+  @misc/@techreport: author, title, year
+- Standardise author format: "Surname, Initials" with "and" separator.
+  Example: "Kumar, S and Singh, A and Patel, R"
+- Standardise journal names: full name, not abbreviation (unless the abbreviation is universally standard like "BMJ", "JAMA", "Lancet").
+- Ensure page ranges use double-dash: "55--62" not "55-62".
+- Ensure years are 4-digit integers.
+- Remove any duplicate fields within an entry.
+- Preserve DOI fields if present (critical for Tier A verification).
+- Use ASCII only --- convert any Unicode characters to LaTeX commands (\\'{e} for e-acute, \\"{o} for o-umlaut, --- for em-dash, etc.).
+- Sort entries alphabetically by cite key.
+
+SECTION 2: Quality Report (after ---QUALITY-REPORT---)
+Output a LaTeX-formatted quality report:
+
+\\section{References Quality Report}
+
+\\subsection{Summary Statistics}
+Total unique references: [N]
+Duplicates merged: [N] (list which keys were merged)
+Entries with missing mandatory fields: [N]
+
+\\subsection{Issues Found}
+For each issue, output:
+\\begin{itemize}
+\\item \\texttt{[cite\\_key]}: [description of issue and how it was resolved]
+\\end{itemize}
+
+Categories of issues to check:
+1. Missing mandatory fields (author, title, year, journal/publisher)
+2. Duplicate entries (same work cited with different keys)
+3. Inconsistent author formatting
+4. Missing DOI where one likely exists (flag for manual lookup)
+5. Suspicious years (future dates, very old for clinical research)
+6. Journal name inconsistencies (same journal with different spellings)
+7. Page range formatting errors
+
+\\subsection{Vancouver Style Compliance}
+Note any entries that deviate from Vancouver/ICMJE reference style as used in Indian medical journals. Flag but do not auto-fix --- the student should review.
+
+CONSTRAINTS:
+- Do NOT invent or fabricate any bibliographic data. If a field is missing, flag it in the quality report --- do not guess.
+- Do NOT remove entries even if they look suspicious. Flag them in the report.
+- Do NOT renumber or rename cite keys (this would break \\cite{} references in chapter text).
+- The consolidated BibTeX must compile without errors when processed by bibtex.
+- Output the BibTeX section FIRST, then the quality report.`;
+```
+
+Add `case 9` in `getPhaseSystemPrompt()`:
+```typescript
+case 9: return REFERENCES_CONSOLIDATION_SYSTEM_PROMPT;
+```
+
+Add `case 9` in `getPhaseUserMessage()` — the user message collects all BibTeX entries from all approved sections:
+```typescript
+case 9: {
+  const bibSections = previousSections
+    .map((s) => {
+      const { bib } = splitBibtex(s.content);
+      return bib.trim() ? `--- ${s.phaseName} BibTeX ---\n${bib}` : null;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  return `Review and consolidate all BibTeX references from this medical thesis.\n\nProject metadata:\n${metadataStr}\n\n${bibSections || "No BibTeX entries found in approved sections."}`;
+}
+```
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`
+
+Update Phase 8→9 auto-creation (lines 187–247): Instead of just creating a static audit summary, trigger Phase 9 AI generation via the generate route (or create the section as "draft" and let the student trigger generation). The cleanest approach: keep the current auto-creation as a quick audit summary, but change the status to "draft" instead of "review" so the student must generate the AI-consolidated version.
+
+~120 lines added/changed.
+
+---
+
+## Step 9: AI-Powered Section Review (5.6)
+
+**Review IDs**: A10, A11
+
+**Problem**: `reviewSection()` in `review-section.ts` is purely regex-based. No AI evaluation of content quality. M&M section check requires 8 headings but NBEMS mandates 12.
+
+**DECISIONS.md 3.2**: "Claude evaluates content quality before approval: knowledge gaps, logical flow, citation adequacy, methodology rigour. ~2K tokens per review."
+
+**Edit file**: `apps/web/lib/ai/review-section.ts`
+
+Keep existing regex checks as fast pre-flight (they catch obvious issues immediately). Add an `aiReviewSection()` function that calls Haiku for deeper quality evaluation.
+
+```typescript
+export async function aiReviewSection(
+  latex: string,
+  phaseNumber: number,
+  synopsisText: string,
+  metadata: Record<string, unknown>,
+): Promise<ReviewIssue[]> {
+  // ... calls Haiku with the prompt below
+}
+```
+
+Fix M&M section count: change `if (sectionCount < 8)` (line 138) to `if (sectionCount < 12)` with updated message.
+
+**New prompt** (defined in `prompts.ts`):
+
+```typescript
+export const SECTION_REVIEW_SYSTEM_PROMPT = `You are a senior medical thesis examiner at an Indian university. You review thesis chapter drafts for quality, completeness, and academic rigour. You are thorough but constructive.
+
+You will receive:
+1. The chapter content (LaTeX)
+2. The phase name (e.g., "Introduction", "Materials and Methods")
+3. The thesis synopsis (for context on what the study is about)
+4. Basic metadata (study type, department)
+
+Evaluate the chapter across these 6 quality dimensions. For each dimension, assign a rating and provide specific feedback:
+
+DIMENSIONS:
+1. COMPLETENESS — Does the chapter cover all required sections for this phase? Are there obvious gaps or missing topics?
+   Rate: complete | mostly-complete | incomplete
+
+2. LOGICAL FLOW — Do paragraphs and sections follow a logical progression? Are transitions smooth? Is the argument coherent?
+   Rate: strong | adequate | weak
+
+3. CITATION ADEQUACY — Are factual claims supported by \\cite{} references? Are there unsupported assertions? Is the citation density appropriate for this chapter type?
+   Rate: well-cited | adequate | under-cited
+   (Note: Aims and Conclusion chapters typically have 0 citations --- rate as "well-cited" if appropriate)
+
+4. METHODOLOGICAL RIGOUR — (Applicable mainly to Materials & Methods, Results, Discussion)
+   For M&M: Are all 12 NBEMS sections present? Is the statistical analysis plan clear?
+   For Results: Are all findings presented without interpretation? Are tables/figures referenced?
+   For Discussion: Are findings compared with specific literature? Are limitations honest?
+   Rate: rigorous | adequate | needs-improvement
+
+5. ACADEMIC TONE — Is the language formal, objective, and appropriate for a medical thesis? Are there colloquialisms, first-person usage (except where appropriate), or informal phrasing?
+   Rate: professional | mostly-professional | informal
+
+6. SYNOPSIS ALIGNMENT — Does the chapter content align with what the synopsis describes? Are the study objectives, methods, and scope consistent?
+   Rate: aligned | mostly-aligned | divergent
+
+OUTPUT FORMAT — Return ONLY valid JSON (no markdown fences):
+{
+  "dimensions": [
+    {
+      "name": "completeness",
+      "rating": "complete|mostly-complete|incomplete",
+      "feedback": "Specific feedback with examples from the text"
+    },
+    ... (all 6 dimensions)
+  ],
+  "overall_assessment": "A 2-3 sentence summary of the chapter quality",
+  "suggestions": [
+    "Specific, actionable suggestion 1",
+    "Specific, actionable suggestion 2"
+  ],
+  "blocking_issues": [
+    "Issue that should prevent approval (empty array if none)"
+  ]
+}
+
+RULES:
+- Be constructive, not harsh. This is a student's work.
+- Focus on substantive issues, not minor LaTeX formatting.
+- "blocking_issues" should only contain genuinely serious problems (plagiarism indicators, fabricated data claims, completely missing required sections, gross factual errors).
+- Most chapters should have 0 blocking issues. Reserve this for real problems.
+- Keep feedback concise --- 1-2 sentences per dimension.
+- Do NOT suggest adding content that would push the chapter over its word limit.
+- Use British English in your feedback.`;
+```
+
+The `aiReviewSection()` function:
+1. Calls Haiku with the review prompt, the chapter content, phase name, synopsis, and metadata
+2. Parses the JSON response
+3. Converts `blocking_issues` to `ReviewIssue` with severity `"error"`
+4. Converts suggestions to `ReviewIssue` with severity `"info"`
+5. Converts ratings of `"incomplete"`, `"weak"`, `"under-cited"`, `"needs-improvement"`, `"informal"`, `"divergent"` to severity `"warning"`
+6. Records token usage via `recordTokenUsage()`
+
+The existing `reviewSection()` function gains an optional `options?: { includeAIReview?: boolean, synopsis?: string, metadata?: Record<string, unknown> }` parameter. When `includeAIReview` is true, it calls `aiReviewSection()` and merges the results. The caller (approve route or a new review route) decides whether to include AI review.
+
+**Non-blocking**: AI review issues are warnings/info, never blocking errors (except `blocking_issues` from the AI which map to errors). The existing regex checks remain the fast, deterministic gate.
+
+~150 lines added.
+
+---
+
+## Step 10: Opus Model Routing (5.7)
+
+**Review ID**: A12, deferred from Phase 3 (3.4)
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+Replace the dead conditional (lines 277–279):
+
+```typescript
+// BEFORE (dead code — both branches return Sonnet):
+const model = [2, 7].includes(phaseNumber)
+  ? "claude-sonnet-4-5-20250929" // TODO: Switch to Opus when API access available
+  : "claude-sonnet-4-5-20250929";
+
+// AFTER:
+const useOpus = [2, 7].includes(phaseNumber) && gateResult.planConfig?.modelTier === "opus";
+const model = useOpus
+  ? "claude-opus-4-5-20250514"
+  : "claude-sonnet-4-5-20250929";
+```
+
+This requires passing `gateResult` (which already contains `planConfig` from the licence phase gate) into `handleSectionGenerate()`. Update the function signature:
+
+```typescript
+async function handleSectionGenerate(
+  phaseNumber: number,
+  project: Project,
+  supabase: ...,
+  planConfig?: PlanConfig,  // from licence gate result
+)
+```
+
+At the call site (line 74), pass `gateResult.planConfig`.
+
+**Effect**: Professional plan users get Opus for Introduction (Phase 2) and Discussion (Phase 7). All other users and phases use Sonnet. Cost impact ~Rs 50–80 extra per thesis per DECISIONS.md 3.3.
+
+~10 lines changed.
+
+---
+
+## Step 11: Orphan Cite Key Stripping (5.12)
+
+**Review ID**: B1
+
+**Problem**: `stripTierDCitations()` in `assemble.ts` only strips cite keys that have a Tier D record in the DB. Keys with NO DB record at all survive as `\cite{unknownkey}` in the compiled output, causing "undefined citation" warnings.
+
+**Edit file**: `apps/web/lib/latex/assemble.ts`
+
+In `assembleThesisContent()`, after fetching all citations for the project, build a Set of ALL known cite keys. Then in the chapter body processing, strip any `\cite{key}` where `key` is not in the known set.
+
+Rename/extend `stripTierDCitations()` to `stripInvalidCitations()`:
+
+```typescript
+/**
+ * Strip \cite{key} commands where the key is either:
+ * (a) Tier D (unverified) — existing behaviour
+ * (b) Not in the citations table at all (orphan)
+ *
+ * Replaces the citation command with the surrounding text intact.
+ */
+function stripInvalidCitations(
+  latex: string,
+  validCiteKeys: Set<string>,
+): string {
+  return latex.replace(/\\cite\{([^}]+)\}/g, (match, keys: string) => {
+    const filtered = keys
+      .split(",")
+      .map((k) => k.trim())
+      .filter((k) => validCiteKeys.has(k));
+    return filtered.length > 0 ? `\\cite{${filtered.join(",")}}` : "";
+  });
+}
+```
+
+The `validCiteKeys` set includes all keys from the citations table that are NOT Tier D:
+```typescript
+const validCiteKeys = new Set(
+  allCitations
+    .filter((c) => c.provenance_tier !== "D")
+    .map((c) => c.cite_key)
+);
+```
+
+~20 lines changed.
+
+---
+
+## Step 12: Citation Pipeline Improvements (5.13 + 5.14)
+
+**Review IDs**: B2, B3, B5, IV-E6
+
+### 12a: Exponential backoff retry for CrossRef/PubMed
+
+**Edit file**: `apps/web/lib/citations/crossref.ts`
+
+Add a `fetchWithRetry()` wrapper around CrossRef and PubMed API calls:
+
+```typescript
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || response.status === 404) return response;
+      if (attempt < maxRetries && response.status >= 500) {
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      return response;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+```
+
+### 12b: ROL timeout increase
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+Change citation resolution timeout for ROL (Phase 4):
+
+```typescript
+const citationTimeoutMs = phaseNumber === 4 ? 45_000 : 15_000;
+citationSummary = await Promise.race([
+  resolveSectionCitations(project.id, fullResponse),
+  new Promise<null>((resolve) => setTimeout(() => resolve(null), citationTimeoutMs)),
+]);
+```
+
+### 12c: Batch citation upserts
+
+**Edit file**: `apps/web/lib/citations/auto-resolve.ts`
+
+Replace the N+1 upsert loop (lines 93–119) with a single batch upsert:
+
+```typescript
+// Collect all records to upsert
+const toUpsert = [];
+for (const citation of resolved) {
+  resolvedKeys.add(citation.citeKey);
+  summary.total++;
+  if (citation.provenanceTier === "A") summary.tierA++;
+
+  const ex = existingMap.get(citation.citeKey);
+  if (ex?.verifiedAt || ex?.attestedAt) continue;
+
+  toUpsert.push({
+    project_id: projectId,
+    cite_key: citation.citeKey,
+    bibtex_entry: citation.bibtex,
+    provenance_tier: citation.provenanceTier,
+    evidence_type: citation.evidenceType,
+    evidence_value: citation.evidenceValue,
+    source_doi: citation.sourceDoi,
+    source_pmid: citation.sourcePmid,
+    verified_at: citation.provenanceTier === "A" ? new Date().toISOString() : null,
+  });
+}
+
+if (toUpsert.length > 0) {
+  await supabase.from("citations").upsert(toUpsert, { onConflict: "project_id,cite_key" });
+}
+```
+
+Same pattern for the orphan upsert loop (lines 183–196) — collect all Tier D placeholders, then single batch upsert.
+
+~50 lines changed across 3 files.
+
+---
+
+## Step 12.5: BibTeX Trailer Integrity Validation (NEW)
+
+**Problem**: When the AI hits `max_tokens`, the response gets truncated mid-BibTeX entry. The `---BIBTEX---` trailer may be incomplete — some `\cite{key}` references in the chapter body have no corresponding BibTeX entry. This leaves orphan cite keys that auto-resolve must handle via slow CrossRef lookups, and entries with truncated fields that produce BibTeX compilation errors.
+
+**Root cause**: Current `max_tokens` allocation is tight for citation-heavy phases:
+- ROL (Phase 4): 12,000 tokens for ~4,500 words body (~6K tokens) + 30 BibTeX entries (~4.5K tokens) = 10.5K, leaving minimal headroom
+- Introduction (Phase 2): 8,000 tokens for ~1,400 words body (~2K tokens) + 15 entries (~2.2K tokens) = 4.2K, OK
+- Discussion (Phase 7): 8,000 tokens for ~3,500 words body (~5K tokens) + 20 entries (~3K tokens) = 8K, extremely tight
+
+There is no check for `stop_reason === "max_tokens"` and no validation that cite key count matches BibTeX entry count.
+
+### 12.5a: Increase max_tokens for citation-heavy phases
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+Replace line 281:
+```typescript
+// BEFORE:
+const maxTokens = phaseNumber === 4 ? 12000 : [2, 5, 7].includes(phaseNumber) ? 8000 : 6000;
+
+// AFTER — give citation-heavy phases enough room for body + full BibTeX trailer:
+const maxTokens = phaseNumber === 4 ? 16000   // ROL: ~5K body + ~5K BibTeX (30+ refs)
+  : phaseNumber === 7 ? 12000                  // Discussion: ~5K body + ~3K BibTeX (20 refs)
+  : [2, 5].includes(phaseNumber) ? 10000       // Intro/M&M: ~3K body + ~2.5K BibTeX
+  : 6000;                                      // Aims, Conclusion, others
+```
+
+### 12.5b: Post-generation BibTeX completeness check + follow-up request
+
+**New file**: `apps/web/lib/ai/bibtex-completion.ts`
+
+After the AI generates a response, validate that every `\cite{key}` in the body has a matching `@type{key,` entry in the trailer. If entries are missing, make a targeted follow-up request for ONLY the missing entries.
+
+```typescript
+import { extractCiteKeys } from "@/lib/citations/extract-keys";
+import { splitBibtex } from "@/lib/latex/assemble";
+import { getAnthropicClient } from "./client";
+
+/**
+ * Extract cite keys that appear in BibTeX entries.
+ * Matches @article{key, / @book{key, etc.
+ */
+function extractBibtexEntryKeys(bibtex: string): Set<string> {
+  const keys = new Set<string>();
+  const re = /@\w+\s*\{\s*([^,\s]+)\s*,/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(bibtex)) !== null) {
+    keys.add(m[1].trim());
+  }
+  return keys;
+}
+
+export interface BibtexIntegrityResult {
+  complete: boolean;
+  missingKeys: string[];
+  bodyKeyCount: number;
+  entryCount: number;
+}
+
+/**
+ * Check if every \cite{key} in the body has a matching BibTeX entry.
+ */
+export function checkBibtexIntegrity(fullResponse: string): BibtexIntegrityResult {
+  const { body, bib } = splitBibtex(fullResponse);
+  const bodyKeys = new Set(extractCiteKeys(body));
+  const entryKeys = extractBibtexEntryKeys(bib);
+
+  const missingKeys = [...bodyKeys].filter((k) => !entryKeys.has(k));
+
+  return {
+    complete: missingKeys.length === 0,
+    missingKeys,
+    bodyKeyCount: bodyKeys.size,
+    entryCount: entryKeys.size,
+  };
+}
+
+/**
+ * Request missing BibTeX entries from the AI.
+ * Returns ONLY the missing entries as a BibTeX string.
+ */
+export async function requestMissingBibtexEntries(
+  missingKeys: string[],
+  originalBody: string,
+  model: string,
+): Promise<string> {
+  if (missingKeys.length === 0) return "";
+
+  const client = getAnthropicClient();
+  const response = await client.messages.create({
+    model,
+    max_tokens: Math.max(2000, missingKeys.length * 200), // ~200 tokens per entry
+    system: `You are a bibliographer. Generate complete BibTeX entries for the given citation keys based on the chapter context. Output ONLY valid BibTeX entries — no explanation, no markdown fences. Use ASCII only (no Unicode). Each entry must have: author, title, journal/publisher, year. Use realistic but plausible bibliographic data consistent with the chapter content.`,
+    messages: [{
+      role: "user",
+      content: `The following citation keys were used in a medical thesis chapter but their BibTeX entries are missing. Generate complete BibTeX entries for each.\n\nMissing keys: ${missingKeys.join(", ")}\n\nChapter context (first 2000 chars for reference):\n${originalBody.slice(0, 2000)}`,
+    }],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  return textBlock?.type === "text" ? textBlock.text : "";
+}
+```
+
+### 12.5c: Integrate into generate route
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` (or `lib/inngest/functions/ai-generate.ts` after Step 14)
+
+After the AI response is received and before saving:
+
+```typescript
+import { checkBibtexIntegrity, requestMissingBibtexEntries } from "@/lib/ai/bibtex-completion";
+
+// After fullResponse is complete:
+const integrity = checkBibtexIntegrity(fullResponse);
+
+if (!integrity.complete && integrity.missingKeys.length > 0) {
+  console.warn(
+    `BibTeX trailer incomplete: ${integrity.missingKeys.length} missing entries ` +
+    `(${integrity.bodyKeyCount} cite keys, ${integrity.entryCount} entries). ` +
+    `Requesting missing entries...`
+  );
+
+  try {
+    const missingBibtex = await requestMissingBibtexEntries(
+      integrity.missingKeys,
+      splitBibtex(fullResponse).body,
+      model,
+    );
+    if (missingBibtex.trim()) {
+      // Append missing entries to the existing BibTeX trailer
+      const { body, bib } = splitBibtex(fullResponse);
+      fullResponse = bib.trim()
+        ? `${body}\n\n---BIBTEX---\n${bib}\n\n${missingBibtex}`
+        : `${body}\n\n---BIBTEX---\n${missingBibtex}`;
+    }
+  } catch (err) {
+    console.error("Failed to request missing BibTeX entries:", err);
+    // Non-blocking — auto-resolve will create Tier D placeholders
+  }
+}
+```
+
+### 12.5d: Strengthen COMMON_RULES prompt instruction
+
+This is integrated into Step 3 (COMMON_RULES update). Add to rule 9:
+
+```
+9. When citations are required, you MUST append a ---BIBTEX--- section after the chapter content with complete BibTeX entries for every \cite{key} used. CRITICAL: The number of BibTeX entries MUST exactly equal the number of unique \cite{key} references in the chapter body. Do NOT truncate or omit any entries. If you are running low on space, prioritise completing all BibTeX entries over adding more chapter content.
+```
+
+~100 lines across 2 new/edited files.
+
+---
+
+## Step 13: Refine Route State Management (5.11)
+
+**Review ID**: E5
+
+**Problem**: Refining an approved section sets `status: "review"` (line 131) without rolling back `phases_completed`. The project shows Phase N+1 as current but Phase N's section is un-approved.
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`
+
+After the section is updated, check if the section was previously approved. If so, roll back:
+
+```typescript
+// After section update succeeds:
+if (typedSection.status === "approved") {
+  // Roll back phases_completed and current_phase
+  const { data: project } = await supabase
+    .from("projects")
+    .select("phases_completed, current_phase")
+    .eq("id", id)
+    .single();
+
+  if (project) {
+    const updatedPhases = (project.phases_completed as number[]).filter(
+      (p) => p !== phaseNumber
+    );
+    await supabase
+      .from("projects")
+      .update({
+        phases_completed: updatedPhases,
+        current_phase: phaseNumber,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+  }
+}
+```
+
+~15 lines added.
+
+---
+
+## Step 14: Inngest Background Generation + Supabase Realtime Live Preview (5.10)
+
+**Review ID**: IV-E4, DECISIONS.md 3.5, deferred from Phase 2 (2.5)
+
+**This is the largest step.** DECISIONS.md 3.5: "AI generation runs as Inngest background jobs. If student stays on page: live text preview via Supabase Realtime. If student closes tab: generation continues."
+
+### 14a: Database migration — streaming content column
+
+**Migration**: `028_streaming_content`
+
+```sql
+-- Temporary column for streaming content during generation
+ALTER TABLE public.sections
+  ADD COLUMN IF NOT EXISTS streaming_content text DEFAULT '';
+
+COMMENT ON COLUMN public.sections.streaming_content IS
+  'Holds partial content during AI generation. Cleared on completion. Used by Realtime subscriptions for live preview.';
+```
+
+### 14b: Inngest AI generation function
+
+**New file**: `apps/web/lib/inngest/functions/ai-generate.ts`
+
+This Inngest function replaces the SSE streaming in `generate/route.ts`:
+
+```typescript
+import { inngest } from "../client";
+import { getAnthropicClient } from "@/lib/ai/client";
+import { getPhaseSystemPrompt, getPhaseUserMessage } from "@/lib/ai/prompts";
+import { extractCiteKeys } from "@/lib/citations/extract-keys";
+import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
+import { recordTokenUsage } from "@/lib/ai/token-budget";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+
+export const aiGenerate = inngest.createFunction(
+  {
+    id: "ai-generate-section",
+    retries: 1,
+    concurrency: [{ limit: 5 }], // max 5 concurrent AI generations
+  },
+  { event: "thesis/section.generate" },
+  async ({ event, step }) => {
+    const { projectId, phaseNumber, systemPrompt, userMessage, model, maxTokens } = event.data;
+    const supabase = createAdminSupabaseClient();
+
+    // Step 1: Stream AI response, writing chunks to streaming_content
+    const result = await step.run("stream-ai-response", async () => {
+      const client = getAnthropicClient();
+      let fullResponse = "";
+
+      const messageStream = client.messages.stream({
+        model,
+        max_tokens: maxTokens,
+        system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: userMessage }],
+      });
+
+      // Batch Realtime updates every ~500 chars to avoid excessive DB writes
+      let lastFlushed = 0;
+      const FLUSH_INTERVAL = 500;
+
+      messageStream.on("text", (text) => {
+        fullResponse += text;
+        if (fullResponse.length - lastFlushed >= FLUSH_INTERVAL) {
+          // Fire-and-forget partial update for Realtime subscribers
+          supabase
+            .from("sections")
+            .update({ streaming_content: fullResponse })
+            .eq("project_id", projectId)
+            .eq("phase_number", phaseNumber)
+            .then(() => {});
+          lastFlushed = fullResponse.length;
+        }
+      });
+
+      const finalMessage = await messageStream.finalMessage();
+
+      return {
+        fullResponse,
+        inputTokens: finalMessage.usage?.input_tokens ?? 0,
+        outputTokens: finalMessage.usage?.output_tokens ?? 0,
+      };
+    });
+
+    // Step 2: Save final content
+    await step.run("save-content", async () => {
+      const citationKeys = extractCiteKeys(result.fullResponse);
+      const plainText = result.fullResponse
+        .replace(/\\[a-zA-Z]+\{[^}]*\}/g, " ")
+        .replace(/\\[a-zA-Z]+/g, " ")
+        .replace(/[{}\\]/g, " ");
+      const wordCount = plainText.split(/\s+/).filter(Boolean).length;
+
+      await supabase
+        .from("sections")
+        .update({
+          latex_content: result.fullResponse,
+          ai_generated_latex: result.fullResponse,
+          rich_content_json: null,
+          streaming_content: "",
+          word_count: wordCount,
+          citation_keys: citationKeys,
+          status: "review",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("project_id", projectId)
+        .eq("phase_number", phaseNumber);
+    });
+
+    // Step 3: Record token usage
+    await step.run("record-tokens", async () => {
+      await recordTokenUsage(
+        projectId,
+        phaseNumber,
+        result.inputTokens,
+        result.outputTokens,
+        model,
+      );
+    });
+
+    // Step 4: Resolve citations (non-blocking)
+    await step.run("resolve-citations", async () => {
+      const timeoutMs = phaseNumber === 4 ? 45_000 : 15_000;
+      try {
+        await Promise.race([
+          resolveSectionCitations(projectId, result.fullResponse),
+          new Promise<null>((r) => setTimeout(() => r(null), timeoutMs)),
+        ]);
+      } catch (err) {
+        console.error("Citation resolution failed:", err);
+      }
+    });
+
+    return { success: true };
+  },
+);
+```
+
+### 14c: Update generate route to enqueue Inngest job
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+Replace the SSE streaming in `handleSectionGenerate()` with:
+
+```typescript
+// After building systemPrompt, userMessage, model, maxTokens:
+
+// Set section to "generating"
+await supabase.from("sections").upsert(
+  {
+    project_id: project.id,
+    phase_number: phaseNumber,
+    phase_name: phaseDef?.name ?? `phase_${phaseNumber}`,
+    latex_content: "",
+    streaming_content: "",
+    word_count: 0,
+    citation_keys: [],
+    status: "generating",
+  },
+  { onConflict: "project_id,phase_number" }
+);
+
+// Enqueue Inngest job
+await inngest.send({
+  name: "thesis/section.generate",
+  data: {
+    projectId: project.id,
+    phaseNumber,
+    systemPrompt,
+    userMessage,
+    model,
+    maxTokens,
+  },
+});
+
+// Return immediately with job acknowledgement
+return NextResponse.json({
+  data: { status: "generating", message: "Generation started" },
+});
+```
+
+### 14d: Frontend Realtime subscription
+
+**Edit file**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+Replace SSE `EventSource` with Supabase Realtime subscription:
+
+```typescript
+// Subscribe to section changes for live preview
+useEffect(() => {
+  if (section?.status !== "generating") return;
+
+  const channel = supabase
+    .channel(`section-${projectId}-${currentPhase}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "sections",
+        filter: `project_id=eq.${projectId}`,
+      },
+      (payload) => {
+        const updated = payload.new;
+        if (updated.phase_number === currentPhase) {
+          if (updated.streaming_content) {
+            setStreamingContent(updated.streaming_content);
+          }
+          if (updated.status !== "generating") {
+            // Generation complete — refresh section data
+            refreshSection();
+          }
+        }
+      },
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [section?.status, projectId, currentPhase]);
+```
+
+### 14e: Register Inngest function
+
+**Edit file**: `apps/web/app/api/inngest/route.ts`
+
+Add `aiGenerate` to the functions array.
+
+~200 lines across 4 files + 1 migration.
+
+---
+
+## Step 15: Metadata Sanitisation for AI Calls (deferred 1.8)
+
+**Review IDs**: IV-D1, IV-D2, IV-D3
+
+**Problem**: `metadata_json` is passed to AI prompts unfiltered. Could contain student name, registration number, institution details.
+
+**Edit file**: `apps/web/lib/ai/redact.ts`
+
+Add a `sanitiseMetadataForAI()` function:
+
+```typescript
+/**
+ * Strip PII-adjacent fields from metadata before sending to AI.
+ * Keeps: study_type, department, keywords, sample_size, duration, setting (anonymised)
+ * Strips: candidate_name, guide_name, hod_name, registration_number, institution_name
+ */
+const PII_METADATA_KEYS = new Set([
+  "candidate_name", "guide_name", "co_guide_name", "hod_name",
+  "registration_number", "institution_name", "institution_address",
+  "email", "phone", "mobile",
+]);
+
+export function sanitiseMetadataForAI(
+  metadata: Record<string, unknown>,
+): Record<string, unknown> {
+  const sanitised: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!PII_METADATA_KEYS.has(key)) {
+      sanitised[key] = value;
+    }
+  }
+  return sanitised;
+}
+```
+
+**Edit file**: `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`
+
+Replace `(project.metadata_json ?? {}) as Record<string, unknown>` with `sanitiseMetadataForAI((project.metadata_json ?? {}) as Record<string, unknown>)` in the `getPhaseUserMessage()` call.
+
+~25 lines added.
+
+---
+
+## Step 16: Update Tests
+
+### 16a: Word count config tests
+
+**New file**: `apps/web/tests/ai/word-count-config.test.ts`
+
+Test:
+- Each phase returns correct config matching DECISIONS.md 4.1
+- `hardCeiling` = `Math.ceil(softMax * 1.15)` for all phases
+- `hardFloor` = `softMin` for all phases
+- Non-prose phases (0, 1, 9, 10, 11) return `null`
+
+### 16b: Token budget tests
+
+**Edit file**: `apps/web/lib/ai/token-budget.ts` (or new test file)
+
+Test:
+- `recordTokenUsage()` accepts separate input/output tokens
+- `checkTokenBudget()` checks output tokens for phase budget
+- `checkTokenBudget()` checks total for thesis budget
+
+### 16c: Orphan cite key stripping tests
+
+**Edit file**: `apps/web/lib/latex/assemble.test.ts`
+
+Add test:
+- `\cite{known}` preserved when key is Tier A
+- `\cite{tierD}` stripped when key is Tier D
+- `\cite{orphan}` stripped when key has no DB record
+- `\cite{a,orphan,b}` becomes `\cite{a,b}` (partial strip)
+
+### 16d: AI review prompt test
+
+Test that `aiReviewSection()` returns properly typed `ReviewIssue[]`. Mock the Haiku call.
+
+### 16e: Update pipeline E2E test
+
+**Edit file**: `apps/web/tests/pipeline-e2e.test.ts`
+
+Update to use `WORD_COUNT_CONFIG` from the new config file. Verify word count checks use the canonical ranges.
+
+### 16f: Synopsis prompt test
+
+Test that the merged `SYNOPSIS_PARSE_SYSTEM_PROMPT` extracts all fields from both the old wizard and parse prompts.
+
+~100 lines of new tests.
+
+---
+
+## Execution Order
+
+```
+Step 1   → Word count config (new file, no deps)
+Step 2   → Update prompts with canonical word counts (depends on Step 1)
+Step 3   → Unicode avoidance rule (1 line, no deps)
+Step 4   → Anthropic client retry + consolidate instances (no deps)
+Step 5   → Synopsis prompt dedup (no deps)
+Step 6   → Remove context truncation (no deps)
+  ↓
+Step 7a  → Migration 027 (split token tracking)
+Step 7b-g → Token budget enforcement (depends on 7a)
+  ↓
+Step 8   → Phase 9 prompt (no deps)
+Step 9   → AI-powered review (depends on 7 for token recording)
+Step 10  → Opus routing (no deps)
+Step 11  → Orphan cite key stripping (no deps)
+Step 12  → Citation pipeline improvements (no deps)
+Step 13  → Refine state management (no deps)
+  ↓
+Step 14a → Migration 028 (streaming_content)
+Step 14b → Inngest AI generation function (depends on 14a)
+Step 14c → Update generate route (depends on 14b)
+Step 14d → Frontend Realtime subscription (depends on 14c)
+Step 14e → Register Inngest function (depends on 14b)
+  ↓
+Step 15  → Metadata sanitisation (no deps)
+Step 16  → Tests (last)
+```
+
+Steps 1-6 are independent and can be done in parallel.
+Steps 8-13 (including 12.5) are independent and can be done in parallel (after Step 7).
+Step 12.5 should be done alongside Step 12 (both involve citation pipeline).
+Step 14 is the largest and most complex — do it sequentially.
+
+---
+
+## Files Summary
+
+| Step | File | Action | ~Lines |
+|------|------|--------|--------|
+| 1 | `lib/phases/word-count-config.ts` | **Create** | 60 |
+| 1 | `lib/phases/word-count-targets.ts` | Edit | 15 |
+| 1 | `lib/ai/review-section.ts` | Edit (word count) | 5 |
+| 2 | `lib/ai/prompts.ts` | Edit (word counts) | 40 |
+| 3 | `lib/ai/prompts.ts` | Edit (Unicode rule) | 1 |
+| 4 | `lib/ai/client.ts` | Edit (retry config) | 5 |
+| 4 | `lib/datasets/generate.ts` | Edit (use singleton) | 5 |
+| 4 | `lib/compliance/checker.ts` | Edit (use singleton) | 5 |
+| 5 | `lib/ai/prompts.ts` | Edit (merged synopsis prompt) | 30 |
+| 5 | `app/api/synopsis/parse/route.ts` | Edit (use shared prompt) | 20 |
+| 6 | `lib/ai/prompts.ts` | Edit (remove .slice) | 1 |
+| 7 | Migration `027_split_token_tracking` | **Create** (via MCP) | 10 |
+| 7 | `lib/ai/token-budget.ts` | Edit | 30 |
+| 7 | `sections/[phase]/refine/route.ts` | Edit (budget) | 15 |
+| 7 | `datasets/generate/route.ts` | Edit (budget) | 10 |
+| 7 | `synopsis/parse/route.ts` | Edit (recording) | 5 |
+| 7 | `analyses/auto-detect/route.ts` | Edit (recording) | 5 |
+| 7 | `sections/[phase]/generate/route.ts` | Edit (split tokens) | 5 |
+| 8 | `lib/ai/prompts.ts` | Edit (Phase 9 prompt) | 90 |
+| 8 | `sections/[phase]/approve/route.ts` | Edit | 10 |
+| 9 | `lib/ai/review-section.ts` | Edit (AI review + M&M fix) | 100 |
+| 9 | `lib/ai/prompts.ts` | Edit (review prompt) | 60 |
+| 10 | `sections/[phase]/generate/route.ts` | Edit (Opus routing) | 10 |
+| 11 | `lib/latex/assemble.ts` | Edit (orphan stripping) | 20 |
+| 12 | `lib/citations/crossref.ts` | Edit (retry) | 25 |
+| 12 | `lib/citations/auto-resolve.ts` | Edit (batch upsert) | 30 |
+| 12 | `sections/[phase]/generate/route.ts` | Edit (ROL timeout) | 5 |
+| 12.5 | `lib/ai/bibtex-completion.ts` | **Create** | 80 |
+| 12.5 | `sections/[phase]/generate/route.ts` | Edit (integrity check) | 20 |
+| 13 | `sections/[phase]/refine/route.ts` | Edit (state rollback) | 15 |
+| 14 | Migration `028_streaming_content` | **Create** (via MCP) | 5 |
+| 14 | `lib/inngest/functions/ai-generate.ts` | **Create** | 100 |
+| 14 | `sections/[phase]/generate/route.ts` | Edit (Inngest) | 30 |
+| 14 | `projects/[id]/project-workspace.tsx` | Edit (Realtime) | 40 |
+| 14 | `app/api/inngest/route.ts` | Edit (register) | 3 |
+| 15 | `lib/ai/redact.ts` | Edit (metadata sanitisation) | 25 |
+| 15 | `sections/[phase]/generate/route.ts` | Edit (use sanitiser) | 3 |
+| 16 | `tests/ai/word-count-config.test.ts` | **Create** | 40 |
+| 16 | `lib/latex/assemble.test.ts` | Edit | 20 |
+| 16 | `tests/pipeline-e2e.test.ts` | Edit | 20 |
+| 16 | Additional test files | **Create** | 40 |
+
+**Total**: 5 new files + 2 migrations + ~20 modified files. ~1,000 lines added/changed.
+
+All paths relative to `apps/web/`.
+
+---
+
+## Review ID Cross-Reference
+
+| Review ID | Mitigation Item | Step |
+|-----------|----------------|------|
+| A1 | Phase 9 prompt missing | 8 |
+| A3 | Context truncated to 3,000 chars | 6 |
+| A4, F3 | No Unicode avoidance in COMMON_RULES | 3 |
+| A5, E6, F2 | Word count targets disagree | 1, 2 |
+| A6 | Synopsis parse prompt duplicated | 5 |
+| A7, E4, F4 | Token budget bypassed | 7 |
+| A8 | Input/output tokens conflated | 7 |
+| A10 | Review is purely rule-based | 9 |
+| A11 | M&M check requires 8, prompt mandates 12 | 9 |
+| A12 | Opus routing dead code | 10 |
+| A13 | No retry on Anthropic client | 4 |
+| A14 | Standalone Anthropic instances | 4 |
+| B1 | Orphan cite keys survive | 11 |
+| B2 | No retry for CrossRef/PubMed | 12 |
+| B3 | Re-resolve lacks title verification | 12 |
+| B5 | ROL timeout mismatch | 12 |
+| IV-E4 | Inngest + Realtime generation | 14 |
+| IV-E6 | N+1 citation upserts | 12 |
+| E5 | Refine un-approves without rollback | 13 |
+| IV-D1 (deferred 1.8) | Metadata sanitisation | 15 |
+| 2.5 (deferred) | Inngest workflow refactor | 14 |
+| 3.4 (deferred) | Opus model routing | 10 |
+
+---
+
+## Verification
+
+1. `pnpm tsc --noEmit` — 0 TypeScript errors
+2. `pnpm lint` — no new warnings
+3. `pnpm test` — all tests pass (existing + new)
+4. Apply migrations via Supabase MCP:
+   - `027_split_token_tracking`
+   - `028_streaming_content`
+5. Run advisors: `mcp__supabase__get_advisors({ type: "security" })`
+6. Manual checks:
+   - Generate an Introduction — verify word count target in prompt is 1,000–1,400
+   - Generate a Discussion — verify Opus model used (Professional plan) or Sonnet (Student plan)
+   - Refine an approved section — verify `phases_completed` rolls back
+   - Check token usage in `ai_conversations` — verify separate `input_tokens`/`output_tokens`
+   - Verify no `.slice(0, 3000)` truncation — Discussion receives full ROL context
+   - Verify `\cite{orphan}` stripped from compiled output
+   - Test Inngest generation: close browser tab, reopen — content waiting
+   - Test Realtime: stay on page during generation — see live text preview
+   - Verify AI review runs on section approval (Haiku, ~2K tokens)
+   - Verify Phase 9 prompt generates consolidated BibTeX + quality report
+   - Generate a ROL chapter — verify all `\cite{key}` have matching BibTeX entries (count body keys == trailer entries)
+   - Test truncation scenario: if `stop_reason === "max_tokens"`, verify follow-up request fills missing entries
+   - Verify increased `max_tokens` (ROL: 16K, Discussion: 12K, Intro/M&M: 10K)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. The user provided a massive implementation plan for "Phase 5: AI Pipeline Overhaul" with 16 steps covering word count unification, prompt updates, token budget enforcement, AI review, Opus routing, citation pipeline improvements, Inngest background generation, metadata sanitisation, and tests.
+
+2. I started by reading all the key files I needed to modify in parallel batches.
+
+3. I created a task tracking system with 7 tasks to organize the work.
+
+4. **Task 1 (Steps 1-2) - COMPLETED:**
+   - Created `word-count-config.ts` with canonical word count configuration
+   - Rewrote `word-count-targets.ts` to source from the canonical config
+   - Rewrote `review-section.ts` to use `getWordCountConfig()`, fix M&M section count (8→12), and add `aiReviewSection()` function
+   - Rewrote `prompts.ts` with: canonical word counts via `wordCountInstruction()`, Unicode avoidance rule 10, strengthened BibTeX rule 9, merged synopsis parse prompt, removed `.slice(0, 3000)` truncation, added Phase 9 References Consolidation prompt, added `SECTION_REVIEW_SYSTEM_PROMPT`, added `case 9` in `getPhaseSystemPrompt()` and `getPhaseUserMessage()`
+
+5. **Task 2 (Steps 3-6) - COMPLETED:**
+   - Step 3: Unicode avoidance added to COMMON_RULES (done in prompts.ts rewrite)
+   - Step 4: Added retry/timeout config to Anthropic client in `client.ts`
+   - Step 4: Replaced standalone `new Anthropic()` in `datasets/generate.ts` and `compliance/checker.ts` with `getAnthropicClient()`
+   - Step 5: Rewrote `synopsis/parse/route.ts` to use shared `SYNOPSIS_PARSE_SYSTEM_PROMPT` instead of inline `SYNOPSIS_WIZARD_PROMPT`
+   - Step 6: Removed `.slice(0, 3000)` truncation (done in prompts.ts rewrite)
+
+6. **Task 3 (Step 7) - COMPLETED:**
+   - Applied migration `027_split_token_tracking` via Supabase MCP
+   - Rewrote `token-budget.ts` with split input/output tokens, phase budget checks output_tokens only
+   - Added token budget check + recording to refine route
+   - Updated generate route's `recordTokenUsage()` call to pass separate input/output tokens
+
+7. **Task 4 (Steps 8-13) - COMPLETED:**
+   - Step 8: Phase 9 prompt already done in prompts.ts; updated approve route to create Phase 9 as "draft" instead of "review"
+   - Step 9: AI review already done in review-section.ts rewrite
+   - Step 10: Opus model routing - replaced dead code with actual conditional based on `gateResult.planConfig?.modelTier`. Added `LicenceGateResult` type import, updated function signature to accept `gateResult`, passed it at call site
+   - Step 11: Created `stripInvalidCitations()` in assemble.ts replacing `stripTierDCitations()` (kept deprecated wrapper), updated `assembleThesisContent()` to use `validCiteKeys` set
+   - Step 12: Added `fetchWithRetry()` to crossref.ts with exponential backoff, used in all fetch calls. Increased ROL citation timeout to 45s. Batch upserted citations in auto-resolve.ts
+   - Step 12.5: Created `bibtex-completion.ts` with `checkBibtexIntegrity()` and `requestMissingBibtexEntries()`. Integrated into generate route
+   - Step 13: Added state rollback in refine route when refining an approved section
+
+8. **Task 5 (Step 14) - IN PROGRESS:**
+   - Applied migration `028_streaming_content` via Supabase MCP
+   - Created `ai-generate.ts` Inngest function with streaming via DB updates
+   - Registered `aiGenerateFn` in `inngest/route.ts`
+   - Replaced SSE streaming in generate route with Inngest enqueue + JSON response
+   - Cleaned up imports in generate route (removed Sentry, unused imports, added inngest)
+   - Added Realtime subscription in `project-workspace.tsx` - had to fix ordering issue where `currentSection` was used before defined. Moved the useEffect after `currentSection` definition.
+
+**Error encountered and fixed:** The Realtime subscription useEffect referenced `currentSection` which was defined after it. Fixed by moving the useEffect block to after the `currentSection = sections.find(...)` line.
+
+**Remaining tasks:**
+- Task 5: Need to also update `handleGenerateComplete` callback in project-workspace.tsx since generate no longer returns SSE (it returns JSON now). The `AIGenerateButton` component may need updating.
+- Task 6: Steps 15-16 - Metadata sanitisation + tests
+- Task 7: Run verification (tsc, lint, tests, advisors)
+
+The `max_tokens` were increased: ROL 12K→16K, Discussion 8K→12K, Intro/M&M 8K→10K.
+
+Looking at what was happening right before the summary request: I had just fixed the Realtime subscription ordering issue in project-workspace.tsx. The Task 5 work is still in progress.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked me to implement a comprehensive "Phase 5: AI Pipeline Overhaul" plan with 16 steps covering 15 known issues in the AI pipeline. The plan addresses: unified word count configuration, full context passing (remove truncation), token budget enforcement on all AI routes, AI-powered section review via Haiku, Opus routing for key chapters, Phase 9 References prompt, Inngest background generation with Realtime live preview, citation pipeline hardening (retry, batch upserts, orphan stripping, BibTeX trailer integrity), metadata sanitisation, and tests. The plan specifies ~1,000 lines across 5 new files + 2 migrations + ~20 modified files.
+
+2. Key Technical Concepts:
+   - Canonical word count configuration (DECISIONS.md 4.1-4.2) with soft/hard limits and AI aim ranges
+   - Split input/output token tracking for budget enforcement (output tokens for phase budget, total for thesis)
+   - Inngest durable background jobs replacing SSE streaming for AI generation
+   - Supabase Realtime subscriptions for live preview via `streaming_content` column
+   - BibTeX trailer integrity validation with follow-up AI request for missing entries
+   - Opus model routing based on `planConfig.modelTier` from licence gate
+   - Orphan cite key stripping (keys not in citations table at all)
+   - Exponential backoff retry for CrossRef/PubMed API calls
+   - Batch citation upserts replacing N+1 DB queries
+   - AI-powered section review via Haiku (~2K tokens) with 6 quality dimensions
+   - Metadata sanitisation stripping PII fields before AI calls
+   - Synopsis prompt deduplication (merged wizard + parse prompts)
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/phases/word-count-config.ts`** (NEW)
+     - Single source of truth for word count targets per phase
+     - Exports `WORD_COUNT_CONFIG`, `getWordCountConfig()`, `wordCountInstruction()`
+     - Used by prompts.ts, review-section.ts, and word-count-targets.ts
+     ```typescript
+     export const WORD_COUNT_CONFIG: Record<number, WordCountConfig> = {
+       2: { softMin: 1000, softMax: 1400, hardFloor: 1000, hardCeiling: 1610, aiAimLow: 1300, aiAimHigh: 1400 },
+       3: { softMin: 300,  softMax: 500,  hardFloor: 300,  hardCeiling: 575,  aiAimLow: 450,  aiAimHigh: 500  },
+       4: { softMin: 3500, softMax: 5000, hardFloor: 3500, hardCeiling: 5750, aiAimLow: 4500, aiAimHigh: 5000 },
+       5: { softMin: 1500, softMax: 2500, hardFloor: 1500, hardCeiling: 2875, aiAimLow: 2200, aiAimHigh: 2500 },
+       6: { softMin: 1500, softMax: 2500, hardFloor: 1500, hardCeiling: 2875, aiAimLow: 2200, aiAimHigh: 2500 },
+       7: { softMin: 2000, softMax: 3500, hardFloor: 2000, hardCeiling: 4025, aiAimLow: 3000, aiAimHigh: 3500 },
+       8: { softMin: 500,  softMax: 800,  hardFloor: 500,  hardCeiling: 920,  aiAimLow: 700,  aiAimHigh: 800  },
+     };
+     ```
+
+   - **`apps/web/lib/phases/word-count-targets.ts`** (REWRITTEN)
+     - Now imports from word-count-config.ts instead of hardcoded values
+     - Maps `softMin` → `min`, `softMax` → `max` preserving `WordCountTarget` interface
+
+   - **`apps/web/lib/ai/prompts.ts`** (REWRITTEN)
+     - COMMON_RULES: Rule 9 strengthened (BibTeX completeness), Rule 10 added (Unicode avoidance)
+     - All phase prompts use `${wordCountInstruction(N)}` for dynamic word counts
+     - `SYNOPSIS_PARSE_SYSTEM_PROMPT`: Merged to extract ALL fields (title, study_type, study_design, department, aims, objectives, methodology_summary, sample_size as number, duration, setting, inclusion_criteria, exclusion_criteria, keywords)
+     - Added `REFERENCES_CONSOLIDATION_SYSTEM_PROMPT` for Phase 9
+     - Added `SECTION_REVIEW_SYSTEM_PROMPT` for AI review via Haiku
+     - Added `case 9` in `getPhaseSystemPrompt()` and `getPhaseUserMessage()`
+     - `getPhaseUserMessage()`: Removed `.slice(0, 3000)` truncation; Phase 9 collects BibTeX from all sections
+     - `SynopsisParseResult` interface updated with new fields: `study_design`, `aims`, `sample_size` (now number), `inclusion_criteria`, `exclusion_criteria`
+     - Imports `wordCountInstruction` from word-count-config and `splitBibtex` from assemble
+
+   - **`apps/web/lib/ai/review-section.ts`** (REWRITTEN)
+     - Uses `getWordCountConfig()` for word count checking with hardFloor/hardCeiling
+     - M&M section count: `if (sectionCount < 8)` → `if (sectionCount < 12)`
+     - Added `aiReviewSection()` function that calls Haiku with 6 quality dimensions
+     - Added `ReviewOptions` interface with `includeAIReview`, `projectId`, `synopsis`, `metadata`
+     - Category type extended: `"citation" | "word-count" | "structure" | "spelling" | "ai-review"`
+     - Imports `getAnthropicClient`, `SECTION_REVIEW_SYSTEM_PROMPT`, `recordTokenUsage`
+
+   - **`apps/web/lib/ai/client.ts`** (EDITED)
+     - Added `maxRetries: 3` and `timeout: 120_000` to Anthropic client config
+
+   - **`apps/web/lib/datasets/generate.ts`** (EDITED)
+     - Replaced `import Anthropic from "@anthropic-ai/sdk"` with `import { getAnthropicClient } from "@/lib/ai/client"`
+     - `const anthropic = new Anthropic()` → `const anthropic = getAnthropicClient()`
+
+   - **`apps/web/lib/compliance/checker.ts`** (EDITED)
+     - Same singleton replacement: `import Anthropic` → `import { getAnthropicClient }`, `new Anthropic()` → `getAnthropicClient()`
+
+   - **`apps/web/app/api/synopsis/parse/route.ts`** (REWRITTEN)
+     - Removed inline `SYNOPSIS_WIZARD_PROMPT`, imports `SYNOPSIS_PARSE_SYSTEM_PROMPT` from prompts.ts
+     - Response normalisation updated for merged schema (includes department, duration, setting, keywords, aims, study_design, inclusion_criteria, exclusion_criteria)
+
+   - **`apps/web/lib/ai/token-budget.ts`** (REWRITTEN)
+     - `checkTokenBudget()`: Now queries `output_tokens` column, phase budget checks output tokens only
+     - `recordTokenUsage()`: Signature changed from `(projectId, phaseNumber, totalTokens, modelUsed)` → `(projectId, phaseNumber, inputTokens, outputTokens, modelUsed)`
+     - Inserts `input_tokens`, `output_tokens`, and `total_tokens` (sum)
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (HEAVILY EDITED)
+     - Imports: Removed `Sentry`, `extractCiteKeys`, `resolveSectionCitations`, `CitationResolutionSummary`, `recordTokenUsage`, `notFound`. Added `inngest`, `LicenceGateResult`, `checkBibtexIntegrity`, `requestMissingBibtexEntries`, `splitBibtex`
+     - `handleSectionGenerate()` signature: Added `gateResult: LicenceGateResult` parameter
+     - Model routing: `const useOpus = [2, 7].includes(phaseNumber) && gateResult.planConfig?.modelTier === "opus"` → uses `claude-opus-4-5-20250514` or `claude-sonnet-4-5-20250929`
+     - `maxTokens`: ROL 12K→16K, Discussion 8K→12K, Intro/M&M 8K→10K
+     - **SSE streaming replaced with Inngest enqueue**: `inngest.send({ name: "thesis/section.generate", data: {...} })` + returns `NextResponse.json({ data: { status: "generating" } })`
+     - Section upsert now includes `streaming_content: ""`
+     - Phase 0 (synopsis parsing) still uses SSE streaming (unchanged)
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`** (EDITED)
+     - Added `import { checkTokenBudget, recordTokenUsage }` 
+     - Added token budget check before streaming
+     - Added token recording after `finalMessage()`: extracts `inputTokens`/`outputTokens`, calls `recordTokenUsage()`
+     - Added state rollback when refining an approved section: rolls back `phases_completed` and `current_phase`
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (EDITED)
+     - Phase 8→9 auto-creation: Changed status from `"review"` to `"draft"` so student must trigger AI consolidation
+
+   - **`apps/web/lib/latex/assemble.ts`** (EDITED)
+     - Renamed `stripTierDCitations()` → `stripInvalidCitations()` with `validCiteKeys: Set<string>` parameter
+     - Kept deprecated `stripTierDCitations()` wrapper for backwards compatibility
+     - `assembleThesisContent()`: Now builds `validCiteKeys` (non-Tier D) instead of `tierDKeys`, uses `stripInvalidCitations()`
+
+   - **`apps/web/lib/citations/crossref.ts`** (EDITED)
+     - Added `fetchWithRetry()` function with exponential backoff (1s, 2s, 4s)
+     - All 3 fetch calls (`lookupDOI` bibtex, `lookupDOI` metadata, `searchCrossRef`) now use `fetchWithRetry()`
+
+   - **`apps/web/lib/citations/auto-resolve.ts`** (EDITED)
+     - Replaced N+1 upsert loop with batch: collects `toUpsert` array, single `supabase.from("citations").upsert(toUpsert, ...)`
+     - Same for orphan upserts: collects `orphanUpserts` array, single batch upsert
+
+   - **`apps/web/lib/ai/bibtex-completion.ts`** (NEW)
+     - `checkBibtexIntegrity()`: Compares `\cite{key}` in body vs `@type{key,` in trailer
+     - `requestMissingBibtexEntries()`: Makes targeted AI follow-up for missing entries
+     - `extractBibtexEntryKeys()`: Helper to parse BibTeX entry keys
+
+   - **`apps/web/lib/inngest/functions/ai-generate.ts`** (NEW)
+     - Inngest function `aiGenerateFn` with id "ai-generate-section"
+     - 5 steps: stream-ai-response, bibtex-integrity, save-content, record-tokens, resolve-citations
+     - Flushes partial content to `streaming_content` column every 500 chars for Realtime
+     - Concurrency limit: 5, retries: 1
+
+   - **`apps/web/app/api/inngest/route.ts`** (EDITED)
+     - Added `import { aiGenerateFn }` and included in functions array
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (EDITED - LOCKED file, modified per plan)
+     - Added `useSupabaseClient` import and `streamingContent` state
+     - Added Realtime subscription useEffect that subscribes to section updates when `currentSection?.status === "generating"`
+     - Fixed ordering: moved useEffect after `currentSection` definition
+
+   - **Migrations applied via Supabase MCP:**
+     - `027_split_token_tracking`: Added `input_tokens` and `output_tokens` columns to `ai_conversations`, backfilled from `total_tokens`
+     - `028_streaming_content`: Added `streaming_content` text column to `sections`
+
+4. Errors and fixes:
+   - **Realtime useEffect ordering**: The Realtime subscription useEffect referenced `currentSection` which was defined after it in the component. Fixed by moving the useEffect block to after the `const currentSection = sections.find(...)` line.
+   - **`gateResult` not passed to `handleSectionGenerate`**: The Opus routing needed `gateResult.planConfig?.modelTier` but the function didn't receive it. Fixed by adding `gateResult: LicenceGateResult` parameter and passing it at the call site.
+
+5. Problem Solving:
+   - Resolved word count disagreements across 3 files by creating a single canonical config
+   - Eliminated dead Opus routing code by connecting to actual licence plan config
+   - Fixed orphan cite key survival by building a `validCiteKeys` set instead of just `tierDKeys`
+   - Addressed BibTeX truncation by increasing max_tokens and adding post-generation integrity check with follow-up AI request
+   - Replaced fragile SSE streaming with durable Inngest background jobs + Supabase Realtime
+   - Eliminated N+1 citation upsert queries with batch operations
+   - Added exponential backoff retry for external API calls
+
+6. All user messages:
+   - "Implement the following plan: # Phase 5: AI Pipeline Overhaul — Implementation Plan [full plan with 16 steps, file summaries, execution order, verification checklist]"
+
+7. Pending Tasks:
+   - **Task 5 (Step 14) - IN PROGRESS**: Need to verify the `AIGenerateButton` component works with the new JSON response instead of SSE. The `handleGenerateComplete` callback and `onComplete` flow may need updating since generate no longer returns an SSE stream.
+   - **Task 6 (Steps 15-16)**: Metadata sanitisation (`sanitiseMetadataForAI()` in `redact.ts`, apply in generate route) + tests (word-count-config, token budget, orphan cite stripping, AI review, pipeline E2E, synopsis prompt)
+   - **Task 7**: Run verification — `pnpm tsc --noEmit`, `pnpm lint`, `pnpm test`, security advisors
+
+8. Current Work:
+   Working on Task 5 (Step 14: Inngest background generation + Realtime live preview). Just fixed the Realtime subscription ordering issue in `project-workspace.tsx` where `currentSection` was referenced before being defined. The Inngest function is created, registered, the generate route enqueues jobs instead of SSE streaming, and the frontend has Realtime subscription for live preview. However, `streamingContent` state is captured but not yet rendered anywhere in the component — the streaming content display may need to be wired into the editor/viewer. Also, the `AIGenerateButton` component likely needs to handle the new JSON response format (no longer SSE EventSource).
+
+9. Optional Next Step:
+   Complete Task 5 by checking that the `AIGenerateButton` component and `handleGenerateComplete` callback work with the new Inngest-based flow (JSON response instead of SSE), then proceed to Task 6 (Steps 15-16: metadata sanitisation + tests). The plan states: "Step 15: Metadata Sanitisation for AI Calls... Add a `sanitiseMetadataForAI()` function" in `lib/ai/redact.ts` and "Edit file: `sections/[phase]/generate/route.ts` — Replace `(project.metadata_json ?? {}) as Record<string, unknown>` with `sanitiseMetadataForAI(...)` in the `getPhaseUserMessage()` call." Then Step 16 writes tests.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+Check the Review, Deciions, Mitigation_plan, Mitigation_implementation docs, and check the alignmwnt of the completed phae 5 with them. Check the logic of all the completed steps, and check whether all phase 5 change are done correvct code wie and logic wise. THink ultra hard
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Context Recovery**: The session started with a continuation from a previous conversation that ran out of context. A detailed summary was provided covering Phase 5 implementation progress through Tasks 1-5 (partially complete).
+
+2. **User's First Request**: The user asked to "continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on." This meant continuing Phase 5 implementation.
+
+3. **Task 5 Completion (Step 14 - Inngest + Realtime)**:
+   - Read `AIGenerateButton` component - found it uses `useSSE` hook for SSE streaming
+   - Read `useSSE` hook - understood it expects SSE protocol
+   - Problem: Generate route now returns JSON for phases 1-8 (Inngest), but Phase 0 still uses SSE
+   - Rewrote `AIGenerateButton` to support both modes via `backgroundMode` prop
+   - Updated `project-workspace.tsx`:
+     - Added `Loader2` import
+     - Added streaming content display in `renderEditor()` for live Realtime preview
+     - Passed `backgroundMode={viewingPhase !== 0}` and `onGenerating` to AIGenerateButton
+
+4. **Task 6 (Steps 15-16)**:
+   - Step 15: Added `sanitiseMetadataForAI()` to `redact.ts`
+   - Applied it in generate route
+   - Step 16: Tests written/updated:
+     - Updated `word-count-targets.test.ts` with new canonical values
+     - Created `word-count-config.test.ts`
+     - Created `bibtex-completion.test.ts`
+     - Updated `redact.test.ts` with sanitisation tests
+     - Updated `assemble.test.ts` with `stripInvalidCitations` tests
+     - Fixed `parse-synopsis-response.ts` for TypeScript error (sample_size string→number)
+
+5. **Task 7 (Verification)**:
+   - TypeScript: Initial error in `parse-synopsis-response.ts` - `sample_size` was `string | null` but type changed to `number | null`. Fixed by adding number coercion.
+   - Tests: Multiple rounds of fixes:
+     - Round 1 (6 failures): auto-resolve batch upsert, crossref timeout, assemble warning message, whitespace in cite
+     - Round 2 (3 failures): Fixed more batch upsert assertions, cite key assertion
+     - Round 3 (1 failure): Pipeline E2E test - orphan stripping removed all citations because no citation records passed
+     - Final: All 326 tests pass across 32 files
+   - Security advisors: Only pre-existing `function_search_path_mutable` warnings
+   - Migrations verified: both 027 and 028 applied
+
+6. **User's Second Request**: "Check the Review, Decisions, Mitigation_plan, Mitigation_implementation docs, and check the alignment of the completed phase 5 with them. Check the logic of all the completed steps, and check whether all phase 5 changes are done correct code wise and logic wise. Think ultra hard"
+
+7. **Audit Work**:
+   - Found all docs: REVIEW.md, DECISIONS.md, Decision_points.md, Mitigation_plan.md, Mitigation_implementation.md
+   - Read DECISIONS.md (full), Mitigation_plan.md (full - Phase 5 section 5.1-5.15), Mitigation_implementation.md (full - Phases 1-4 complete)
+   - This is where the conversation was interrupted for summarization
+
+Now let me catalog the key details:
+
+**Files modified/created in this session:**
+- `apps/web/components/project/ai-generate-button.tsx` - rewritten for background mode
+- `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - Realtime streaming display + background mode
+- `apps/web/lib/ai/redact.ts` - added `sanitiseMetadataForAI()`
+- `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - import sanitiser
+- `apps/web/lib/ai/parse-synopsis-response.ts` - fixed sample_size type
+- `apps/web/lib/phases/word-count-targets.test.ts` - updated expectations
+- `apps/web/lib/phases/word-count-config.test.ts` - new
+- `apps/web/lib/ai/bibtex-completion.test.ts` - new
+- `apps/web/lib/ai/redact.test.ts` - added sanitisation tests
+- `apps/web/lib/latex/assemble.test.ts` - added stripInvalidCitations tests, fixed assertions
+- `apps/web/lib/citations/auto-resolve.test.ts` - fixed batch upsert assertions
+- `apps/web/lib/citations/crossref.test.ts` - fixed retry timeout
+- `apps/web/tests/pipeline-e2e.test.ts` - added citation records for orphan stripping
+
+**Errors encountered and fixed:**
+1. TypeScript error: `parse-synopsis-response.ts` sample_size string→number
+2. Test failures: batch upsert assertions (array vs object)
+3. Test failures: warning message "stripped Tier D" → "stripped invalid citations"
+4. Test failures: whitespace in cite keys `\cite{a,b}` vs `\cite{a, b}`
+5. Test failures: orphan cite key assertion `.not.toContain("orphan")` failing because UNRESOLVED comment contains "orphan"
+6. Test failures: crossref timeout due to fetchWithRetry retries
+7. Test failures: pipeline E2E - all cite keys stripped as orphans because no citation records passed
+
+**What was being worked on when summarization was requested:**
+The user asked for a thorough audit of Phase 5 against the source documents. I had read all the docs (DECISIONS.md, Mitigation_plan.md, Mitigation_implementation.md) and was about to begin the systematic verification of alignment and code correctness. The conversation was interrupted before I could produce the audit findings.
+
+Summary:
+1. Primary Request and Intent:
+   The user's original request was to implement a comprehensive "Phase 5: AI Pipeline Overhaul" plan with 16 steps. The plan was already written in `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md` and was being followed from a previous session that ran out of context. Steps 1-4 (Tasks 1-4) were completed in the prior session. This session continued from Task 5 (partially complete).
+
+   The user's second and most recent request was: "Check the Review, Decisions, Mitigation_plan, Mitigation_implementation docs, and check the alignment of the completed phase 5 with them. Check the logic of all the completed steps, and check whether all phase 5 changes are done correct code wise and logic wise. Think ultra hard"
+
+   This is an audit/verification task requiring reading all source documents and systematically verifying every Phase 5 change against them.
+
+2. Key Technical Concepts:
+   - **Inngest background jobs** replacing SSE streaming for AI generation (phases 1-8)
+   - **Supabase Realtime** subscriptions for live preview during generation via `streaming_content` column
+   - **Dual-mode AIGenerateButton**: SSE for Phase 0, background POST+JSON for phases 1-8
+   - **Metadata sanitisation** (`sanitiseMetadataForAI()`) stripping PII fields before AI calls
+   - **BibTeX trailer integrity** validation with follow-up AI request for missing entries
+   - **Orphan cite key stripping** - keys not in citations table at all (not just Tier D)
+   - **Batch citation upserts** replacing N+1 individual DB calls
+   - **Exponential backoff retry** (`fetchWithRetry()`) for CrossRef/PubMed APIs
+   - **Canonical word count configuration** sourced from DECISIONS.md 4.1-4.2
+   - **AI-powered section review** via Haiku with 6 quality dimensions
+   - **Opus model routing** based on `planConfig.modelTier` from licence gate
+   - **Split input/output token tracking** - phase budget on output tokens only
+   - **Synopsis prompt deduplication** - merged wizard + parse prompts with unified schema
+   - **`SynopsisParseResult`** type change: `sample_size` from `string | null` to `number | null`
+
+3. Files and Code Sections:
+
+   - **`apps/web/components/project/ai-generate-button.tsx`** (REWRITTEN)
+     - Critical for Inngest integration — component must handle both SSE (Phase 0) and background JSON (phases 1-8)
+     - Added `backgroundMode` and `onGenerating` props
+     - Background mode: regular `fetch` POST, parses JSON response, calls `onGenerating()` + `onComplete()`
+     - SSE mode: uses existing `useSSE` hook (unchanged for Phase 0)
+     - Button shows "Starting..." for background, "Generating..." for SSE
+     ```typescript
+     interface AIGenerateButtonProps {
+       projectId: string;
+       phaseNumber: number;
+       disabled?: boolean;
+       hasContent?: boolean;
+       backgroundMode?: boolean;
+       onGenerating?: () => void;
+       onComplete?: (data: SSEMessage) => void;
+       onRefine?: () => void;
+     }
+     ```
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (EDITED — LOCKED file, modified per plan)
+     - Added `Loader2` import from lucide-react
+     - Added streaming content display in `renderEditor()` — shows live Realtime preview when section is "generating" and `streamingContent` is non-empty
+     - Passed `backgroundMode={viewingPhase !== 0}` and `onGenerating={() => router.refresh()}` to AIGenerateButton
+     ```typescript
+     // Generating with streaming content — show live Realtime preview
+     if (currentSection.status === "generating" && streamingContent) {
+       return (
+         <div>
+           <div className="mb-3 flex items-center gap-2">
+             <Loader2 className="h-4 w-4 animate-spin text-[#8B9D77]" />
+             <h3 className="font-serif text-lg font-semibold text-[#2F2F2F]">
+               Generating {phaseDef?.label ?? `Phase ${viewingPhase}`}...
+             </h3>
+           </div>
+           <div className="rounded-lg bg-[#FAFAFA] p-4">
+             <pre className="whitespace-pre-wrap break-words font-mono text-sm text-[#2F2F2F]/80">
+               {streamingContent}
+             </pre>
+           </div>
+         </div>
+       );
+     }
+     ```
+
+   - **`apps/web/lib/ai/redact.ts`** (EDITED)
+     - Added `sanitiseMetadataForAI()` function that strips PII fields (candidate_name, guide_name, co_guide_name, hod_name, registration_number, institution_name, institution_address, email, phone, mobile)
+     ```typescript
+     const PII_METADATA_KEYS = new Set([
+       "candidate_name", "guide_name", "co_guide_name", "hod_name",
+       "registration_number", "institution_name", "institution_address",
+       "email", "phone", "mobile",
+     ]);
+     export function sanitiseMetadataForAI(
+       metadata: Record<string, unknown>,
+     ): Record<string, unknown> { ... }
+     ```
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (EDITED)
+     - Added `sanitiseMetadataForAI` import and applied it: `sanitiseMetadataForAI((project.metadata_json ?? {}) as Record<string, unknown>)` in the `getPhaseUserMessage()` call
+
+   - **`apps/web/lib/ai/parse-synopsis-response.ts`** (REWRITTEN)
+     - Fixed TypeScript error: `sample_size` changed from `string | null` to `number | null` in the merged `SynopsisParseResult` interface
+     - Added number coercion: accepts both `number` and `string` (parses via `parseInt`)
+     - Added new fields: `study_design`, `aims`, `inclusion_criteria`, `exclusion_criteria`
+     ```typescript
+     let sampleSize: number | null = null;
+     if (typeof parsed.sample_size === "number") {
+       sampleSize = parsed.sample_size;
+     } else if (typeof parsed.sample_size === "string") {
+       const n = parseInt(parsed.sample_size, 10);
+       if (!isNaN(n)) sampleSize = n;
+     }
+     ```
+
+   - **`apps/web/lib/phases/word-count-config.test.ts`** (NEW)
+     - Tests canonical values match DECISIONS.md 4.1
+     - Tests `hardFloor === softMin` and `hardCeiling === Math.ceil(softMax * 1.15)` for all phases
+     - Tests `wordCountInstruction()` output
+
+   - **`apps/web/lib/phases/word-count-targets.test.ts`** (REWRITTEN)
+     - Updated all expected values to match new canonical config: Introduction min 750→1000, max 1200→1400; Aims min 200→300; ROL max 4500→5000; M&M min/max 1500/3000→1500/2500; Conclusion min 400→500
+
+   - **`apps/web/lib/ai/bibtex-completion.test.ts`** (NEW)
+     - Tests `checkBibtexIntegrity()`: complete match, missing entries, no BibTeX section, no citations, multi-key cite commands, various entry types
+
+   - **`apps/web/lib/ai/redact.test.ts`** (EDITED)
+     - Added `sanitiseMetadataForAI` import and tests: strips PII, returns empty for all-PII, preserves non-PII, handles empty metadata
+
+   - **`apps/web/lib/latex/assemble.test.ts`** (EDITED)
+     - Added `stripInvalidCitations` import
+     - Fixed warning assertion: "stripped Tier D" → "stripped invalid citations"
+     - Fixed cite whitespace: `\cite{a,b}` → `\cite{a, b}`
+     - Fixed orphan assertion: `.not.toContain("orphan")` → `.not.toContain("\\cite{a, orphan")` + `.toContain("% UNRESOLVED: orphan")`
+     - Added `stripInvalidCitations` test suite: preserves valid, strips orphans, partial strip mixed, strips all invalid, no citations
+
+   - **`apps/web/lib/citations/auto-resolve.test.ts`** (EDITED)
+     - Fixed two upsert assertions from `expect.objectContaining({...})` to `expect.arrayContaining([expect.objectContaining({...})])` because upsert is now batch (array)
+
+   - **`apps/web/lib/citations/crossref.test.ts`** (EDITED)
+     - Fixed timeout test: added 3 more `mockRejectedValueOnce` calls (fetchWithRetry retries 3 times), increased timeout to 30s
+
+   - **`apps/web/tests/pipeline-e2e.test.ts`** (EDITED)
+     - Added `introCitations` array with all 5 citation keys from AI_GENERATED_INTRO to prevent orphan stripping
+     - Passed citations to `assembleThesisContent()` call
+
+   - **Source Documents Read**:
+     - `/Users/devs/Downloads/Apollo/docs/DECISIONS.md` — Full read. Key Phase 5 sections: 3.1 (Phase 9 AI consolidation), 3.2 (AI review), 3.3 (Opus routing), 3.4 (full context), 3.5 (Inngest + Realtime), 4.1-4.2 (word count targets)
+     - `/Users/devs/Downloads/Apollo/docs/Mitigation_plan.md` — Full read. Phase 5 items 5.1-5.15 with review IDs
+     - `/Users/devs/Downloads/Apollo/docs/Mitigation_implementation.md` — Full read. Phases 1-4 implementation logs. Phase 5 NOT yet documented (this is what was just implemented)
+
+4. Errors and Fixes:
+   - **TypeScript error in `parse-synopsis-response.ts`**: `Type 'string | null' is not assignable to type 'number | null'`. The merged `SynopsisParseResult` changed `sample_size` to `number | null` but the parser still checked `typeof parsed.sample_size === "string"`. Fixed by adding number type check and string-to-number coercion.
+   
+   - **Test failure: `auto-resolve.test.ts` batch upsert** (2 instances): Tests expected `mockUpsert` to be called with a single object, but batch upsert now passes an array. Fixed by wrapping in `expect.arrayContaining([...])`.
+   
+   - **Test failure: `assemble.test.ts` warning message**: Warning changed from "stripped Tier D" to "stripped invalid citations". Fixed by updating the assertion string.
+   
+   - **Test failure: `assemble.test.ts` cite key whitespace**: `stripInvalidCitations` joins kept keys with `", "` (space after comma). Test expected `\cite{a,b}` but got `\cite{a, b}`. Fixed by updating expected string.
+   
+   - **Test failure: `assemble.test.ts` orphan assertion**: `.not.toContain("orphan")` failed because the UNRESOLVED comment contains "orphan". Fixed by checking `.not.toContain("\\cite{a, orphan")` and `.toContain("% UNRESOLVED: orphan")`.
+   
+   - **Test failure: `crossref.test.ts` timeout**: `fetchWithRetry` retries 3 times with exponential backoff (1s+2s+4s=7s), exceeding the default 5s test timeout. Fixed by adding 3 more mock rejections and increasing timeout to 30s.
+   
+   - **Test failure: `pipeline-e2e.test.ts` orphan stripping**: `assembleThesisContent` now builds `validCiteKeys` from the citations table. Test passed no citations (`[]`), so ALL `\cite{key}` were stripped as orphans. Fixed by adding citation records for the 5 keys used in `AI_GENERATED_INTRO`.
+
+5. Problem Solving:
+   - **SSE→JSON migration**: The `AIGenerateButton` used `useSSE` hook expecting SSE streaming, but generate route now returns JSON for phases 1-8. Solved by adding a `backgroundMode` prop that uses regular fetch instead of SSE, and keeping SSE for Phase 0 only.
+   - **Streaming content display**: The workspace had `streamingContent` state and Realtime subscription (from prior session) but no rendering. Added a branch in `renderEditor()` that shows live preview with a spinner during generation.
+   - **Type mismatch in synopsis parsing**: The merged prompt changed `sample_size` from string to number. The parse function needed to accept both types (AI may return either) and coerce strings to numbers.
+   - **All 326 tests passing** after 4 rounds of fixes across 7 test files.
+
+6. All User Messages:
+   - "This session is being continued from a previous conversation that ran out of context. [detailed summary of prior work]... Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on."
+   - "Check the Review, Decisions, Mitigation_plan, Mitigation_implementation docs, and check the alignment of the completed phase 5 with them. Check the logic of all the completed steps, and check whether all phase 5 changes are done correct code wise and logic wise. Think ultra hard"
+
+7. Pending Tasks:
+   - **Complete the Phase 5 audit**: The user's most recent request was to verify alignment of Phase 5 implementation against DECISIONS.md, Mitigation_plan.md, and Mitigation_implementation.md, and check all code logic. The source documents have been read but the systematic verification and findings have NOT yet been produced.
+
+8. Current Work:
+   The most recent work was reading all three source documents (DECISIONS.md, Mitigation_plan.md, Mitigation_implementation.md) to begin the Phase 5 audit requested by the user. All documents have been fully read. The audit itself — systematically checking each of the 15 Phase 5 mitigation items (5.1-5.15) against the actual implementation, verifying code logic correctness, and identifying any gaps or errors — has NOT yet been performed or reported to the user.
+
+   The key Phase 5 items from Mitigation_plan.md that need verification:
+   - 5.1: Unify word count targets (A5, E6, F2)
+   - 5.2: Remove context truncation (A3)
+   - 5.3: Token budget enforcement (A7, E4, F4)
+   - 5.4: Separate input/output tokens (A8)
+   - 5.5: Phase 9 References prompt (A1)
+   - 5.6: AI-powered section review (A10, A11)
+   - 5.7: Opus model routing (A12)
+   - 5.8: Unicode avoidance in COMMON_RULES (A4, F3)
+   - 5.9: Anthropic client retry (A13, A14)
+   - 5.10: Inngest + Realtime generation (IV-E4)
+   - 5.11: Refine state management (E4, E5)
+   - 5.12: Orphan cite key stripping (B1)
+   - 5.13: Citation pipeline improvements (B2, B3, B5)
+   - 5.14: Batch citation upserts (IV-E6)
+   - 5.15: Synopsis prompt deduplication (A6)
+   - Plus: deferred 1.8 (metadata sanitisation), BibTeX trailer integrity (12.5 in plan)
+
+9. Optional Next Step:
+   Continue the Phase 5 audit as requested: "Check the Review, Decisions, Mitigation_plan, Mitigation_implementation docs, and check the alignment of the completed phase 5 with them. Check the logic of all the completed steps, and check whether all phase 5 changes are done correct code wise and logic wise. Think ultra hard"
+
+   The source documents have been read. The next step is to systematically read each modified file and verify:
+   1. Every mitigation item 5.1-5.15 is implemented and aligned with DECISIONS.md
+   2. Code logic is correct (no bugs, edge cases, type errors)
+   3. No items were missed or partially implemented
+   4. Cross-reference with the plan at `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md`
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+yes fix all of them. Also regarding metadata sanitisation, check why it was deferred, and if at previous stages (eg in synopsis parsing) redaction has been decided against. Is this redaction really necessary? this data is not patient data, rest are public info. Check the whole set of senses for Logic again
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation from a previous conversation that ran out of context. A detailed summary was provided covering Phase 5 implementation work through Tasks 1-7 (all completed in the prior session). All 326 tests passing, migrations applied via MCP.
+
+2. **User's First Request**: "continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on."
+
+3. **Context**: The last task from the previous session was an audit requested by the user: "Check the Review, Decisions, Mitigation_plan, Mitigation_implementation docs, and check the alignment of the completed phase 5 with them. Check the logic of all the completed steps, and check whether all phase 5 changes are done correct code wise and logic wise. Think ultra hard"
+
+4. **My approach**: I began the systematic audit by reading all implementation files in parallel:
+   - Read word-count-config.ts, word-count-targets.ts, prompts.ts, client.ts, token-budget.ts, review-section.ts
+   - Read bibtex-completion.ts, redact.ts, assemble.ts, crossref.ts, auto-resolve.ts, ai-generate.ts (Inngest)
+   - Read generate/route.ts, refine/route.ts, synopsis/parse/route.ts, inngest/route.ts
+   - Spawned explore agents to check: datasets/generate.ts, compliance/checker.ts, datasets/generate/route.ts, analyses/auto-detect/route.ts, approve/route.ts for token tracking
+   - Spawned explore agent to check migrations and database types
+
+5. **Audit findings**: I produced a comprehensive audit report with:
+   - 12/16 items fully implemented
+   - 3/16 partially done
+   - 1/16 implemented but not integrated
+   - 3 critical issues, 1 high issue, 3 minor issues
+
+6. **User's Second Request**: "yes fix all of them. Also regarding metadata sanitisation, check why it was deferred, and if at previous stages (eg in synopsis parsing) redaction has been decided against. Is this redaction really necessary? this data is not patient data, rest are public info. Check the whole set of senses for Logic again"
+
+7. **My approach to fixing**:
+   - Spawned an explore agent to research metadata sanitisation thoroughly (IV-D1/D2/D3, item 1.8)
+   - Read database.ts types
+   - Concluded: sanitiseMetadataForAI() strips public academic info (not patient data), breaks Phase 1 acknowledgements, redactPII() already handles truly sensitive data
+   - Created task list (#8-#12) for tracking fixes
+   - Started implementing fixes:
+
+   **Task #8 (COMPLETED)**: Create local migration files + update types
+   - Created 026_split_token_tracking.sql
+   - Created 027_add_streaming_content.sql
+   - Updated Section interface to add `streaming_content: string`
+   - Updated AiConversation interface to add `input_tokens: number` and `output_tokens: number`
+
+   **Task #9 (IN PROGRESS)**: Wire up aiReviewSection()
+   - Added import to approve/route.ts
+   - Added non-blocking AI review call before approval transition
+   - Added ai_review field to response JSON
+
+   **Task #10 (IN PROGRESS)**: Add token recording
+   - datasets/generate.ts: Added recordTokenUsage import and call after AI response
+   - analyses/auto-detect/route.ts: Added recordTokenUsage import and call after Haiku response
+   - compliance/checker.ts: Added recordTokenUsage import, passed projectId to batchAICheck, added recording call
+   - synopsis/parse/route.ts: Rewrote to use parseSynopsisResponse() shared parser, added recordTokenUsage
+
+   **Task #11 (IN PROGRESS)**: Minor fixes + remove sanitiseMetadataForAI
+   - Synopsis parse route: Now uses parseSynopsisResponse() instead of inline JSON parsing
+
+   The work was interrupted mid-implementation. Several fixes are still pending:
+   - Remove sanitiseMetadataForAI from generate route
+   - Fix stale timeout comment (says 5 min, constant is 2 min)
+   - Wire ReviewOptions into reviewSection()
+   - Task #12: Run tests and TypeScript check
+
+Let me catalog all specific file changes and code:
+
+**Files Created:**
+1. `/Users/devs/Downloads/Apollo/apps/web/supabase/migrations/026_split_token_tracking.sql`
+2. `/Users/devs/Downloads/Apollo/apps/web/supabase/migrations/027_add_streaming_content.sql`
+
+**Files Modified:**
+1. `lib/types/database.ts` - Added streaming_content to Section, input_tokens/output_tokens to AiConversation
+2. `app/api/projects/[id]/sections/[phase]/approve/route.ts` - Added aiReviewSection import, call, and response field
+3. `lib/datasets/generate.ts` - Added recordTokenUsage import and call
+4. `app/api/projects/[id]/analyses/auto-detect/route.ts` - Added recordTokenUsage import and call
+5. `lib/compliance/checker.ts` - Added recordTokenUsage import, passed projectId to batchAICheck, added recording
+6. `app/api/synopsis/parse/route.ts` - Rewrote to use parseSynopsisResponse() and added recordTokenUsage
+
+**NOT YET DONE:**
+- Remove sanitiseMetadataForAI from generate/route.ts
+- Fix stale timeout comment and increase to 5 minutes
+- Wire ReviewOptions into reviewSection()
+- Run TypeScript check and tests
+- Update MEMORY.md with Phase 5 audit findings
+
+Summary:
+1. Primary Request and Intent:
+   The user is continuing Phase 5 (AI Pipeline Overhaul) implementation from a previous session. The plan is at `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md` with 16 steps covering word count unification, token budgets, Inngest generation, AI review, Opus routing, citation pipeline, and more.
+   
+   The immediate task was an audit of Phase 5 against source documents (REVIEW.md, DECISIONS.md, Mitigation_plan.md, Mitigation_implementation.md). After producing the audit report identifying 3 critical, 1 high, and 3 minor issues, the user requested: "yes fix all of them. Also regarding metadata sanitisation, check why it was deferred, and if at previous stages (eg in synopsis parsing) redaction has been decided against. Is this redaction really necessary? this data is not patient data, rest are public info. Check the whole set of senses for Logic again"
+
+   The user specifically questioned whether `sanitiseMetadataForAI()` is necessary, pointing out the data isn't patient data and is public info.
+
+2. Key Technical Concepts:
+   - **Phase 5 audit against mitigation items 5.1-5.15**: Systematic verification of each implementation against DECISIONS.md and Mitigation_plan.md
+   - **Metadata sanitisation analysis**: `sanitiseMetadataForAI()` strips academic info (candidate_name, guide_name, hod_name) that are public and needed for Phase 1 acknowledgements — decision is to REMOVE it
+   - **`redactPII()`** (phone, Aadhaar, email, PAN) remains as the sole PII protection — sufficient for truly sensitive data
+   - **`aiReviewSection()`**: Was dead code (exported but never called) — now wired into approve route as non-blocking quality check
+   - **Token recording gaps**: 4 routes (datasets/generate, synopsis/parse, auto-detect, compliance/checker) were missing `recordTokenUsage()` calls
+   - **TypeScript type sync**: `Section` missing `streaming_content`, `AiConversation` missing `input_tokens`/`output_tokens`
+   - **Local migration files**: MCP-applied migrations (027/028) had no local SQL files — need local copies for `supabase db reset` reproducibility (renumbered as 026/027 since only 001-025 existed locally)
+   - **Stale generation timeout**: Comment said 5 minutes but constant was 2 minutes — needs fix
+
+3. Files and Code Sections:
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/supabase/migrations/026_split_token_tracking.sql`** (CREATED)
+     - Local migration file matching what was applied via MCP. Needed for reproducibility.
+     ```sql
+     ALTER TABLE public.ai_conversations
+       ADD COLUMN IF NOT EXISTS input_tokens integer DEFAULT 0,
+       ADD COLUMN IF NOT EXISTS output_tokens integer DEFAULT 0;
+     UPDATE public.ai_conversations
+     SET input_tokens = ROUND(total_tokens * 0.7),
+         output_tokens = ROUND(total_tokens * 0.3)
+     WHERE input_tokens = 0 AND total_tokens > 0;
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/supabase/migrations/027_add_streaming_content.sql`** (CREATED)
+     - Local migration file for streaming_content column on sections table.
+     ```sql
+     ALTER TABLE public.sections
+       ADD COLUMN IF NOT EXISTS streaming_content text DEFAULT '';
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/types/database.ts`** (EDITED)
+     - Critical type sync — code writes these columns but types didn't include them.
+     - Added `streaming_content: string;` to Section interface (after ai_generated_latex)
+     - Added `input_tokens: number;` and `output_tokens: number;` to AiConversation interface (before total_tokens)
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (EDITED)
+     - Wired up the previously dead `aiReviewSection()` function. Three changes:
+     - Added import: `import { aiReviewSection } from "@/lib/ai/review-section";`
+     - Added non-blocking AI review call before approval:
+     ```typescript
+     let aiReviewIssues: { severity: string; category: string; message: string }[] = [];
+     if (typedProject.synopsis_text && typedSection.latex_content) {
+       try {
+         aiReviewIssues = await aiReviewSection(
+           typedSection.latex_content,
+           phaseNumber,
+           id,
+           typedProject.synopsis_text,
+           (typedProject.metadata_json ?? {}) as Record<string, unknown>,
+         );
+       } catch {
+         // Non-blocking — AI review failure doesn't prevent approval
+       }
+     }
+     ```
+     - Added `ai_review` to response JSON: `ai_review: aiReviewIssues.length > 0 ? aiReviewIssues : undefined,`
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/datasets/generate.ts`** (EDITED)
+     - Added token recording for dataset generation AI calls.
+     - Added import: `import { recordTokenUsage } from "@/lib/ai/token-budget";`
+     - After AI response (line ~90): 
+     ```typescript
+     const inputTokens = response.usage?.input_tokens ?? 0;
+     const outputTokens = response.usage?.output_tokens ?? 0;
+     void recordTokenUsage(projectId, 6, inputTokens, outputTokens, "claude-sonnet-4-5-20250929").catch(console.error);
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/analyses/auto-detect/route.ts`** (EDITED)
+     - Added token recording for auto-detect Haiku calls.
+     - Added import: `import { recordTokenUsage } from "@/lib/ai/token-budget";`
+     - After msg response:
+     ```typescript
+     const inputTokens = msg.usage?.input_tokens ?? 0;
+     const outputTokens = msg.usage?.output_tokens ?? 0;
+     void recordTokenUsage(id, 6, inputTokens, outputTokens, "REDACTED").catch(console.error);
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/compliance/checker.ts`** (EDITED)
+     - Added token recording + passed projectId to batchAICheck.
+     - Added import: `import { recordTokenUsage } from "@/lib/ai/token-budget";`
+     - Changed `batchAICheck` signature to accept `projectId: string` as first param
+     - Updated call site: `batchAICheck(projectId, itemsNeedingAI)`
+     - Added recording after AI response:
+     ```typescript
+     const inputTk = response.usage?.input_tokens ?? 0;
+     const outputTk = response.usage?.output_tokens ?? 0;
+     void recordTokenUsage(projectId, 11, inputTk, outputTk, "REDACTED").catch(console.error);
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/api/synopsis/parse/route.ts`** (REWRITTEN)
+     - Eliminated code duplication — now uses shared `parseSynopsisResponse()` instead of inline JSON parsing.
+     - Added imports: `parseSynopsisResponse` from `@/lib/ai/parse-synopsis-response`, `recordTokenUsage` from `@/lib/ai/token-budget`
+     - Added token recording after AI call:
+     ```typescript
+     const inputTokens = message.usage?.input_tokens ?? 0;
+     const outputTokens = message.usage?.output_tokens ?? 0;
+     void recordTokenUsage("synopsis-parse", 0, inputTokens, outputTokens, "claude-sonnet-4-5-20250929").catch(console.error);
+     ```
+     - Replaced inline JSON parsing (~40 lines) with:
+     ```typescript
+     const data = parseSynopsisResponse(textBlock.text);
+     if (!data) {
+       return internalError("Failed to parse AI response as structured data");
+     }
+     return NextResponse.json({ data });
+     ```
+
+   - **Files READ for audit** (not modified):
+     - `lib/phases/word-count-config.ts` — verified canonical values match DECISIONS.md 4.1 ✓
+     - `lib/phases/word-count-targets.ts` — imports from config ✓
+     - `lib/ai/prompts.ts` — all prompts use wordCountInstruction(), Phase 9 prompt exists, case 9 in both getPhaseSystemPrompt/getPhaseUserMessage ✓
+     - `lib/ai/client.ts` — maxRetries: 3, timeout: 120_000 ✓
+     - `lib/ai/token-budget.ts` — separate input/output tracking ✓
+     - `lib/ai/review-section.ts` — aiReviewSection() exists with 6 quality dimensions, M&M check at 12 ✓
+     - `lib/ai/bibtex-completion.ts` — checkBibtexIntegrity() + requestMissingBibtexEntries() ✓
+     - `lib/ai/redact.ts` — sanitiseMetadataForAI() defined (to be removed from generate route)
+     - `lib/latex/assemble.ts` — stripInvalidCitations() with validCiteKeys set ✓
+     - `lib/citations/crossref.ts` — fetchWithRetry() with exponential backoff ✓
+     - `lib/citations/auto-resolve.ts` — batch upserts ✓
+     - `lib/inngest/functions/ai-generate.ts` — 5-step Inngest function ✓
+     - `app/api/projects/[id]/sections/[phase]/generate/route.ts` — Opus routing, Inngest enqueue, sanitiseMetadataForAI (to be removed)
+     - `app/api/projects/[id]/sections/[phase]/refine/route.ts` — token budget + state rollback ✓
+     - `app/api/inngest/route.ts` — aiGenerateFn registered ✓
+
+4. Errors and fixes:
+   No runtime errors in this session. The audit identified architectural/integration gaps rather than code errors:
+   - **aiReviewSection() dead code**: Function existed but was never called. Fixed by wiring into approve route.
+   - **Missing token recording**: 4 routes lacked recordTokenUsage(). Fixed by adding imports and calls.
+   - **Missing local migration files**: MCP-applied migrations had no local SQL. Fixed by creating 026/027 SQL files.
+   - **Type sync gap**: TypeScript interfaces missing new DB columns. Fixed by adding fields to Section and AiConversation.
+   - **Synopsis parse code duplication**: Inline JSON parsing in route instead of shared parser. Fixed by using parseSynopsisResponse().
+   - **compliance/checker.ts**: batchAICheck didn't have projectId for token recording. Fixed by adding projectId parameter and threading it through.
+
+5. Problem Solving:
+   - **Metadata sanitisation**: Thoroughly researched IV-D1/D2/D3 review items, read DECISIONS.md, Mitigation_plan.md, the redact.ts code, and the Front Matter prompt. Concluded that `sanitiseMetadataForAI()` strips public academic info (not patient PII), breaks Phase 1 acknowledgements (guide names needed), and `redactPII()` already handles truly sensitive patterns. Decision: remove the call from generate route.
+   - **Logic re-check**: Verified word count math (hardCeiling = ceil(softMax*1.15)), token budget logic (output_tokens for phase, total for thesis), stripInvalidCitations edge cases, Inngest step.run retry semantics, BibTeX completion flow, refine rollback race conditions, Phase 9 user message BibTeX extraction, stale generation timeout concerns.
+
+6. All user messages:
+   - "This session is being continued from a previous conversation that ran out of context. [detailed summary]... Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on."
+   - "yes fix all of them. Also regarding metadata sanitisation, check why it was deferred, and if at previous stages (eg in synopsis parsing) redaction has been decided against. Is this redaction really necessary? this data is not patient data, rest are public info. Check the whole set of senses for Logic again"
+
+7. Pending Tasks:
+   Task tracking (tasks #8-#12):
+   - **#8 COMPLETED**: Create local migration files + update TypeScript types
+   - **#9 IN PROGRESS**: Wire up aiReviewSection() — import and call added, but `ReviewOptions` not yet wired into `reviewSection()` function signature
+   - **#10 IN PROGRESS**: Token recording — all 4 routes updated, but need to verify compilability
+   - **#11 IN PROGRESS**: Minor fixes — synopsis parse rewritten, but still need to:
+     - **Remove `sanitiseMetadataForAI` from generate/route.ts** (line 189: `sanitiseMetadataForAI((project.metadata_json ?? {}) as Record<string, unknown>)` → `(project.metadata_json ?? {}) as Record<string, unknown>`)
+     - **Remove `sanitiseMetadataForAI` from import** at line 14 of generate/route.ts
+     - **Fix stale timeout**: `STALE_GENERATING_MS = 2 * 60 * 1000` (line 29) should be `5 * 60 * 1000`, and comment at line 77 says "5 minutes" which would then be correct
+     - **Wire ReviewOptions into reviewSection()** — add optional options parameter
+   - **#12 PENDING**: Run `pnpm tsc --noEmit` and `pnpm test` to verify all fixes
+
+8. Current Work:
+   I was mid-way through fixing all audit issues identified in the Phase 5 verification. I had just completed editing 6 files (approve route, datasets/generate, auto-detect, compliance/checker, synopsis/parse, types/database) and created 2 migration files. The remaining work is:
+   
+   1. Remove `sanitiseMetadataForAI` from `generate/route.ts` (both import and call site at line 189)
+   2. Fix stale timeout constant from 2 min to 5 min in `generate/route.ts` line 29
+   3. Optionally wire `ReviewOptions` into `reviewSection()` function signature
+   4. Run TypeScript check and tests (Task #12)
+
+9. Optional Next Step:
+   Continue fixing the remaining items from Task #11:
+   - Edit `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`:
+     - Remove `sanitiseMetadataForAI` from import on line 14
+     - Change line 189 from `sanitiseMetadataForAI((project.metadata_json ?? {}) as Record<string, unknown>)` to `(project.metadata_json ?? {}) as Record<string, unknown>`
+     - Change `STALE_GENERATING_MS` from `2 * 60 * 1000` to `5 * 60 * 1000` on line 29
+     - Fix comment on line 77-78 to match
+   - Then run Task #12: `pnpm tsc --noEmit && pnpm test` to verify everything compiles and passes.
+   
+   This directly continues the user's request: "yes fix all of them"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+check the sanitise metadata function and redact PII function, where they are used, and whether thy are truly being used in removing patient health data (there is very limited scope, if any of PHI being present in synopsis and other data input for the thesis).
+
+---
+
+clean up, remove both
+
+---
+
+now compile the phase 5 competion notes and add them to /docs/mitigation_implementation.md. then commit and push to remote,and check the CI
