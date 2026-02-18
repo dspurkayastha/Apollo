@@ -5,6 +5,7 @@
   "branch": "main",
   "checkpoints_count": 205,
   "files_touched": [
+    ".claude/settings.local.json",
     ".env.example",
     ".github/workflows/ci.yml",
     ".mcp.json",
@@ -149,7 +150,6 @@
     "apps/web/components/remotion/apollo-hero-player-inner.tsx",
     "apps/web/components/remotion/apollo-hero-player.tsx",
     "apps/web/components/ui/alert-dialog.tsx",
-    "apps/web/components/ui/checkbox.tsx",
     "apps/web/components/upload/file-uploader.tsx",
     "apps/web/components/viewer/pdf-viewer.tsx",
     "apps/web/components/wizard/setup-wizard.tsx",
@@ -298,6 +298,7 @@
     "apps/web/supabase/migrations/028_latex_content_canonical.sql",
     "apps/web/supabase/migrations/029_analysis_plan_columns.sql",
     "apps/web/supabase/migrations/030_privacy_compliance.sql",
+    "apps/web/supabase/migrations/031_database_audit_fixes.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -551,10 +552,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108181,
-    "cache_creation_tokens": 7736146,
-    "cache_read_tokens": 285510104,
-    "output_tokens": 569899,
-    "api_call_count": 2985
+    "input_tokens": 122651,
+    "cache_creation_tokens": 7891559,
+    "cache_read_tokens": 279099322,
+    "output_tokens": 559336,
+    "api_call_count": 2915
   }
 }
