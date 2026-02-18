@@ -1,0 +1,971 @@
+Implement the following plan:
+
+# Phase 7: Final QC and Completion Flow — Implementation Plan
+
+## Context
+
+**Problem**: Phase 11 (Final QC) has no UI — QC routes exist but are never called from the frontend. Students can approve Phase 11 and complete their thesis even with blocking QC failures. Several supporting bugs compound this: the compile log column is misnamed so undefined-ref checks always pass, `canAdvancePhase` has dead code, appendices are generated but never rendered, abbreviations are never injected, and `mathrsfs` is missing from Docker.
+
+**Source**: Mitigation Plan items 7.1–7.8 (Review IDs: W3, W4, C-III-4, E2, E3, E7, C4, C5, C7).
+
+**Outcome**: A complete Final QC dashboard that runs all 6 quality checks, displays results, offers auto-fix actions, and gates thesis completion. Plus 6 bug fixes that make QC actually work correctly.
+
+---
+
+## Bugs Found During Audit
+
+| # | Severity | Bug | Root Cause |
+|---|----------|-----|------------|
+| 1 | **CRITICAL** | Phase 11 approval skips QC entirely | `approve/route.ts` line 355 sets `status=completed` with no `finalQC()` call |
+| 2 | **CRITICAL** | Undefined-refs check always returns `pass` | `qc/route.ts` line 47 selects `compile_log` but column is `log_text` → always `null` |
+| 3 | **HIGH** | `checkUndefinedReferences` passes when no compile log | `final-qc.ts` line 335 returns `status: "pass"` instead of `"fail"` |
+| 4 | **HIGH** | `canAdvancePhase` status check is dead code | `approve/route.ts` line 183 always passes literal `"approved"` |
+| 5 | **MEDIUM** | Appendices content never rendered in PDF | `chapters/appendices.tex` written but `main.tex` never `\input`s it |
+| 6 | **MEDIUM** | Abbreviations never injected | `generateAbbreviationsLatex()` exists + tested but never called in assemble pipeline |
+| 7 | **MEDIUM** | `mathrsfs` package missing from Docker | `generate-tex.ts` line 63 adds `\usepackage{mathrsfs}` but not in `tlmgr install` |
+| 8 | **LOW** | Spelling dictionary duplicated 4x | `final-qc.ts`, `qc/fix/route.ts`, `review-section.ts`, `spell-check.ts` each have independent copies (21 vs 60 entries) |
+
+---
+
+## Steps
+
+### Step 1: Extract shared spelling dictionary
+
+Eliminate the 4-way duplication. `spell-check.ts` has 60 entries (superset); the other three have ~21 each and miss entries like `standardize`, `minimize`, `diarrhea`, `edema`.
+
+**New file**: `apps/web/lib/compliance/spelling-dictionary.ts`
+- Export the comprehensive `AMERICAN_TO_BRITISH` array from `spell-check.ts`
+
+**Edit 4 files** to import from shared module (remove inline arrays):
+- `apps/web/lib/compliance/spell-check.ts`
+- `apps/web/lib/qc/final-qc.ts`
+- `apps/web/app/api/projects/[id]/qc/fix/route.ts`
+- `apps/web/lib/ai/review-section.ts`
+
+~80 new, ~130 removed (net -50 lines).
+
+---
+
+### Step 2: Fix `checkUndefinedReferences` — bugs #2 + #3
+
+**Edit**: `apps/web/app/api/projects/[id]/qc/route.ts`
+- Line 47: `.select("compile_log")` → `.select("log_text")`
+- Line 69: `compilation?.compile_log` → `compilation?.log_text`
+
+**Edit**: `apps/web/lib/qc/final-qc.ts`
+- Lines 334-341: When `compileLog` is `null`, return `status: "fail"` (blocking) with message "No compile log available — compile the thesis before running Final QC"
+
+~12 lines changed.
+
+---
+
+### Step 3: Fix `canAdvancePhase` dead code — bug #4
+
+**Edit**: `apps/web/lib/phases/transitions.ts`
+- Remove `currentSectionStatus` parameter from `canAdvancePhase()`
+- Remove the `SECTION_NOT_APPROVED` code path (lines 29-35)
+- Function now only checks: phase bounds + licence requirements
+- Section status validation stays in the approve route (lines 76-93) where it already is
+
+**Edit**: `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`
+- Line 183: `canAdvancePhase(typedProject, "approved")` → `canAdvancePhase(typedProject)`
+
+**Edit**: `apps/web/lib/phases/transitions.test.ts`
+- Update all call sites to remove second argument
+- Remove "deny when section not approved" / "deny when status null" tests (dead code was the only thing tested)
+
+~35 lines changed.
+
+---
+
+### Step 4: Add QC gate to Phase 11 approval — bug #1
+
+**Edit**: `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`
+- Replace lines 354-363 (Phase 11 block)
+- Add import: `import { finalQC } from "@/lib/qc/final-qc";`
+- Before setting `status=completed`: fetch all sections, citations, latest `log_text` from compilations, figure count, analysis table count
+- Call `finalQC()` with all data
+- If `!qcReport.overallPass`: return `badRequest()` with blocking count message
+- Only set `project.status = "completed"` if QC passes
+
+~45 lines added.
+
+---
+
+### Step 5: Create Final QC Dashboard component — item 7.1
+
+**New file**: `apps/web/components/project/final-qc-dashboard.tsx`
+
+Props: `{ projectId: string; initialReport: QCReport | null }`
+
+Features:
+- "Run Final QC" button → `POST /api/projects/{id}/qc` → displays report
+- Each QC check as a card: status icon (green pass / amber warn / red fail), name, message, details expandable
+- "Auto-Fix" button on checks with `fixAction` → `POST /api/projects/{id}/qc/fix`
+- "Complete Thesis" button → `POST /api/projects/{id}/sections/11/approve` (disabled when `!overallPass`)
+- Follows existing design patterns: sage `#8B9D77`, cursor-tracking glow cards, `motion/react` animations, British English
+
+Check name mapping:
+- `citation-provenance` → "Citation Provenance"
+- `section-completeness` → "Section Completeness"
+- `british-english` → "British English Spelling"
+- `nbems-compliance` → "NBEMS Compliance"
+- `undefined-references` → "Undefined References"
+- `results-figures-tables` → "Figures & Tables"
+
+~250 lines.
+
+---
+
+### Step 6: Integrate dashboard into project-workspace — item 7.1
+
+**Edit**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` **[LOCKED — needs approval]**
+
+Changes:
+1. Import `FinalQCDashboard`
+2. In `renderEditor()`: when `viewingPhase === 11 && !isCompleted`, parse QC report from `currentSection.latex_content` (stored as JSON by the QC route), render `<FinalQCDashboard>` instead of regular editor
+3. Hide "Approve & Advance" button for Phase 11 (dashboard has its own "Complete Thesis" button)
+
+~25 lines changed.
+
+---
+
+### Step 7: Fix appendices template injection — bug #5
+
+**Edit**: `apps/web/lib/latex/assemble.ts`
+- Remove Phase 10 from `PHASE_CHAPTER_MAP` (currently `10: "chapters/appendices.tex"`)
+- Add `injectAppendices(tex, sections, warnings)` function that:
+  1. Finds Phase 10 section content
+  2. Regex-matches AI-generated `\section*{}` headings to template annexure placeholders
+  3. Replaces `%% [[PLACEHOLDER — Phase 10]]` comments with actual content
+- Call it after `injectFrontMatter()` in `assembleThesisContent()`
+
+**Edit**: `apps/web/lib/ai/prompts.ts` (Phase 10 `APPENDICES_SYSTEM_PROMPT`)
+- Update prompt to instruct AI to use `\section*{}` headings with exact names matching template's `\annexurechapter{}` entries: "Patient Information Sheet and Informed Consent Form", "Data Collection Proforma", "Master Chart"
+
+~70 lines.
+
+---
+
+### Step 8: Inject abbreviations into template — bug #6
+
+**Edit**: `apps/web/lib/latex/assemble.ts`
+- Add `abbreviations: Abbreviation[] = []` parameter to `assembleThesisContent()`
+- Import `generateAbbreviationsLatex` from `./abbreviations`
+- After appendices injection: if abbreviations exist, call `generateAbbreviationsLatex()` and replace `\begin{abbreviations}...\end{abbreviations}` in the template
+
+**Edit callers** (3 files — add abbreviations fetch to `Promise.all`, pass to `assembleThesisContent`):
+- `apps/web/app/api/projects/[id]/compile/route.ts`
+- `apps/web/app/api/projects/[id]/export/source/route.ts`
+- `apps/web/app/api/projects/[id]/export/docx/route.ts`
+
+~45 lines across 5 files.
+
+---
+
+### Step 9: Add `mathrsfs` to Docker — bug #7
+
+**Edit**: `docker/Dockerfile.latex`
+- Add `mathrsfs \` to the `tlmgr install` list (after `subcaption`)
+
+1 line.
+
+---
+
+### Step 10: Add tests
+
+**New file**: `apps/web/lib/qc/final-qc.test.ts`
+- `checkUndefinedReferences` returns `fail` when compile log is `null`
+- `checkUndefinedReferences` returns `pass` when log has no warnings
+- `checkUndefinedReferences` returns `fail` when log has undefined ref/cite warnings
+- `finalQC` returns `overallPass: false` when any blocking check fails
+- `finalQC` returns `overallPass: true` with only warnings
+
+**Edit**: `apps/web/lib/latex/assemble.test.ts`
+- Test: Phase 10 content injected into annexure placeholders
+- Test: abbreviations injected into `\begin{abbreviations}` environment
+- Test: empty abbreviations leaves template placeholder unchanged
+
+~170 lines total.
+
+---
+
+## Execution Order
+
+```
+Steps 1, 2, 3, 9 — all independent, run in parallel
+         ↓
+Step 4   — depends on Steps 2 (correct compile log) + 3 (clean transition fn)
+Step 7   — independent, parallel with Step 4
+Step 8   — independent, parallel with Step 4
+         ↓
+Step 5   — depends on Step 2 (QC checks return correct results)
+         ↓
+Step 6   — depends on Step 5 (dashboard component exists)
+             [LOCKED file — needs explicit user approval]
+         ↓
+Step 10  — after all logic changes complete
+```
+
+---
+
+## Files Summary
+
+| Step | File | Action | ~Lines |
+|------|------|--------|--------|
+| 1 | `lib/compliance/spelling-dictionary.ts` | **Create** | +80 |
+| 1 | `lib/compliance/spell-check.ts` | Edit | -60, +2 |
+| 1 | `lib/qc/final-qc.ts` | Edit | -20, +2 |
+| 1 | `app/api/projects/[id]/qc/fix/route.ts` | Edit | -22, +2 |
+| 1 | `lib/ai/review-section.ts` | Edit | -20, +2 |
+| 2 | `app/api/projects/[id]/qc/route.ts` | Edit | ~4 |
+| 2 | `lib/qc/final-qc.ts` | Edit | ~8 |
+| 3 | `lib/phases/transitions.ts` | Edit | ~15 |
+| 3 | `lib/phases/transitions.test.ts` | Edit | ~20 |
+| 3 | `app/api/.../approve/route.ts` | Edit | ~1 |
+| 4 | `app/api/.../approve/route.ts` | Edit | +45 |
+| 5 | `components/project/final-qc-dashboard.tsx` | **Create** | +250 |
+| 6 | `app/(dashboard)/.../project-workspace.tsx` | Edit **[LOCKED]** | ~25 |
+| 7 | `lib/latex/assemble.ts` | Edit | +60 |
+| 7 | `lib/ai/prompts.ts` | Edit | ~10 |
+| 8 | `lib/latex/assemble.ts` | Edit | +15 |
+| 8 | `app/api/projects/[id]/compile/route.ts` | Edit | ~10 |
+| 8 | `app/api/projects/[id]/export/source/route.ts` | Edit | ~10 |
+| 8 | `app/api/projects/[id]/export/docx/route.ts` | Edit | ~10 |
+| 9 | `docker/Dockerfile.latex` | Edit | +1 |
+| 10 | `lib/qc/final-qc.test.ts` | **Create** | +120 |
+| 10 | `lib/latex/assemble.test.ts` | Edit | +50 |
+
+**Total**: 3 new files, ~18 edited files. Net ~+350 lines.
+
+All paths relative to `apps/web/` unless specified.
+
+---
+
+## Locked Files Requiring Approval
+
+| File | Reason | Changes |
+|------|--------|---------|
+| `project-workspace.tsx` | Dashboard LOCKED per MEMORY.md | Add Phase 11 → FinalQCDashboard rendering, hide approve button for Phase 11 |
+
+---
+
+## Review ID Cross-Reference
+
+| Mitigation Item | Review IDs | Step |
+|----------------|------------|------|
+| 7.1 | W3, W4, C-III-4 | 5, 6 |
+| 7.2 | E2 | 4 |
+| 7.3 | E3 | 3 |
+| 7.4 | E7 | 2 |
+| 7.5 | Part III-D | (verified — no changes needed, flow correct after Steps 4+5) |
+| 7.6 | C4 | 7 |
+| 7.7 | C5 | 8 |
+| 7.8 | C7 | 9 |
+
+---
+
+## Verification
+
+1. `pnpm tsc --noEmit` — 0 TypeScript errors
+2. `pnpm test` — all tests pass (existing + new)
+3. Run Supabase advisors: `mcp__supabase__get_advisors({ type: "security" })`
+4. Manual checks:
+   - Navigate to Phase 11 → see Final QC Dashboard (not regular editor)
+   - Click "Run Final QC" → see 6 check cards with pass/warn/fail
+   - Without compilation → undefined-refs check shows "fail" (blocking)
+   - Click "Auto-fix Spellings" → American spellings replaced across sections
+   - Click "Re-resolve Citations" → Tier D citations re-attempted via CrossRef
+   - With all blocking checks passing → "Complete Thesis" button enabled
+   - Click "Complete Thesis" → server re-validates QC → sets `status=completed`
+   - Thesis Completion celebration UI renders with stats + downloads
+   - Compile thesis with Phase 10 content → appendices appear in PDF annexures
+   - Compile thesis with abbreviations → abbreviation list populated in PDF
+   - Compile thesis using `\mathscr{}` → no compilation error (mathrsfs installed)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+<task-notification>
+<task-id>ab3286e</task-id>
+<status>completed</status>
+<summary>Agent "Read all files for Steps 1-3,9" completed</summary>
+<result>Perfect! I now have all 17 files. Let me provide you with a complete summary of their contents:
+
+## File Contents Summary
+
+I've successfully read all 17 files. Here's what you have:
+
+### 1. **spell-check.ts** (60 entries)
+American → British spelling dictionary with 60+ regex patterns covering medical and general terms (analyse, colour, haemoglobin, etc.).
+
+### 2. **final-qc.ts** (19 entries)
+Quality control module with **duplicate dictionary** (only 19 entries vs. the 60 in spell-check.ts). Contains:
+- Citation provenance checking
+- Section completeness (word counts)
+- British English checking (limited)
+- NBEMS compliance (80-page limit, abstract limit, M&M sections)
+- Results figures/tables QC (5 figures, 7 tables minimum)
+- Undefined references checking
+
+### 3. **route.ts (qc)** 
+QC endpoint that:
+- Fetches all sections, citations, figures, and completed analyses
+- Counts analysis tables by checking `results_json?.table_latex`
+- Calls `finalQC()` and stores report in Phase 11 section
+- Uses `latex_content` field to store QC report (JSON-serialized)
+
+### 4. **fix/route.ts (qc fix)**
+QC fix endpoint with **duplicate 20-entry dictionary** (again, reduced set):
+- Re-resolves Tier D citations via CrossRef
+- Auto-fixes spelling (American → British)
+- Expands sections (triggers refine endpoint)
+
+### 5. **review-section.ts** 
+Review checks including **duplicate 21-entry dictionary**:
+- Citation diff (warnings for removed/added citations)
+- Word count checks
+- Structure checks (ROL longtable, M&M 12 sections, Discussion strengths/limitations, Conclusion conclusions/recommendations)
+- British English spot-check
+- Citation quality (Tier D warnings)
+- Optional AI review via Haiku
+
+### 6. **transitions.ts**
+Phase advancement logic:
+- Prevents advancing beyond MAX_PHASE
+- Requires section to be approved
+- Licence gate: Phase 3+ requires licence (with DEV_LICENCE_BYPASS bypass)
+- Returns TransitionCheck with allowed/reason/code
+
+### 7. **transitions.test.ts** (104 tests)
+Comprehensive test coverage for:
+- Phase advancement rules
+- Licence requirements
+- DEV_LICENCE_BYPASS testing
+- Final phase completion
+- isValidPhase validation
+
+### 8. **approve/route.ts**
+Approval endpoint with:
+- Section validation (no generating, has content)
+- Auto-promotion from draft→review→approved
+- AI review (non-blocking)
+- **Phase 6 QC gates**: 5+ figures, 7+ tables, analysis plan completion check
+- **Phase 11 bug**: Sets project status to completed but doesn't verify QC passed
+- Auto-creates Phase 1 (front matter), Phase 9 (citation audit), Phase 11 (QC placeholder)
+- Inngest event emission
+- Monthly phase tracking for licensed projects
+
+### 9. **Dockerfile.latex**
+TeX Live 2025 setup missing **mathrsfs package**:
+- Installs scheme-small + extras (natbib, titlesec, enumitem, etc.)
+- Missing: mathrsfs (for \mathscr command if used)
+- Installs Ghostscript and pandoc
+- Sets up PATH and temp directories
+
+### 10. **assemble.ts**
+Thesis assembly pipeline:
+- `splitBibtex()`: Splits at `---BIBTEX---` marker
+- `deduplicateBibEntries()`: Last-write-wins deduplication
+- `stripInvalidCitations()`: Replaces Tier D / orphan \cite{} with `% UNRESOLVED` comments
+- `escapeBareAmpersands()`: Escapes `&` outside tabular environments
+- `escapeDOIUnderscores()`: Escapes `_` in DOI fields
+- `injectFrontMatter()`: Injects Phase 1 content into template
+- Main flow: template → metadata → chapters (2-8, 10) → BibTeX → chapter files
+
+### 11. **assemble.test.ts** (314+ tests)
+Comprehensive tests covering:
+- BibTeX splitting, deduplication, citation stripping
+- Tier D exclusion from output
+- LaTeX canonical (no round-trip)
+- Chapter file assembly
+- Metadata population
+- Preferred content source (ai_generated_latex for BibTeX, latex_content for chapter bodies)
+
+### 12. **prompts.ts**
+AI system prompts for all phases:
+- COMMON_RULES: British English, \cite{key} everywhere, ---BIBTEX--- format, NO Unicode
+- Phase-specific: Introduction, Aims, ROL (with longtable), M&M (12 sections), Results, Discussion, Conclusion, Appendices, References Consolidation
+- **APPENDICES_SYSTEM_PROMPT**: Generates PIS, ICF, Master Chart, Abbreviations, Ethics placeholder
+- **REFINE_SYSTEM_PROMPT**: Targeted editing preserving citations
+- **SECTION_REVIEW_SYSTEM_PROMPT**: 6-dimensional review (completeness, flow, citations, rigour, tone, alignment)
+- **ANALYSIS_PLANNING_SYSTEM_PROMPT**: Maps objectives to analyses (descriptive, chi-square, t-test, correlation, survival, ROC, logistic, Kruskal, meta-analysis)
+
+### 13. **compile/route.ts**
+Compilation endpoint:
+- Licence phase gate check
+- Acquire compute slot (admission control)
+- Assembly via `assembleThesisContent()`
+- Pre-flight validation (blocking errors, warnings)
+- AI validation (non-blocking)
+- Watermark mode: "sandbox" for sandbox, "draft_footer" for Phase 6+, "none" otherwise
+- PDF upload to R2
+- Stores compile log, time, and result
+
+### 14. **export/source/route.ts**
+Source export endpoint:
+- Returns JSON manifest of all files (not ZIP)
+- Includes main.tex, refs.bib, chapter files, CLS file
+- Restricted to Phase 6+ for licensed projects
+
+### 15. **export/docx/route.ts**
+DOCX export endpoint:
+- Returns combined LaTeX (not true DOCX conversion)
+- Currently outputs plain LaTeX; pandoc conversion requires Docker
+- Also Phase 6+ restricted for licensed projects
+
+### 16. **project-workspace.tsx** (LOCKED)
+React component for thesis editing workspace:
+- Manages editor/PDF viewer split (desktop) and tabs (mobile)
+- Handles section viewing, generation, approval
+- Phase 6 sub-phase stepper (6a/6b)
+- Analysis wizard, dataset upload, compliance dashboard, figure gallery, progress dashboard
+- Refine dialog for targeted AI editing
+- Review dialog before approval
+- Citation search/list panels
+- Dynamic imports for LaTeX editor, PDF viewer, word count bar
+
+### 17. **abbreviations.ts**
+Generates LaTeX for abbreviations list:
+- Sorts alphabetically by short_form
+- Uses `\begin{abbreviations}` environment
+- Escapes special characters via `escapeLatex()`
+
+---
+
+## Key Observations
+
+1. **Dictionary Duplication**: Three files have partial copies of the spelling dictionary (final-qc.ts: 19 entries, qc/fix/route.ts: 20 entries, review-section.ts: 21 entries) — all should consolidate to spell-check.ts (60 entries)
+
+2. **Phase 11 QC Bug**: The approve/route.ts doesn't verify that QC actually passed before completing the thesis
+
+3. **Docker Missing mathrsfs**: Dockerfile.latex doesn't install the mathrsfs package which may be needed for \mathscr
+
+4. **Route.ts Wrong Column**: The QC route uses `latex_content` to store the QC report JSON, which is semantically wrong (should be a separate column or use a different field name)
+
+5. **LaTeX Canonical Pattern**: assemble.ts correctly treats LaTeX as canonical (uses latex_content for chapters, ai_generated_latex for BibTeX preservation)
+
+6. **Comprehensive Tests**: Strong test coverage in transitions.test.ts and assemble.test.ts with 400+ tests total
+
+All files are now available for you to review and edit as needed!</result>
+<usage>total_tokens: 96384
+tool_uses: 17
+duration_ms: 32594</usage>
+</task-notification>
+Full transcript available at: REDACTED.output
+
+---
+
+yes
+
+---
+
+For the annexures, esp the PIS and IC chapter and the Data collection proforma, refer to the synopsis text/document. It will contain same items. Improve them as feasible, properly format them, use proper latex as necessary, and then inject in annexures
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically go through the conversation:
+
+1. **Initial Plan**: The user provided a detailed implementation plan for "Phase 7: Final QC and Completion Flow" with 10 steps covering 8 bugs and new features.
+
+2. **Reading Phase**: I read all 17+ files needed for the implementation. Key files included:
+   - `spell-check.ts` (60-entry dictionary)
+   - `final-qc.ts` (QC logic with bugs)
+   - `qc/route.ts` (wrong column name)
+   - `qc/fix/route.ts` (duplicate dictionary)
+   - `review-section.ts` (duplicate dictionary)
+   - `transitions.ts` (dead code)
+   - `transitions.test.ts`
+   - `approve/route.ts` (Phase 11 bug)
+   - `Dockerfile.latex` (missing mathrsfs)
+   - `assemble.ts` (assemble pipeline)
+   - `assemble.test.ts`
+   - `prompts.ts` (Phase 10 prompt)
+   - `compile/route.ts`, `export/source/route.ts`, `export/docx/route.ts`
+   - `project-workspace.tsx` (LOCKED)
+   - `abbreviations.ts`
+   - `main.tex` (template with annexure placeholders)
+
+3. **Implementation Steps 1-4 (parallel)**:
+   - Step 1: Created `spelling-dictionary.ts`, updated 4 files to use shared import
+   - Step 2: Fixed `compile_log` → `log_text` in qc/route.ts, fixed null-log returning "pass" → "fail" 
+   - Step 3: Removed `currentSectionStatus` parameter from `canAdvancePhase()`, updated caller and tests
+   - Step 9: Added `mathrsfs` to Docker tlmgr install
+
+4. **Steps 4, 7, 8 (next batch)**:
+   - Step 4: Added QC gate to Phase 11 approval with `finalQC()` call
+   - Step 7: Removed Phase 10 from PHASE_CHAPTER_MAP, added `injectAppendices()` function, updated prompt
+   - Step 8: Added `injectAbbreviations()`, added `abbreviations` parameter to `assembleThesisContent()`, updated 3 callers
+
+5. **Step 5**: Created `final-qc-dashboard.tsx` component
+
+6. **Step 6**: User approved editing LOCKED `project-workspace.tsx` - added FinalQCDashboard rendering for Phase 11, hid Approve button for Phase 11
+
+7. **Step 10**: Created `final-qc.test.ts`, updated `assemble.test.ts`
+
+8. **Test failure**: `finalQC > returns overallPass: true with only warnings` failed because M&M section needed ≥12 section headings for NBEMS compliance. Fixed by adding 12 subsection headings in test fixture.
+
+9. **Final verification**: 324 tests passed across 32 files, 0 TypeScript errors, security advisors clean.
+
+10. **User's latest request**: "For the annexures, esp the PIS and IC chapter and the Data collection proforma, refer to the synopsis text/document. It will contain same items. Improve them as feasible, properly format them, use proper latex as necessary, and then inject in annexures"
+
+This is about improving the Phase 10 appendices by:
+- Making the AI generate PIS/ICF content that references the actual synopsis (study procedures, risks, etc.)
+- Making the Data Collection Proforma reference actual variables from the synopsis/dataset
+- Better LaTeX formatting
+- Proper injection into annexures
+
+11. **Current work**: I was reading the generate route and prompts to understand how to pass better context to Phase 10 AI generation. I had just read:
+- `generate/route.ts` - the Phase 10 generation goes through `handleSectionGenerate` which passes synopsis + metadata + previous sections
+- `getPhaseUserMessage` - Phase 10 message currently says generic "Generate the Appendices..."
+- `APPENDICES_SYSTEM_PROMPT` - was already updated in our Phase 7 work to use exact `\section*{}` headings
+- `columns_json` in the Dataset type - `Record<string, unknown>[]`
+- Dataset columns are stored in `columns_json` field
+
+I was about to:
+1. Rewrite `APPENDICES_SYSTEM_PROMPT` to reference synopsis for PIS/ICF details
+2. Update Phase 10 user message to pass dataset column info
+3. Add dataset column context in generate route for Phase 10
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to implement a detailed "Phase 7: Final QC and Completion Flow" plan covering 8 bugs and new features across ~19 files. After completing all 10 steps successfully (324 tests passing, 0 TS errors), the user then requested an improvement: **the annexures (especially PIS/ICF and Data Collection Proforma) should reference the synopsis text/document since it contains the same items, should be improved with proper formatting and LaTeX, and properly injected into annexures.**
+
+2. Key Technical Concepts:
+   - LaTeX thesis compilation pipeline (`\input{chapters/xxx.tex}`, `\annexurechapter{}` placeholders)
+   - GOLD Standard 12-phase thesis workflow (Phase 0-11)
+   - Final QC gate: 6 quality checks (citation provenance, section completeness, British English, NBEMS compliance, undefined references, figures/tables)
+   - Spelling dictionary deduplication (4 copies → 1 shared module)
+   - Appendices injection: AI `\section*{}` headings mapped to template `\annexurechapter{}` placeholders
+   - Abbreviations injection into `\begin{abbreviations}...\end{abbreviations}` environment
+   - Phase 10 AI generation context: synopsis_text + metadata + previous approved sections + (needs) dataset columns
+   - `columns_json: Record<string, unknown>[]` in Dataset type stores dataset column definitions
+   - Supabase admin client for DB queries, RLS on every table
+   - Next.js 15 App Router API routes
+   - Inngest for background AI generation jobs
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/compliance/spelling-dictionary.ts`** (NEW)
+     - Single source of truth for American→British spelling (63 entries)
+     - Consumed by spell-check.ts, final-qc.ts, qc/fix/route.ts, review-section.ts
+     ```typescript
+     export const AMERICAN_TO_BRITISH: [RegExp, string][] = [
+       [/\banalyze\b/gi, "analyse"],
+       // ... 63 entries covering -ize→-ise, -or→-our, -er→-re, -se→-ce, medical terms
+     ];
+     ```
+
+   - **`apps/web/lib/compliance/spell-check.ts`** (EDITED)
+     - Replaced inline 60-entry array with `import { AMERICAN_TO_BRITISH } from "./spelling-dictionary";`
+
+   - **`apps/web/lib/qc/final-qc.ts`** (EDITED)
+     - Replaced inline 21-entry dictionary with shared import
+     - Bug #3 fix: `checkUndefinedReferences` returns `"fail"` (not `"pass"`) when compileLog is null:
+     ```typescript
+     if (!compileLog) {
+       return {
+         name: "undefined-references",
+         status: "fail",
+         blocking: true,
+         message: "No compile log available --- compile the thesis before running Final QC",
+         details: [],
+       };
+     }
+     ```
+
+   - **`apps/web/app/api/projects/[id]/qc/route.ts`** (EDITED)
+     - Bug #2 fix: `.select("compile_log")` → `.select("log_text")` and `compilation?.compile_log` → `compilation?.log_text`
+
+   - **`apps/web/app/api/projects/[id]/qc/fix/route.ts`** (EDITED)
+     - Replaced inline 21-entry dictionary with shared import
+
+   - **`apps/web/lib/ai/review-section.ts`** (EDITED)
+     - Replaced inline 22-entry dictionary with shared import
+
+   - **`apps/web/lib/phases/transitions.ts`** (EDITED)
+     - Bug #4 fix: Removed `currentSectionStatus` parameter from `canAdvancePhase()`:
+     ```typescript
+     export function canAdvancePhase(project: Project): TransitionCheck {
+       // Only checks: phase bounds + licence requirements
+       // Section status validation handled by approve route (lines 76-93)
+     }
+     ```
+     - Removed `"SECTION_NOT_APPROVED"` from TransitionCheck code union
+
+   - **`apps/web/lib/phases/transitions.test.ts`** (REWRITTEN)
+     - All `canAdvancePhase(project, "approved")` calls → `canAdvancePhase(project)`
+     - Removed "deny when section not approved" / "deny when status null" tests (dead code)
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (EDITED)
+     - Bug #1 fix: Phase 11 now calls `finalQC()` before setting completed:
+     ```typescript
+     if (phaseNumber === 11) {
+       const { finalQC } = await import("@/lib/qc/final-qc");
+       // Fetch all sections, citations, log_text, figures, analyses
+       const qcReport = finalQC(...);
+       if (!qcReport.overallPass) {
+         return badRequest(`Final QC failed: ${qcReport.blockingCount} blocking issue(s).`);
+       }
+       await supabase.from("projects").update({ status: "completed" }).eq("id", id);
+     }
+     ```
+     - Bug #4 caller fix: `canAdvancePhase(typedProject, "approved")` → `canAdvancePhase(typedProject)`
+     - Consolidated duplicate imports
+
+   - **`apps/web/lib/latex/assemble.ts`** (EDITED significantly)
+     - Removed Phase 10 from `PHASE_CHAPTER_MAP` (was `10: "chapters/appendices.tex"`)
+     - Added imports: `generateAbbreviationsLatex`, `Abbreviation`
+     - Added `injectAppendices()` function:
+       - Maps AI `\section*{heading}` content to template `\annexurechapter{heading}` placeholders
+       - Uses `ANNEXURE_SECTION_MAP` for heading matching
+       - Replaces `%% [[PLACEHOLDER --- Phase 10]]` comments with sanitised content
+     - Added `injectAbbreviations()` function:
+       - Replaces `\begin{abbreviations}...\end{abbreviations}` with generated abbreviation list
+     - Updated `assembleThesisContent()` signature: added `abbreviations: Abbreviation[] = []` param
+     - Changed `const tex` → `let tex`
+     - Added calls: `tex = injectAppendices(tex, sections, warnings)` and `tex = injectAbbreviations(tex, abbreviations)`
+
+   - **`apps/web/lib/ai/prompts.ts`** (EDITED)
+     - Updated `APPENDICES_SYSTEM_PROMPT`: Changed from 5 annexures (PIS, ICF, Master Chart, Abbreviations, Ethics) to 3 using exact `\section*{}` headings:
+       ```
+       1. \section*{Patient Information Sheet and Informed Consent Form}
+       2. \section*{Data Collection Proforma}
+       3. \section*{Master Chart}
+       ```
+     - Removed abbreviation list and ethics approval generation (handled separately)
+     - Phase 10 user message (case 10 in `getPhaseUserMessage`) still says generic "Generate the Appendices..."
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** (EDITED)
+     - Added `Abbreviation` import, fetches abbreviations from DB, passes to `assembleThesisContent`
+
+   - **`apps/web/app/api/projects/[id]/export/source/route.ts`** (EDITED)
+     - Same: added abbreviations fetch and pass-through
+
+   - **`apps/web/app/api/projects/[id]/export/docx/route.ts`** (EDITED)
+     - Same: added abbreviations fetch and pass-through
+
+   - **`docker/Dockerfile.latex`** (EDITED)
+     - Added `mathrsfs \` to tlmgr install list after `subcaption`
+
+   - **`apps/web/components/project/final-qc-dashboard.tsx`** (NEW, ~250 lines)
+     - "Run Final QC" button → POST `/api/projects/{id}/qc`
+     - 6 QC check cards with pass/warn/fail icons, expandable details
+     - Auto-fix buttons for spelling and citation re-resolution
+     - "Complete Thesis" button (disabled when `!overallPass`)
+     - Uses sage green `#8B9D77` accent, Lucide icons
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (EDITED, LOCKED file with approval)
+     - Added imports: `FinalQCDashboard`, `QCReport`
+     - Added `storedQCReport` parser (parses JSON from `currentSection.latex_content` for Phase 11)
+     - In `renderEditor()`: Phase 11 renders `<FinalQCDashboard>` instead of editor
+     - Hid "Approve & Advance" button for Phase 11 (`viewingPhase !== 11`)
+
+   - **`apps/web/lib/qc/final-qc.test.ts`** (NEW)
+     - Tests: `checkUndefinedReferences` fail on null log, pass on clean log, fail on warnings
+     - Tests: `finalQC` overallPass false when blocking, true with only warnings, runs all 6 checks, detects British English issues, fails on low figure/table counts
+
+   - **`apps/web/lib/latex/assemble.test.ts`** (EDITED)
+     - Updated TEMPLATE to include `\begin{abbreviations}...\end{abbreviations}` and `\annexurechapter{}` with `%% [[PLACEHOLDER --- Phase 10]]`
+     - Fixed "missing chapters" test: Phase 10 no longer produces chapter file (7 missing not 8, `appendices.tex` is `undefined`)
+     - Added `assembleThesisContent — appendices injection` tests (Phase 10 content injected, unchanged when no content)
+     - Added `assembleThesisContent — abbreviations injection` tests (abbreviations injected, unchanged when empty)
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (READ ONLY)
+     - Phase 10 goes through `handleSectionGenerate`: passes synopsis + metadata + previous approved sections
+     - Does NOT currently fetch dataset info for Phase 10 (only Phase 6 gets analysis context)
+     - This is relevant to the user's latest request about improving annexures
+
+4. Errors and fixes:
+   - **Test failure**: `finalQC > returns overallPass: true with only warnings` — failed because `checkNBEMSCompliance` requires ≥12 section headings in M&M (Phase 5), but test fixture only had 1 `\section{}`. Fixed by generating 12 `\subsection{}` headings in `makeMinimalSections()`.
+   - **TypeScript error**: `Property 'updated_at' is missing in type` for Abbreviation test fixtures. Fixed by adding `updated_at: now` to test abbreviation objects.
+
+5. Problem Solving:
+   - All 8 bugs from the audit were fixed and verified
+   - Spelling dictionary consolidation eliminated 4-way duplication
+   - Phase 11 QC gate now prevents thesis completion without passing quality checks
+   - Appendices and abbreviations are now properly injected into the compiled PDF
+   - Template test updated for new Phase 10 injection (no longer a chapter file)
+   - All 324 tests pass, 0 TypeScript errors, Supabase security advisors clean (only pre-existing warnings)
+
+6. All user messages:
+   - **Message 1**: "Implement the following plan: # Phase 7: Final QC and Completion Flow — Implementation Plan" (detailed 10-step plan with 8 bugs, file list, execution order)
+   - **Message 2**: "yes" (approving edit to LOCKED `project-workspace.tsx`)
+   - **Message 3**: "For the annexures, esp the PIS and IC chapter and the Data collection proforma, refer to the synopsis text/document. It will contain same items. Improve them as feasible, properly format them, use proper latex as necessary, and then inject in annexures"
+
+7. Pending Tasks:
+   - Improve Phase 10 annexures to reference synopsis text for PIS/ICF and Data Collection Proforma content (user's latest request — work in progress)
+
+8. Current Work:
+   The user's latest message asked to improve the annexures (PIS/ICF and Data Collection Proforma) to reference the synopsis text. I was investigating the full generation pipeline for Phase 10:
+   - Read `generate/route.ts` — understood that Phase 10 goes through `handleSectionGenerate()` which passes `synopsis_text` + metadata + previous sections but does NOT pass dataset column info
+   - Read `getPhaseUserMessage()` — Phase 10 message is generic: "Generate the Appendices... Include: PIS, ICF, Master Chart headers, List of Abbreviations, and Ethics Approval Certificate placeholder."
+   - Read `APPENDICES_SYSTEM_PROMPT` — already updated with `\section*{}` exact headings but needs better synopsis-referencing instructions
+   - Grepped for `columns_json` — Dataset type has `columns_json: Record<string, unknown>[]` which stores column definitions
+
+   I was about to make three changes:
+   1. **Rewrite `APPENDICES_SYSTEM_PROMPT`** — instruct AI to extract study details (title, procedures, risks/benefits, inclusion/exclusion criteria) from synopsis for PIS/ICF; use dataset columns for proforma
+   2. **Update Phase 10 user message in `getPhaseUserMessage()`** — more specific instructions referencing synopsis content
+   3. **Update `generate/route.ts`** — add dataset column info to Phase 10 context (similar to how Phase 6 gets analysis context)
+
+9. Optional Next Step:
+   Continue implementing the user's latest request: "For the annexures, esp the PIS and IC chapter and the Data collection proforma, refer to the synopsis text/document. It will contain same items. Improve them as feasible, properly format them, use proper latex as necessary, and then inject in annexures"
+
+   I was in the middle of reading the codebase to understand the full context pipeline. The three concrete changes needed are:
+   1. Rewrite `APPENDICES_SYSTEM_PROMPT` in `apps/web/lib/ai/prompts.ts` to explicitly instruct the AI to reference the synopsis for PIS/ICF study details and the dataset columns for the proforma
+   2. Update `getPhaseUserMessage()` case 10 in `apps/web/lib/ai/prompts.ts` to include dataset column info
+   3. Add dataset fetch in `handleSectionGenerate()` in `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` when `phaseNumber === 10`
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+NOw realign to the Review ,Deiscussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 6 for consistency, correctness, errors , logical fallacies, redundancies and other logic issues. Think ultra hard
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Context from previous session**: The user had already completed Phase 7 implementation (10 steps) covering 8 bugs and new features for Final QC and Completion Flow. Then they asked to improve annexures (PIS/ICF and Data Collection Proforma) to reference synopsis text. Three changes were made to prompts.ts and generate/route.ts to pass synopsis and dataset column context to Phase 10 generation.
+
+2. **Current session - User request**: "NOw realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 6 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard"
+
+Note: The user says "phase 6" but contextually means "Phase 7" (the mitigation phase we just implemented, which corresponds to Phase 11 Final QC). The docs confirm Phase 7 of the mitigation plan = "Phase 11 Final QC and Completion Flow".
+
+3. **My approach**: 
+   - Launched 3 parallel exploration agents to read all governance docs + all changed files
+   - Read Mitigation_plan.md Phase 7 section (items 7.1-7.8)
+   - Read REVIEW.md findings (E2, E3, E7, W3, W4, C-III-4, C4, C5, C7)
+   - Read Mitigation_implementation.md (Phases 1-6 complete)
+   - Read all critical implementation files line-by-line
+
+4. **Findings - 3 bugs + 3 deviations**:
+
+**BUG 1 - CRITICAL**: Phase 11 QC check in approve/route.ts ran AFTER section was set to "approved" (lines 191-220 approve section, then lines 353-414 run QC). If QC fails, section stuck at "approved" — student permanently locked out.
+
+**BUG 2 - HIGH**: final-qc.ts hardcoded WORD_COUNT_TARGETS (Phase 2: 500-750, Phase 3: 150-200) instead of importing from word-count-config.ts SSOT (Phase 2: 1000-1400, Phase 3: 300-500). Exact same bug class as Review finding A5/E6/F2.
+
+**BUG 3 - MEDIUM**: Double-counting tables in checkResultsFiguresAndTables() — `totalTables = analysisTableCount + latexTableCount` but AI embeds analysis tables verbatim in Results chapter, so same table counted twice. Same bug existed in Phase 6 approve route.
+
+**DEVIATION 1**: Plan 7.3 said "pass actual section status to canAdvancePhase()" but we removed the parameter entirely. Correct deviation — section status validated separately in approve route.
+
+**DEVIATION 2**: Plan 7.4 said return "warn" when no compile log, we returned "fail" (blocking). Stricter than plan but reasonable.
+
+**DEVIATION 3**: Latest annexures changes added `extra` param to getPhaseUserMessage for dataset columns.
+
+5. **Fixes applied**:
+
+**Bug 1 fix**: Moved Phase 11 QC check to BEFORE lines 191-220 (section approval), next to Phase 6 QC gates. Old post-approval QC block replaced with just the `project.status = "completed"` update.
+
+**Bug 2 fix**: Replaced hardcoded `WORD_COUNT_TARGETS` in final-qc.ts with import from `WORD_COUNT_CONFIG` (word-count-config.ts). Changed `target.min` to `config.hardFloor`. Updated test fixture word counts to meet new SSOT minimums (Phase 2: 600→1100, Phase 3: 175→350, Phase 4: 3000→3600).
+
+**Bug 3 fix**: Changed `totalTables = analysisTableCount + latexTableCount` to `Math.max(analysisTableCount, latexTableCount)` in BOTH final-qc.ts AND approve/route.ts (Phase 6 gate had same bug).
+
+6. **Verification**: 324 tests pass across 32 files, 0 TypeScript errors.
+
+7. The user was about to have the memory file updated when the summary was requested.
+
+Let me now compile all the specific file changes, code snippets, and details.
+
+Summary:
+1. Primary Request and Intent:
+   The user had two requests in this session:
+   
+   **Request 1 (from previous session continuation)**: Improve the annexures (PIS/ICF and Data Collection Proforma) to reference the synopsis text/document and dataset columns. This was completed at the start of this session by modifying `APPENDICES_SYSTEM_PROMPT`, `getPhaseUserMessage()` case 10, and the generate route to fetch dataset columns for Phase 10.
+   
+   **Request 2 (current main task)**: "NOw realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 6 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard" — A thorough cross-reference audit of ALL Phase 7 implementation changes against the governance docs (`REVIEW.md`, `Mitigation_plan.md`, `Mitigation_implementation.md`), checking for consistency, correctness, errors, logical fallacies, redundancies, and logic issues.
+
+2. Key Technical Concepts:
+   - **Phase 7 of Mitigation Plan** = Phase 11 Final QC and Completion Flow (items 7.1-7.8, Review IDs: W3, W4, C-III-4, E2, E3, E7, C4, C5, C7)
+   - **Word Count SSOT**: `word-count-config.ts` is the canonical single source of truth for word count targets (created in Phase 5, item 5.1), using `hardFloor`/`hardCeiling` for QC and `softMin`/`softMax` for UI/prompts
+   - **Approve route ordering**: Phase-specific QC gates (Phase 6, Phase 11) must run BEFORE the generic section approval (lines 191-220) to avoid permanently locking sections in "approved" state on QC failure
+   - **Table double-counting**: When AI embeds `table_latex` from analyses VERBATIM in Results chapter, counting both `analysisTableCount` AND LaTeX `\begin{table}` environments double-counts. Must use `Math.max()` instead of sum.
+   - **State machine regression guards**: If approval changes section status from "review"→"approved", a failed QC check after that transition makes the section permanently stuck (approve route rejects "approved" sections at lines 79-81)
+   - **Final QC checks**: 6 checks — citation-provenance, section-completeness, british-english, nbems-compliance, undefined-references, results-figures-tables
+   - **Appendices injection**: Phase 10 AI `\section*{}` headings mapped to template `\annexurechapter{}` placeholders via `ANNEXURE_SECTION_MAP`
+   - **Abbreviations injection**: Replaces `\begin{abbreviations}...\end{abbreviations}` in template with generated content
+
+3. Files and Code Sections:
+
+   - **`/Users/devs/Downloads/Apollo/docs/Mitigation_plan.md`** (lines 818-893)
+     - Phase 7 mitigation items 7.1-7.8 cross-referenced against implementation
+     - Key items: 7.1 (Final QC Dashboard), 7.2 (Phase 11 must check QC), 7.3 (canAdvancePhase dead code), 7.4 (undefined refs check), 7.5 (ThesisCompletion flow), 7.6 (appendices template fix), 7.7 (abbreviations injection), 7.8 (mathrsfs Docker)
+   
+   - **`/Users/devs/Downloads/Apollo/docs/Mitigation_implementation.md`** (650 lines)
+     - Phases 1-6 complete. Phase 7 entry NOT yet written.
+     - Recurring patterns documented: local migration files, QC gate scope, count query semantics, state machine guards
+   
+   - **`/Users/devs/Downloads/Apollo/docs/REVIEW.md`**
+     - 136 findings across 4 parts. Phase 7 addresses: E2 (Phase 11 skips QC), E3 (canAdvancePhase dead code), E7 (undefined refs pass on null log), W3/W4 (no QC buttons), C-III-4 (Phase 11 no UI), C4 (appendices not input'd), C5 (abbreviations not injected), C7 (mathrsfs missing)
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** — CRITICAL FILE
+     - **Bug 1 fix**: Moved Phase 11 QC gate from lines 353-414 (AFTER approval) to lines 181+ (BEFORE approval), adjacent to Phase 6 QC gates
+     - **Bug 3 fix**: Phase 6 table counting changed from `(analysisTableCount ?? 0) + tableLatexCount` to `Math.max(analysisTableCount ?? 0, tableLatexCount)`
+     - New Phase 11 pre-approval QC block:
+     ```typescript
+     // Phase 11: Final QC gate — MUST run BEFORE section approval.
+     if (phaseNumber === 11) {
+       const { finalQC } = await import("@/lib/qc/final-qc");
+       const [
+         { data: allSections }, { data: allCitations },
+         { data: latestCompilation }, { count: figs }, { data: qcAnalyses },
+       ] = await Promise.all([...]);
+       const qcTableCount = (qcAnalyses ?? []).filter(
+         (a) => (a.results_json as Record<string, unknown>)?.table_latex
+       ).length;
+       const qcReport = finalQC(
+         (allSections ?? []) as Section[],
+         (allCitations ?? []) as import("@/lib/types/database").Citation[],
+         (latestCompilation?.log_text as string) ?? null,
+         figs ?? 0, qcTableCount,
+       );
+       if (!qcReport.overallPass) {
+         return badRequest(
+           `Final QC failed: ${qcReport.blockingCount} blocking issue(s). ` +
+           "Run Final QC from the dashboard for details."
+         );
+       }
+     }
+     ```
+     - Old post-approval Phase 11 block replaced with simple completion update:
+     ```typescript
+     if (phaseNumber === 11) {
+       await supabase.from("projects").update({
+         status: "completed", updated_at: new Date().toISOString(),
+       }).eq("id", id);
+     }
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/qc/final-qc.ts`** — QC ENGINE
+     - **Bug 2 fix**: Replaced hardcoded `WORD_COUNT_TARGETS` with import from SSOT:
+     ```typescript
+     import { WORD_COUNT_CONFIG } from "@/lib/phases/word-count-config";
+     ```
+     - Changed `checkSectionCompleteness` from `target.min` to `config.hardFloor`:
+     ```typescript
+     const config = WORD_COUNT_CONFIG[phase];
+     if (!config) continue;
+     const words = countWords(section.latex_content);
+     if (words < config.hardFloor) { ... }
+     ```
+     - **Bug 3 fix**: Table counting changed from sum to max:
+     ```typescript
+     const totalTables = Math.max(analysisTableCount, latexTableCount);
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/qc/final-qc.test.ts`** — TEST FIXTURE UPDATE
+     - Updated `makeMinimalSections()` word counts to meet SSOT `hardFloor` values:
+     ```typescript
+     [2, "introduction", `\\section{Introduction}\n${"word ".repeat(1100)}`],  // was 600
+     [3, "aims", `\\section{Aims}\n${"word ".repeat(350)}`],                   // was 175
+     [4, "literature", `\\section{Literature}\n${"word ".repeat(3600)}`],       // was 3000
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/phases/word-count-config.ts`** — READ ONLY (SSOT reference)
+     - Canonical targets: Phase 2 hardFloor=1000, Phase 3 hardFloor=300, Phase 4 hardFloor=3500, Phase 7 hardFloor=2000, Phase 8 hardFloor=500
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/ai/prompts.ts`** — Modified in annexures improvement (before audit)
+     - `APPENDICES_SYSTEM_PROMPT` rewritten: PIS now references synopsis for study title/procedures/risks/criteria; ICF references study-specific consent; Data Collection Proforma uses dataset columns with proper LaTeX formatting ($\square$ checkboxes, \underline fields, units); Master Chart uses longtable with ALL dataset column headers
+     - `getPhaseUserMessage()` signature updated: added `extra?: { datasetColumns?: Record<string, unknown>[] }`
+     - Case 10 updated to block `{ let msg = ...; if (extra?.datasetColumns) msg += ...; return msg; }`
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** — Modified in annexures improvement
+     - Phase 10 now fetches dataset columns:
+     ```typescript
+     if (phaseNumber === 10) {
+       const { data: dataset } = await supabase
+         .from("datasets").select("columns_json")
+         .eq("project_id", project.id)
+         .order("created_at", { ascending: false })
+         .limit(1).maybeSingle();
+       if (dataset?.columns_json) {
+         extraContext = { datasetColumns: dataset.columns_json as Record<string, unknown>[] };
+       }
+     }
+     ```
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/qc/route.ts`** — READ for audit
+     - POST runs finalQC, stores report JSON in Phase 11 section's `latex_content`
+     - GET retrieves stored QC report from Phase 11 section
+     - Semantic misuse of `latex_content` for JSON noted but not fixed (works, Phase 11 not in assembly pipeline)
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/phases/transitions.ts`** — READ for audit
+     - `canAdvancePhase()` has no `currentSectionStatus` param (removed in Phase 7 Step 3). Deviation from plan 7.3 but correct.
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** — READ for audit
+     - Phase 11 renders `<FinalQCDashboard>` instead of editor (line 267)
+     - Approve button hidden for Phase 11 (line 400: `viewingPhase !== 11`)
+     - QC report parsed from `currentSection.latex_content` as JSON
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/compliance/spelling-dictionary.ts`** — READ for audit
+     - 79 entries, shared across 4 consumers, regex uses `/gi` flag
+
+   - **`/Users/devs/Downloads/Apollo/apps/web/lib/latex/assemble.ts`** — READ for audit (lines 390-540)
+     - `ANNEXURE_SECTION_MAP` maps 3 headings
+     - `injectAppendices()` splits Phase 10 content by `\section*{}` and matches to template placeholders
+     - `injectAbbreviations()` replaces `\begin{abbreviations}...\end{abbreviations}`
+     - `assembleThesisContent()` calls both after front matter injection
+
+4. Errors and Fixes:
+
+   - **BUG 1 (CRITICAL) — Phase 11 QC check ordering**:
+     - Section set to "approved" at lines 191-220 BEFORE QC check at lines 353-414
+     - If QC fails, section permanently stuck at "approved", student locked out
+     - **Fix**: Moved QC check to BEFORE line 191, similar to Phase 6 gates at lines 112-179. Old post-approval block replaced with just `project.status = "completed"` update.
+
+   - **BUG 2 (HIGH) — Word count SSOT not imported in final-qc.ts**:
+     - Hardcoded targets: Phase 2 min=500, Phase 3 min=150 (vs SSOT hardFloor: 1000, 300)
+     - Exact same bug class as Review finding A5/E6/F2 that Phase 5 item 5.1 was supposed to fix
+     - **Fix**: Import `WORD_COUNT_CONFIG` from `word-count-config.ts`, use `config.hardFloor` instead of `target.min`. Updated test fixtures to use word counts above new hardFloor values.
+
+   - **BUG 3 (MEDIUM) — Table double-counting**:
+     - `totalTables = analysisTableCount + latexTableCount` double-counts because AI embeds analysis tables verbatim
+     - Present in BOTH `final-qc.ts` AND `approve/route.ts` Phase 6 gate
+     - **Fix**: Changed to `Math.max(analysisTableCount, latexTableCount)` in both files
+
+   - **Test fixture adjustment**: Word counts in `makeMinimalSections()` updated from old minimums (600/175/3000) to values above new SSOT hardFloors (1100/350/3600)
+
+5. Problem Solving:
+   - All 3 bugs found via systematic cross-reference audit against governance docs
+   - Bug 1 discovered by tracing the approve route flow: lines 191-220 (approve) → lines 353-414 (QC) — order matters because QC failure after approval is irreversible
+   - Bug 2 discovered by comparing `final-qc.ts` hardcoded values against `word-count-config.ts` SSOT — exact match to Review finding A5/E6/F2
+   - Bug 3 discovered by reasoning about how AI Results chapter embeds analysis `table_latex` verbatim per `RESULTS_SYSTEM_PROMPT` instructions
+   - 3 deviations from Mitigation Plan documented (7.3 param removal, 7.4 severity change, annexures enhancement)
+   - Verification: 324 tests pass across 32 files, 0 TypeScript errors after all fixes
+
+6. All User Messages:
+   - **Message 1** (continuation from previous session): "For the annexures, esp the PIS and IC chapter and the Data collection proforma, refer to the synopsis text/document. It will contain same items. Improve them as feasible, properly format them, use proper latex as necessary, and then inject in annexures"
+   - **Message 2**: "NOw realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 6 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard"
+
+7. Pending Tasks:
+   - **Phase 7 entry in `Mitigation_implementation.md`**: Not yet written. Should document all Phase 7 items implemented, deviations, bugs found (including the 3 bugs found in this audit), and lessons learned.
+   - **Memory file update**: Was about to update `MEMORY.md` with audit findings when summary was requested. Key additions needed:
+     - Phase 7 complete status
+     - New recurring pattern: "Pre-approval QC gates must run BEFORE section status change"
+     - New recurring pattern: "Table counting must not double-count when AI embeds analysis tables verbatim"
+     - Updated test count: 324 tests across 32 files
+
+8. Current Work:
+   The audit is COMPLETE. All 3 bugs have been fixed and verified (324 tests pass, 0 TS errors). The user's request to "realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files and check all changes for consistency, correctness, errors, logical fallacies, redundancies and other logic issues" has been fulfilled. The audit found:
+   - 3 bugs (1 CRITICAL, 1 HIGH, 1 MEDIUM) — all fixed
+   - 3 plan deviations — all documented as acceptable
+   - Several low-severity observations (JSON in latex_content, regex g flag, missing implementation log entry)
+
+9. Optional Next Step:
+   Write the Phase 7 entry in `Mitigation_implementation.md` documenting all items implemented, deviations from plan, bugs found during audit (including the 3 bugs found in this session), and lessons learned. This follows the established pattern from Phases 1-6 entries already in the file, and would complete the audit documentation cycle. However, this was not explicitly requested by the user, so confirmation should be sought first.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+commit this and push to remote, watch the CI

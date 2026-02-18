@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "684086c4-e108-4d47-9241-9485eee9b4d1",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-18T10:36:03.917481Z",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
+    "apps/web/app/api/projects/[id]/compile/route.ts",
+    "apps/web/app/api/projects/[id]/export/docx/route.ts",
+    "apps/web/app/api/projects/[id]/export/source/route.ts",
+    "apps/web/app/api/projects/[id]/qc/fix/route.ts",
+    "apps/web/app/api/projects/[id]/qc/route.ts",
+    "apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts",
+    "apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts",
+    "apps/web/components/project/final-qc-dashboard.tsx",
+    "apps/web/lib/ai/prompts.ts",
+    "apps/web/lib/ai/review-section.ts",
+    "apps/web/lib/compliance/spell-check.ts",
+    "apps/web/lib/compliance/spelling-dictionary.ts",
+    "apps/web/lib/latex/assemble.test.ts",
+    "apps/web/lib/latex/assemble.ts",
+    "apps/web/lib/phases/transitions.test.ts",
+    "apps/web/lib/phases/transitions.ts",
+    "apps/web/lib/qc/final-qc.test.ts",
+    "apps/web/lib/qc/final-qc.ts",
+    "apps/web/supabase/.temp/cli-latest",
+    "docker/Dockerfile.latex",
+    "docs/Mitigation_implementation.md"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 4290,
+    "cache_creation_tokens": 357202,
+    "cache_read_tokens": 14725139,
+    "output_tokens": 24811,
+    "api_call_count": 123
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-18T10:36:02.697406Z",
+    "agent_lines": 1120,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 1,
+    "total_committed": 1120,
+    "agent_percentage": 100
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/684086c4-e108-4d47-9241-9485eee9b4d1.jsonl"
+}

@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 198,
+  "checkpoints_count": 202,
   "files_touched": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -117,6 +117,7 @@
     "apps/web/components/project/delete-project-button.tsx",
     "apps/web/components/project/export-menu.tsx",
     "apps/web/components/project/figure-gallery.tsx",
+    "apps/web/components/project/final-qc-dashboard.tsx",
     "apps/web/components/project/licence-banner.tsx",
     "apps/web/components/project/mermaid-editor.tsx",
     "apps/web/components/project/phase-stepper.tsx",
@@ -179,6 +180,7 @@
     "apps/web/lib/compliance/prisma-flow.test.ts",
     "apps/web/lib/compliance/prisma-flow.ts",
     "apps/web/lib/compliance/spell-check.ts",
+    "apps/web/lib/compliance/spelling-dictionary.ts",
     "apps/web/lib/compute/semaphore.test.ts",
     "apps/web/lib/compute/semaphore.ts",
     "apps/web/lib/datasets/generate.ts",
@@ -226,6 +228,7 @@
     "apps/web/lib/phases/word-count-targets.test.ts",
     "apps/web/lib/phases/word-count-targets.ts",
     "apps/web/lib/pricing/config.ts",
+    "apps/web/lib/qc/final-qc.test.ts",
     "apps/web/lib/qc/final-qc.ts",
     "apps/web/lib/r-plumber/analysis-runner.test.ts",
     "apps/web/lib/r-plumber/analysis-runner.ts",
@@ -505,13 +508,20 @@
       "context": "/bd/84f5776d75/28/context.md",
       "content_hash": "/bd/84f5776d75/28/content_hash.txt",
       "prompt": "/bd/84f5776d75/28/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/29/metadata.json",
+      "transcript": "/bd/84f5776d75/29/full.jsonl",
+      "context": "/bd/84f5776d75/29/context.md",
+      "content_hash": "/bd/84f5776d75/29/content_hash.txt",
+      "prompt": "/bd/84f5776d75/29/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 91890,
-    "cache_creation_tokens": 7169483,
-    "cache_read_tokens": 251980388,
-    "output_tokens": 514815,
-    "api_call_count": 2665
+    "input_tokens": 96180,
+    "cache_creation_tokens": 7526685,
+    "cache_read_tokens": 266705527,
+    "output_tokens": 539626,
+    "api_call_count": 2788
   }
 }
