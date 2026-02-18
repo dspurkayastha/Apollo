@@ -23,6 +23,7 @@ import { checkTokenBudget } from "@/lib/ai/token-budget";
 import { checkLicenceForPhase, type LicenceGateResult } from "@/lib/api/licence-phase-gate";
 import { inngest } from "@/lib/inngest/client";
 import type { Project } from "@/lib/types/database";
+import type { PlannedAnalysis } from "@/lib/validation/analysis-plan-schemas";
 
 // Sections stuck in "generating" for longer than this are considered stale
 const STALE_GENERATING_MS = 5 * 60 * 1000; // 5 minutes
@@ -186,8 +187,35 @@ async function handleSectionGenerate(
     previousSections
   );
 
-  // Phase 6 (Results): gather analysis context — summaries, tables, figures
+  // Phase 6 (Results): gate on 6a completion then gather analysis context
   if (phaseNumber === 6) {
+    // Gate: Phase 6a must be complete (analysis plan approved)
+    if (project.analysis_plan_status !== "approved") {
+      return badRequest(
+        "Complete Phase 6a first: upload a dataset, generate an analysis plan, and approve it."
+      );
+    }
+
+    // Gate: All planned analyses must be completed
+    const plan = (project.analysis_plan_json ?? []) as unknown as PlannedAnalysis[];
+    const { data: planCheckAnalyses } = await supabase
+      .from("analyses")
+      .select("analysis_type, status")
+      .eq("project_id", project.id)
+      .eq("status", "completed");
+
+    const completedTypes = new Set(
+      (planCheckAnalyses ?? []).map((a) => a.analysis_type)
+    );
+    const unrunPlanned = plan.filter(
+      (p) => p.status !== "skipped" && !completedTypes.has(p.analysis_type)
+    );
+
+    if (unrunPlanned.length > 0) {
+      return badRequest(
+        `${unrunPlanned.length} planned analyses not yet completed: ${unrunPlanned.map((p) => p.analysis_type).join(", ")}`
+      );
+    }
     const { data: completedAnalyses } = await supabase
       .from("analyses")
       .select("analysis_type, results_json, r_script")

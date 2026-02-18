@@ -13,6 +13,7 @@ import {
   X,
   BarChart3,
   GitBranch,
+  Download,
 } from "lucide-react";
 import type { Figure } from "@/lib/types/database";
 
@@ -121,6 +122,16 @@ export function FigureGallery({
     [projectId, router]
   );
 
+  const handleDownload = useCallback(
+    (figureId: string) => {
+      window.open(
+        `/api/projects/${projectId}/figures/${figureId}/download`,
+        "_blank"
+      );
+    },
+    [projectId]
+  );
+
   const isImageViewable = (fig: Figure) =>
     fig.file_url && (fig.format === "png" || fig.format === "svg");
 
@@ -144,8 +155,12 @@ export function FigureGallery({
                 alt={fig.caption}
                 className="h-full w-full object-contain"
               />
-            ) : fig.format === "pdf" ? (
-              <BarChart3 className="h-8 w-8 text-muted-foreground" />
+            ) : fig.format === "pdf" && fig.file_url ? (
+              <iframe
+                src={`/api/projects/${projectId}/figures/${fig.id}/download#toolbar=0&navpanes=0`}
+                title={fig.caption}
+                className="h-full w-full border-0 pointer-events-none"
+              />
             ) : fig.source_tool === "mermaid" ? (
               <Code2 className="h-8 w-8 text-muted-foreground" />
             ) : (
@@ -164,6 +179,16 @@ export function FigureGallery({
             </span>
           </div>
         </button>
+        {fig.file_url && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="absolute right-9 top-1 h-7 w-7 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+            onClick={() => handleDownload(fig.id)}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -292,7 +317,20 @@ export function FigureGallery({
               if (!fig) return null;
               return (
                 <div className="space-y-3">
-                  <h4 className="text-lg font-semibold">{fig.caption}</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold">{fig.caption}</h4>
+                    {fig.file_url && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownload(fig.id)}
+                        className="gap-1.5"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Download
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {fig.label} &middot; {fig.source_tool} &middot;{" "}
                     {fig.width_pct}% width &middot; {fig.dpi} DPI
@@ -303,6 +341,13 @@ export function FigureGallery({
                       src={fig.file_url!}
                       alt={fig.caption}
                       className="max-h-[60vh] rounded"
+                    />
+                  )}
+                  {fig.format === "pdf" && fig.file_url && (
+                    <iframe
+                      src={`/api/projects/${projectId}/figures/${fig.id}/download`}
+                      title={fig.caption}
+                      className="h-[60vh] w-full rounded border-0"
                     />
                   )}
                   {fig.source_code && (

@@ -84,12 +84,12 @@ export const REQUIRED_PARAMS: Record<AnalysisType, readonly string[]> = {
 /** Timeout per analysis type in milliseconds */
 export const ANALYSIS_TIMEOUTS: Record<AnalysisType, number> = {
   descriptive: 15_000,
-  "chi-square": 30_000,
-  "t-test": 30_000,
-  correlation: 30_000,
-  survival: 45_000,
-  roc: 45_000,
-  logistic: 45_000,
-  kruskal: 30_000,
+  "chi-square": 20_000,
+  "t-test": 20_000,
+  correlation: 20_000,
+  survival: 30_000,
+  roc: 30_000,
+  logistic: 30_000,
+  kruskal: 20_000,
   "meta-analysis": 60_000,
 };

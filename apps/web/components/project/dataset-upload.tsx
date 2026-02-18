@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Trash2,
   Loader2,
+  Download,
 } from "lucide-react";
 import type { Dataset } from "@/lib/types/database";
 
@@ -167,18 +168,32 @@ export function DatasetUpload({ projectId, datasets }: DatasetUploadProps) {
                   </p>
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleDelete(ds.id)}
-                disabled={deleting === ds.id}
-              >
-                {deleting === ds.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    window.open(
+                      `/api/projects/${projectId}/datasets/${ds.id}/download`,
+                      "_blank"
+                    )
+                  }
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDelete(ds.id)}
+                  disabled={deleting === ds.id}
+                >
+                  {deleting === ds.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           ))}
         </div>

@@ -274,6 +274,60 @@ function checkNBEMSCompliance(sections: Section[]): QCCheck {
   };
 }
 
+// ── Phase 6 Figure/Table QC (DECISIONS.md 5.3) ──────────────────────────
+
+const MIN_FIGURES = 5;
+const MIN_TABLES = 7;
+
+function checkResultsFiguresAndTables(
+  sections: Section[],
+  figureCount: number,
+  analysisTableCount: number,
+): QCCheck {
+  const details: QCDetail[] = [];
+
+  if (figureCount < MIN_FIGURES) {
+    details.push({
+      item: "Figure count",
+      message: `${figureCount} figure(s) — minimum ${MIN_FIGURES} required`,
+    });
+  }
+
+  // Count LaTeX table environments in Results chapter content
+  const resultsSection = sections.find((s) => s.phase_number === 6);
+  const latexTableCount = (
+    resultsSection?.latex_content?.match(
+      /\\begin\{(table|longtable|tabular)\}/g
+    ) ?? []
+  ).length;
+  const totalTables = analysisTableCount + latexTableCount;
+
+  if (totalTables < MIN_TABLES) {
+    details.push({
+      item: "Table count",
+      message: `${totalTables} table(s) — minimum ${MIN_TABLES} required`,
+    });
+  }
+
+  if (details.length === 0) {
+    return {
+      name: "results-figures-tables",
+      status: "pass",
+      blocking: true,
+      message: `Results has ${figureCount} figure(s) and ${totalTables} table(s) — meets minimums`,
+      details: [],
+    };
+  }
+
+  return {
+    name: "results-figures-tables",
+    status: "fail",
+    blocking: true,
+    message: `Results below figure/table minimums`,
+    details,
+  };
+}
+
 function checkUndefinedReferences(
   compileLog: string | null
 ): QCCheck {
@@ -325,7 +379,9 @@ function checkUndefinedReferences(
 export function finalQC(
   sections: Section[],
   citations: Citation[],
-  compileLog: string | null = null
+  compileLog: string | null = null,
+  figureCount: number = 0,
+  analysisTableCount: number = 0,
 ): QCReport {
   const checks: QCCheck[] = [
     checkCitationProvenance(sections, citations),
@@ -333,6 +389,7 @@ export function finalQC(
     checkBritishEnglish(sections),
     checkNBEMSCompliance(sections),
     checkUndefinedReferences(compileLog),
+    checkResultsFiguresAndTables(sections, figureCount, analysisTableCount),
   ];
 
   const blockingCount = checks.filter(

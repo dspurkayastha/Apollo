@@ -25,7 +25,17 @@ export interface AnalysisRunRequestedEvent {
   };
 }
 
+export interface ThesisSectionGenerateEvent {
+  name: "thesis/section.generate";
+  data: {
+    projectId: string;
+    phaseNumber: number;
+    userId: string;
+  };
+}
+
 export type ApolloEvent =
   | ThesisPhaseApprovedEvent
   | ThesisCompileRequestedEvent
-  | AnalysisRunRequestedEvent;
+  | AnalysisRunRequestedEvent
+  | ThesisSectionGenerateEvent;

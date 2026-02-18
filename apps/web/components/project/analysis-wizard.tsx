@@ -18,8 +18,26 @@ import {
   Info,
 } from "lucide-react";
 import type { Dataset, Analysis, Figure } from "@/lib/types/database";
-import type { AnalysisRecommendation } from "@/lib/validation/analysis-schemas";
+import type { AnalysisRecommendation, AnalysisType } from "@/lib/validation/analysis-schemas";
 import { ANALYSIS_ELI15 } from "@/lib/ai/analysis-explanations";
+
+const CHART_TYPE_OPTIONS: Record<string, string[]> = {
+  descriptive: ["auto", "bar", "box", "violin"],
+  "chi-square": ["auto", "bar", "heatmap"],
+  "t-test": ["auto", "box", "violin"],
+  correlation: ["auto", "scatter", "heatmap"],
+  survival: ["auto", "kaplan-meier", "line"],
+  roc: ["auto", "line"],
+  logistic: ["auto", "bar", "forest"],
+  kruskal: ["auto", "box", "violin"],
+  "meta-analysis": ["auto", "forest"],
+};
+
+const COLOUR_SCHEMES = [
+  { value: "default", label: "Default" },
+  { value: "greyscale", label: "Greyscale" },
+  { value: "colourblind-safe", label: "Colourblind-safe" },
+] as const;
 
 const ANALYSIS_TYPES = [
   { value: "descriptive", label: "Descriptive Statistics", description: "Frequencies, means, medians (Table 1)" },
@@ -67,6 +85,8 @@ export function AnalysisWizard({
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [selectedRecs, setSelectedRecs] = useState<Set<number>>(new Set());
   const [expandedEli15, setExpandedEli15] = useState<Set<string>>(new Set());
+  const [chartType, setChartType] = useState("auto");
+  const [colourScheme, setColourScheme] = useState("default");
 
   const selectedDs = datasets.find((d) => d.id === selectedDataset);
   const columns = (selectedDs?.columns_json ?? []) as { name: string; type: string }[];
@@ -185,6 +205,11 @@ export function AnalysisWizard({
             event: columnMapping.event || undefined,
             confidence_level: 0.95,
           },
+          figure_preferences: {
+            chart_type: chartType,
+            colour_scheme: colourScheme,
+            include_table: true,
+          },
         }),
       });
 
@@ -203,7 +228,7 @@ export function AnalysisWizard({
     } finally {
       setSubmitting(false);
     }
-  }, [projectId, selectedDataset, selectedAnalysis, columnMapping, router]);
+  }, [projectId, selectedDataset, selectedAnalysis, columnMapping, chartType, colourScheme, router]);
 
   const handleRunRecommendation = useCallback(
     async (rec: AnalysisRecommendation) => {
@@ -676,6 +701,49 @@ export function AnalysisWizard({
                   </div>
                 )
               )}
+            </div>
+            {/* Figure preferences */}
+            <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Figure Preferences
+              </p>
+              <div className="flex items-center gap-3">
+                <label className="w-24 text-sm font-medium">Chart type:</label>
+                <select
+                  value={chartType}
+                  onChange={(e) => setChartType(e.target.value)}
+                  className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+                >
+                  {(
+                    CHART_TYPE_OPTIONS[selectedAnalysis ?? "descriptive"] ??
+                    CHART_TYPE_OPTIONS.descriptive
+                  ).map((ct) => (
+                    <option key={ct} value={ct}>
+                      {ct === "auto"
+                        ? "Auto (recommended)"
+                        : ct.charAt(0).toUpperCase() + ct.slice(1).replace("-", " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="w-24 text-sm font-medium">Colours:</label>
+                <div className="flex gap-3">
+                  {COLOUR_SCHEMES.map((cs) => (
+                    <label key={cs.value} className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="radio"
+                        name="colour_scheme"
+                        value={cs.value}
+                        checked={colourScheme === cs.value}
+                        onChange={() => setColourScheme(cs.value)}
+                        className="h-3.5 w-3.5"
+                      />
+                      {cs.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
             <Button
               onClick={handleSubmit}

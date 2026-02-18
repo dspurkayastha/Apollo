@@ -80,6 +80,13 @@ export async function POST(
       return internalError();
     }
 
+    // Reset analysis plan if dataset changed (columns may differ)
+    await supabase
+      .from("projects")
+      .update({ analysis_plan_status: "pending", analysis_plan_json: [] })
+      .eq("id", id)
+      .neq("analysis_plan_status", "pending");
+
     return NextResponse.json(
       {
         data: {

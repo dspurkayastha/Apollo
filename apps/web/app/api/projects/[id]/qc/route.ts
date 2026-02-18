@@ -28,30 +28,51 @@ export async function POST(
       return notFound("Project not found");
     }
 
-    // Fetch all sections and citations
-    const [{ data: sections }, { data: citations }, { data: compilation }] =
-      await Promise.all([
-        supabase
-          .from("sections")
-          .select("*")
-          .eq("project_id", id)
-          .order("phase_number", { ascending: true }),
-        supabase.from("citations").select("*").eq("project_id", id),
-        supabase
-          .from("compilations")
-          .select("compile_log")
-          .eq("project_id", id)
-          .eq("status", "completed")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
+    // Fetch all sections, citations, figures, and analysis tables
+    const [
+      { data: sections },
+      { data: citations },
+      { data: compilation },
+      { count: figureCount },
+      { data: completedAnalyses },
+    ] = await Promise.all([
+      supabase
+        .from("sections")
+        .select("*")
+        .eq("project_id", id)
+        .order("phase_number", { ascending: true }),
+      supabase.from("citations").select("*").eq("project_id", id),
+      supabase
+        .from("compilations")
+        .select("compile_log")
+        .eq("project_id", id)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("figures")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", id),
+      supabase
+        .from("analyses")
+        .select("results_json")
+        .eq("project_id", id)
+        .eq("status", "completed"),
+    ]);
+
+    // Count analyses that produced actual tables
+    const analysisTableCount = (completedAnalyses ?? []).filter(
+      (a) => (a.results_json as Record<string, unknown>)?.table_latex
+    ).length;
 
     const compileLog = (compilation?.compile_log as string) ?? null;
     const report = finalQC(
       (sections ?? []) as Section[],
       (citations ?? []) as Citation[],
-      compileLog
+      compileLog,
+      figureCount ?? 0,
+      analysisTableCount,
     );
 
     // Store QC results in Phase 11 section

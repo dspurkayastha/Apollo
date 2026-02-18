@@ -57,11 +57,17 @@ export async function generateDataset(
   userPrompt += `Study type: ${project.study_type ?? "Observational"}\n\n`;
 
   if (project.synopsis_text) {
-    userPrompt += `Synopsis:\n${project.synopsis_text.slice(0, 3000)}\n\n`;
+    userPrompt += `Synopsis:\n${project.synopsis_text}\n\n`;
+  }
+
+  // Extract objectives from metadata so AI generates relevant columns
+  const objectives = (metadata?.objectives as string[]) ?? [];
+  if (objectives.length > 0) {
+    userPrompt += `Study objectives (generate columns relevant to these):\n${objectives.map((o, i) => `${i + 1}. ${o}`).join("\n")}\n\n`;
   }
 
   if (rolSection?.latex_content) {
-    userPrompt += `Key findings from Review of Literature (use these for realistic distributions):\n${rolSection.latex_content.slice(0, 4000)}\n\n`;
+    userPrompt += `Key findings from Review of Literature (anchor means, SDs, and prevalence to values cited here):\n${rolSection.latex_content}\n\n`;
   }
 
   if (variables && variables.length > 0) {

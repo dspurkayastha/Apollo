@@ -31,6 +31,8 @@ function makeProject(universityType: "wbuhs" | "ssuhs"): Project {
     },
     current_phase: 0,
     phases_completed: [],
+    analysis_plan_json: [],
+    analysis_plan_status: "pending" as const,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

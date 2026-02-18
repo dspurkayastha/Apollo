@@ -16,6 +16,7 @@ import { generateFrontMatterLatex } from "@/lib/latex/front-matter";
 import { auditCitations } from "@/lib/citations/audit";
 import { aiReviewSection } from "@/lib/ai/review-section";
 import type { Project, Section } from "@/lib/types/database";
+import type { PlannedAnalysis } from "@/lib/validation/analysis-plan-schemas";
 import { inngest } from "@/lib/inngest/client";
 import { getPlanConfig } from "@/lib/pricing/config";
 
@@ -106,6 +107,75 @@ export async function POST(
         );
       } catch {
         // Non-blocking — AI review failure doesn't prevent approval
+      }
+    }
+
+    // Phase 6: Figure/table QC gates (DECISIONS.md 5.3)
+    if (phaseNumber === 6) {
+      const MIN_FIGURES = 5;
+      const MIN_TABLES = 7;
+
+      const [{ count: figureCount }, { data: completedWithTables }] =
+        await Promise.all([
+          supabase
+            .from("figures")
+            .select("id", { count: "exact", head: true })
+            .eq("project_id", id),
+          supabase
+            .from("analyses")
+            .select("results_json")
+            .eq("project_id", id)
+            .eq("status", "completed"),
+        ]);
+
+      // Count actual tables: analyses with table_latex in results_json
+      const analysisTableCount = (completedWithTables ?? []).filter(
+        (a) => (a.results_json as Record<string, unknown>)?.table_latex
+      ).length;
+
+      if ((figureCount ?? 0) < MIN_FIGURES) {
+        return badRequest(
+          `Results requires at least ${MIN_FIGURES} figures (currently ${figureCount ?? 0}). ` +
+            "Run additional analyses or upload figures."
+        );
+      }
+
+      // Count tables from analysis results + LaTeX table environments in content
+      const tableLatexCount = (
+        typedSection.latex_content?.match(
+          /\\begin\{(table|longtable|tabular)\}/g
+        ) ?? []
+      ).length;
+      const totalTables = (analysisTableCount ?? 0) + tableLatexCount;
+
+      if (totalTables < MIN_TABLES) {
+        return badRequest(
+          `Results requires at least ${MIN_TABLES} tables (currently ${totalTables}). ` +
+            "Run additional analyses to generate more tables."
+        );
+      }
+
+      // Analysis plan match: every non-skipped planned analysis must have a completed result
+      const plan = (typedProject.analysis_plan_json ?? []) as unknown as PlannedAnalysis[];
+      if (plan.length > 0) {
+        const { data: completedAnalyses } = await supabase
+          .from("analyses")
+          .select("analysis_type")
+          .eq("project_id", id)
+          .eq("status", "completed");
+
+        const completedSet = new Set(
+          (completedAnalyses ?? []).map((a) => a.analysis_type)
+        );
+        const missingPlanned = plan.filter(
+          (p) => p.status !== "skipped" && !completedSet.has(p.analysis_type)
+        );
+
+        if (missingPlanned.length > 0) {
+          return badRequest(
+            `Analysis plan incomplete: ${missingPlanned.map((p) => p.analysis_type).join(", ")} not yet completed.`
+          );
+        }
       }
     }
 

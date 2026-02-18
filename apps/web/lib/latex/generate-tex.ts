@@ -63,6 +63,7 @@ export function generateTex(
     "\\usepackage{mathrsfs}   % \\mathscr{} -- formal script math font",
     "\\usepackage{amssymb}    % Extended math symbols",
     "\\usepackage{graphicx}   % \\includegraphics for figures",
+    "\\usepackage{subcaption} % subfigure environments for grouped figures",
   ].join("\n");
   tex = tex.replace(
     /(\\begin\{document\})/,

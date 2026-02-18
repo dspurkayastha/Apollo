@@ -26,6 +26,8 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     },
     current_phase: 1,
     phases_completed: [0],
+    analysis_plan_json: [],
+    analysis_plan_status: "pending" as const,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...overrides,

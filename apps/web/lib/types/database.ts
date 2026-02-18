@@ -65,6 +65,8 @@ export interface ProjectMetadata {
   supervisor_user_id?: string;
 }
 
+export type AnalysisPlanStatus = "pending" | "planning" | "review" | "approved";
+
 export interface Project {
   id: string;
   user_id: string;
@@ -78,6 +80,8 @@ export interface Project {
   metadata_json: ProjectMetadata;
   current_phase: number;
   phases_completed: number[];
+  analysis_plan_json: Record<string, unknown>[];
+  analysis_plan_status: AnalysisPlanStatus;
   created_at: string;
   updated_at: string;
 }

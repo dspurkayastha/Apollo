@@ -75,6 +75,13 @@ export async function DELETE(
       return internalError();
     }
 
+    // Reset analysis plan if dataset deleted (columns may differ)
+    await supabase
+      .from("projects")
+      .update({ analysis_plan_status: "pending", analysis_plan_json: [] })
+      .eq("id", id)
+      .neq("analysis_plan_status", "pending");
+
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     console.error("Unexpected error in DELETE dataset:", err);

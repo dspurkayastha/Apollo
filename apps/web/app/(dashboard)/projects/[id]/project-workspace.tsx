@@ -34,6 +34,8 @@ import { ComplianceDashboard } from "@/components/project/compliance-dashboard";
 import { FigureGallery } from "@/components/project/figure-gallery";
 import { MermaidEditor } from "@/components/project/mermaid-editor";
 import { ProgressDashboard } from "@/components/project/progress-dashboard";
+import { AnalysisPlanReview } from "@/components/project/analysis-plan-review";
+import type { AnalysisPlanStatus } from "@/lib/types/database";
 
 // Dynamic imports — heavy editor/viewer components
 const LaTeXEditor = dynamic(
@@ -433,44 +435,98 @@ export function ProjectWorkspace({
       </div>
 
       {/* Workspace tab content */}
-      {/* Phase 6 sub-step indicator */}
-      {viewingPhase === 6 && workspaceTab === "editor" && (
-        <div className="rounded-lg border border-[#8B9D77]/20 bg-[#8B9D77]/5 p-4">
-          <p className="mb-2 text-sm font-medium text-[#2F2F2F]">Results Checklist</p>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-sm">
-              {datasets.length > 0 ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              ) : (
-                <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
-              )}
-              <span className={datasets.length > 0 ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
-                Upload or generate dataset
-              </span>
+      {/* Phase 6: Sub-phase stepper (6a Dataset+Plan → 6b Results) */}
+      {viewingPhase === 6 && workspaceTab === "editor" && (() => {
+        const planStatus = (project.analysis_plan_status ?? "pending") as AnalysisPlanStatus;
+        const planApproved = planStatus === "approved";
+        const hasDataset = datasets.length > 0;
+        const hasCompletedAnalyses = analyses.some((a) => a.status === "completed");
+        const plan = (project.analysis_plan_json ?? []) as unknown as import("@/lib/validation/analysis-plan-schemas").PlannedAnalysis[];
+
+        return (
+          <div className="space-y-4">
+            {/* 6a / 6b indicator */}
+            <div className="rounded-lg border border-[#8B9D77]/20 bg-[#8B9D77]/5 p-4">
+              <div className="mb-3 flex items-center gap-3">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${!planApproved ? "bg-[#8B9D77] text-white" : "bg-[#8B9D77]/20 text-[#6B7D57]"}`}>
+                  6a
+                </span>
+                <div className="h-px flex-1 bg-[#8B9D77]/30" />
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${planApproved ? "bg-[#8B9D77] text-white" : "bg-[#2F2F2F]/5 text-[#6B6B6B]"}`}>
+                  6b
+                </span>
+              </div>
+              <p className="mb-2 text-sm font-medium text-[#2F2F2F]">
+                {planApproved ? "Phase 6b: Results" : "Phase 6a: Dataset & Analysis Planning"}
+              </p>
+              <div className="space-y-1.5">
+                {/* 6a steps */}
+                <div className="flex items-center gap-2 text-sm">
+                  {hasDataset ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
+                  )}
+                  <span className={hasDataset ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
+                    Upload or generate dataset
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  {planStatus === "approved" || planStatus === "review" ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
+                  )}
+                  <span className={planStatus !== "pending" ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
+                    Generate analysis plan
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  {planApproved ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
+                  )}
+                  <span className={planApproved ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
+                    Review & approve plan
+                  </span>
+                </div>
+                {/* 6b steps */}
+                <div className="flex items-center gap-2 text-sm">
+                  {hasCompletedAnalyses ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
+                  )}
+                  <span className={hasCompletedAnalyses ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
+                    Execute analyses
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  {currentSection?.latex_content ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
+                  )}
+                  <span className={currentSection?.latex_content ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
+                    Generate Results chapter
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              {analyses.some((a) => a.status === "completed") ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              ) : (
-                <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
-              )}
-              <span className={analyses.some((a) => a.status === "completed") ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
-                Run statistical analyses
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              {currentSection?.latex_content ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              ) : (
-                <div className="h-4 w-4 rounded-full border-2 border-[#D1D1D1]" />
-              )}
-              <span className={currentSection?.latex_content ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
-                Generate Results section
-              </span>
-            </div>
+
+            {/* Analysis Plan Review (inline in editor tab for Phase 6) */}
+            {hasDataset && !planApproved && (
+              <AnalysisPlanReview
+                projectId={project.id}
+                plan={plan}
+                status={planStatus}
+                onPlanUpdated={() => router.refresh()}
+              />
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {workspaceTab === "data" && (
         <div className="space-y-6">

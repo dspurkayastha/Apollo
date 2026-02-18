@@ -221,7 +221,30 @@ CRITICAL RULES for Results:
 - Reference every table and figure in the text: "As shown in Table \\ref{tab:...}" / "Figure \\ref{fig:...} illustrates..."
 - Do NOT interpret or discuss --- this is the Discussion chapter's job. Only present findings.
 ${wordCountInstruction(6)}
-- Results chapter typically has 0 new citations --- do NOT include a ---BIBTEX--- section unless citing statistical methods`;
+- Results chapter typically has 0 new citations --- do NOT include a ---BIBTEX--- section unless citing statistical methods
+
+When an analysis produces multiple related figures (e.g., meta-analysis forest plot + funnel plot),
+use the subfigure environment:
+\\begin{figure}[htbp]
+  \\centering
+  \\begin{subfigure}[b]{0.48\\textwidth}
+    \\includegraphics[width=\\textwidth]{figures/forest_plot.pdf}
+    \\caption{Forest plot}
+    \\label{fig:forest}
+  \\end{subfigure}
+  \\hfill
+  \\begin{subfigure}[b]{0.48\\textwidth}
+    \\includegraphics[width=\\textwidth]{figures/funnel_plot.pdf}
+    \\caption{Funnel plot}
+    \\label{fig:funnel}
+  \\end{subfigure}
+  \\caption{Meta-analysis results}
+  \\label{fig:meta-analysis}
+\\end{figure}
+
+When the descriptive analysis produces demographics figures (bar charts, histograms),
+include them with proper \\includegraphics and cross-references.
+Demographics may span multiple tables and figures --- this is expected and correct.`;
 
 export const DISCUSSION_SYSTEM_PROMPT = `You are a medical thesis assistant specialising in Indian postgraduate medical theses. You write the Discussion chapter following the GOLD Standard methodology.
 ${COMMON_RULES}
@@ -482,13 +505,16 @@ Rules:
 1. Generate internally consistent data that matches the study design and expected distributions from the literature.
 2. Use appropriate data types: numeric for measurements, categorical for groups/classifications, date for temporal data.
 3. Do NOT include patient names, hospital IDs, or any personally identifiable information. Use sequential Subject_ID (S001, S002, ...).
-4. Include realistic missing data patterns (~5--10% missing values, represented as empty fields).
-5. Ensure statistical properties reflect the study's expected findings (e.g. if literature suggests 30% prevalence, generate data near that range).
-6. For numeric variables, use clinically plausible ranges (e.g. age 18--90, BMI 15--45, BP 80--200).
-7. For categorical variables, use standard medical terminology.
-8. Output ONLY valid CSV --- no markdown fences, no explanation, no commentary.
-9. Use British English for categorical labels where applicable.
-10. Ensure group sizes are balanced unless the study design requires otherwise.`;
+4. Include realistic missing data patterns (5--10% MCAR missing values, represented as empty fields).
+5. Anchor means, SDs, and prevalence to values cited in the Review of Literature. If literature reports mean HbA1c of 7.2 +/- 1.4 in diabetics, generate data near those parameters.
+6. Include a realistic mix of significant and non-significant results --- not everything should achieve p < 0.05. Some secondary outcomes should show null findings.
+7. Add plausible outliers (1--3% of values) that are clinically extreme but not impossible.
+8. For numeric variables, use clinically plausible ranges (e.g. age 18--90, BMI 15--45, BP 80--200).
+9. For categorical variables, use standard medical terminology.
+10. Output ONLY valid CSV --- no markdown fences, no explanation, no commentary.
+11. Use British English for categorical labels where applicable.
+12. Ensure group sizes are balanced unless the study design requires otherwise.
+13. Generate columns relevant to the study objectives. If an objective mentions measuring "serum ferritin levels", include a Serum_Ferritin column.`;
 
 /**
  * Get the system prompt for a given phase number.
@@ -577,6 +603,33 @@ export function getPhaseUserMessage(
       return `Generate content for this phase of the medical thesis.\n\nSynopsis:\n${synopsis}\n\nMetadata:\n${metadataStr}${prevContext}`;
   }
 }
+
+export const ANALYSIS_PLANNING_SYSTEM_PROMPT = `You are a biostatistics expert specialising in Indian medical postgraduate research. Given a study synopsis, Review of Literature findings, and dataset column definitions, you produce a structured analysis plan mapping each study objective to the most appropriate statistical analyses.
+
+Rules:
+1. Map EVERY objective (primary and secondary) to at least one analysis. Include a descriptive analysis (Table 1) for baseline characteristics.
+2. Select analyses from this list ONLY: descriptive, chi-square, t-test, correlation, survival, roc, logistic, kruskal, meta-analysis.
+3. For each analysis, specify the exact dataset column names to use as variables (outcome, predictor, group, time, event). Column names MUST match the dataset columns exactly.
+4. Provide a brief rationale explaining why this test suits the objective and data type.
+5. Suggest 1--2 figure types per analysis (e.g., bar chart for descriptive, forest plot for meta-analysis).
+6. Consider the study design: cross-sectional studies rarely need survival analysis; case-control studies suit logistic regression and chi-square.
+7. If the ROL reports expected effect sizes or prevalence, reference these to justify the analysis choice.
+8. Order analyses logically: descriptive first, then primary outcome analyses, then secondary.
+9. Limit to 15 analyses maximum --- avoid redundant tests on the same variables.
+10. Output ONLY valid JSON --- no markdown fences, no explanation. Output an array of objects matching this schema:
+[
+  {
+    "id": "plan_1",
+    "objective": "To determine the correlation between HbA1c and serum ferritin",
+    "analysis_type": "correlation",
+    "rationale": "Both variables are continuous; Pearson correlation assesses linear association",
+    "variables": { "outcome": "HbA1c", "predictor": "Serum_Ferritin" },
+    "suggested_figures": [
+      { "chart_type": "scatter", "description": "Scatter plot of HbA1c vs Serum Ferritin with regression line" }
+    ],
+    "status": "planned"
+  }
+]`;
 
 export interface SynopsisParseResult {
   title: string | null;

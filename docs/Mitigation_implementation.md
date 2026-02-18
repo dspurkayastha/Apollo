@@ -460,6 +460,107 @@ ALTER TABLE public.sections DROP COLUMN IF EXISTS streaming_content;
 
 ---
 
+## Phase 6: Phase 6a/6b Restructure and Analysis Pipeline
+
+**Status**: COMPLETE
+**Commit**: (pending)
+**Duration**: ~2 days (including comprehensive audit + fixes)
+**Tests**: 314 passing (31 files), 0 TypeScript errors
+**Scope**: 5 new files + 1 migration + ~20 modified files. ~800 lines added/changed.
+
+### Items Implemented
+
+| Item | Review IDs | Description | Files Changed |
+|------|-----------|-------------|---------------|
+| 6.1 | A2, E8 | Split Phase 6 into 6a (Dataset + Analysis Planning) and 6b (Results) --- sub-phase model via `analysis_plan_status` column, no re-numbering. Phase 6 generate route gates on `analysis_plan_status === "approved"` and all planned analyses completed. | Migration `029_analysis_plan_columns`, `lib/types/database.ts`, `sections/[phase]/generate/route.ts` |
+| 6.2 | DECISIONS 5.1 | AI-driven analysis planning --- Claude Haiku reads synopsis objectives + ROL + dataset columns, outputs structured `PlannedAnalysis[]` JSON. Student reviews/modifies/approves. Column reference validation on approval. | `lib/ai/prompts.ts` (`ANALYSIS_PLANNING_SYSTEM_PROMPT`), `lib/validation/analysis-plan-schemas.ts` (new), `api/projects/[id]/analyses/plan/route.ts` (new, GET/POST/PUT), `api/projects/[id]/analyses/plan/approve/route.ts` (new) |
+| 6.3 | DECISIONS 5.1 | ROL-anchored synthetic dataset generation --- removed 3K/4K char truncation, added 5--10% MCAR missing data, realistic significant/non-significant mix, 1--3% outliers, column names tied to objectives. | `lib/datasets/generate.ts`, `lib/ai/prompts.ts` (`DATASET_GENERATION_SYSTEM_PROMPT`) |
+| 6.4 | D5, DECISIONS 5.3 | Figure/table QC gates --- minimum 5 figures, 7 tables enforced in Phase 6b approval route AND finalQC(). Analysis plan match: every non-skipped planned analysis type must have a completed result. | `sections/[phase]/approve/route.ts`, `lib/qc/final-qc.ts`, `api/projects/[id]/qc/route.ts` |
+| 6.4b | --- | Dataset change invalidates analysis plan --- any dataset mutation (create, delete, regenerate) resets `analysis_plan_status` to "pending" and clears `analysis_plan_json`. Prevents stale column references. | `api/projects/[id]/datasets/route.ts`, `datasets/[datasetId]/route.ts`, `datasets/generate/route.ts` |
+| 6.5 | D2, D3, W11 | Figure download via R2 signed URL (15-min expiry, 302 redirect). PDF figure preview via `<iframe>` in FigureGallery (replaces BarChart3 placeholder). Download button on figure cards and lightbox. Dataset download button added to DatasetUpload component. | `api/projects/[id]/figures/[figureId]/download/route.ts` (new), `lib/r2/client.ts` (`generateDownloadUrl`), `components/project/figure-gallery.tsx`, `components/project/dataset-upload.tsx` |
+| 6.6 | D6, DECISIONS 8.7 | Subfigure support --- `subcaption` package added to Docker and `generate-tex.ts`. Results prompt instructs AI to use `\begin{subfigure}` for multi-panel figures (e.g., forest + funnel plots). | `docker/Dockerfile.latex`, `lib/latex/generate-tex.ts`, `lib/ai/prompts.ts` |
+| 6.7 | D8, DECISIONS 7.3 | Chart type and colour scheme in AnalysisWizard UI --- per-analysis-type chart options, colour scheme picker (default/greyscale/colourblind-safe), passed as `figure_preferences` to R Plumber. | `components/project/analysis-wizard.tsx` |
+| 6.8 | D4, DECISIONS 5.2 | Demographics figure prompt --- Results prompt instructs AI to include demographics figures with `\includegraphics` when they exist. R endpoint changes deferred to Docker rebuild. | `lib/ai/prompts.ts` |
+| 6.9 | I-6 | Per-analysis-type runtime limits --- timeout map updated: descriptive 15s, chi-square/t-test/correlation/kruskal 20s, survival/roc/logistic 30s, meta-analysis 60s. Already enforced via `AbortController` in `callRPlumber()`. | `lib/validation/analysis-schemas.ts` |
+
+### Supporting Changes
+
+| Change | Description | Files Changed |
+|--------|-------------|---------------|
+| Analysis plan review UI | New component with pending/planning/review/approved states, generate/regenerate/approve buttons, toggle skip per analysis | `components/project/analysis-plan-review.tsx` (new, ~250 lines) |
+| Project workspace sub-phase routing | Phase 6 editor tab shows 6a/6b stepper, inline AnalysisPlanReview when dataset exists but plan not approved, checklist items for all sub-phase steps | `app/(dashboard)/projects/[id]/project-workspace.tsx` (**LOCKED** --- modified with approval) |
+| Database migration 029 | `analysis_plan_json` (JSONB, default `[]`) and `analysis_plan_status` (text with CHECK constraint, default `"pending"`) | `supabase/migrations/029_analysis_plan_columns.sql` |
+| TypeScript types | `AnalysisPlanStatus` type and fields added to `Project` interface | `lib/types/database.ts` |
+| Event types | `ThesisSectionGenerateEvent` declaration added | `lib/inngest/events.ts` |
+| Test mock updates | `analysis_plan_json: []` and `analysis_plan_status: "pending"` added to 6 test files | `assemble.test.ts`, `front-matter.test.ts`, `generate-tex.test.ts`, `transitions.test.ts`, `compile.test.ts`, `pipeline-e2e.test.ts` |
+| Local migration files | Created missing `028_latex_content_canonical.sql` and `029_analysis_plan_columns.sql` | `supabase/migrations/` |
+
+### Deferred Items (Docker Rebuild Required)
+
+1. **6.8 --- Descriptive demographics figure**: R Plumber `/descriptive` endpoint needs to produce bar chart/histogram alongside Table 1. Prompt updated; R code changes deferred to Docker rebuild sprint.
+2. **Figure file access for LaTeX compilation**: Figures stored in R2 need to be downloaded to the build directory before LaTeX can `\includegraphics` them. Requires compile pipeline modification.
+
+### Deviations from Plan
+
+1. **Dataset and analysis plan approved separately, not jointly (DECISIONS.md 5.1 step 6).** The implementation uses a two-step flow: dataset exists implicitly (no explicit approval), then analysis plan has its own approve flow. Joint approval was impractical because: (a) the analysis plan references specific column names from the dataset, so the dataset must be finalized first; (b) re-uploading a dataset must invalidate the plan independently; (c) the UI naturally separates these steps (upload/generate tab vs plan review panel). The sequential flow achieves the same gate: no Results generation without both dataset AND approved plan.
+
+2. **Plan match check validates analysis types, not specific figures/tables.** DECISIONS.md 5.3 says "every planned figure/table must exist". The implementation checks that every non-skipped `analysis_type` has a completed analysis. It does NOT verify specific figures (e.g., "the chi-square was planned with a heatmap, does a heatmap figure exist?"). This is a pragmatic compromise: the R Plumber endpoints produce figures deterministically per analysis type, so a completed analysis always produces its expected figures. If the figures are later deleted independently, this would be a gap. A follow-up could add figure-level matching.
+
+3. **head() display is post-upload/generate only, not persistent.** DECISIONS.md 5.1 step 5 says "Frontend displays head()". The DatasetUpload component already showed a preview table after upload/generate (first 5 rows). This preview disappears on navigation. A persistent head() display in the dataset panel would require fetching `rows_json` on every workspace load. Deferred as low-priority.
+
+4. **Inngest step-level timeout not added.** The plan specified adding `{ timeout: "120s" }` to `step.run()` in the Inngest analysis runner as a safety net. The Inngest SDK version doesn't support this parameter on `step.run()`. The per-type timeouts via `AbortController` in `callRPlumber()` are already enforced and sufficient.
+
+### Bugs Found During Post-Implementation Audit
+
+A comprehensive audit was performed cross-referencing every changed file against REVIEW.md, DECISIONS.md, Mitigation\_plan.md, and the Phase 6 implementation plan. Five issues were found and fixed:
+
+| Bug | Severity | Description | Resolution |
+|-----|----------|-------------|------------|
+| Table count in QC gates wrong | CRITICAL | `approve/route.ts` counted completed analyses instead of analyses with `results_json.table_latex`. A completed analysis without a table counted as 1 table. | Fixed: filter `completedWithTables` by `(a.results_json).table_latex` existence. |
+| Plan regeneration overwrites approved plan | CRITICAL | POST `plan/route.ts` had no guard against `status === "approved"`. Student could accidentally regenerate after approval, invalidating already-run analyses. | Fixed: added `if (status === "approved") return badRequest(...)` guard. |
+| `finalQC()` missing Phase 6 QC gates | HIGH | DECISIONS.md 5.3 specifies "Phase 6b QC + Final QC" scope, but `final-qc.ts` was never updated. Figure/table minimums only enforced in approve route. | Fixed: added `checkResultsFiguresAndTables()` to `finalQC()`. Updated QC route to pass figure/table counts. |
+| Missing local migration files | MEDIUM | Migrations 028 and 029 applied via Supabase MCP but no local SQL files existed. `supabase db reset` would fail to reproduce the schema. Same recurring issue from Phase 5. | Fixed: created `028_latex_content_canonical.sql` and `029_analysis_plan_columns.sql`. |
+| PDF figure preview missing | MEDIUM | Mitigation 6.5(b) says "render PDF figures using `<iframe>`". FigureGallery showed `<BarChart3>` placeholder icon for PDFs. Dataset download button not in DatasetUpload (W11). | Fixed: replaced BarChart3 with `<iframe>` for PDF figures. Added Download button to DatasetUpload. |
+
+### Lessons Learned
+
+1. **QC gate scope must match the governance docs exactly.** DECISIONS.md 5.3 explicitly says "Phase 6b QC + Final QC" but the initial implementation only added gates to the approve route. When a governance doc specifies scope, audit ALL matching code paths --- not just the one you're editing.
+
+2. **State transitions need guards against regression.** The plan regeneration bug allowed overwriting an approved plan with a new one, invalidating analyses that had already run against the original plan. Any state machine that progresses forward should validate that backwards transitions are intentional and safe.
+
+3. **Count queries must match the semantic intent.** Counting "completed analyses" is not the same as counting "tables produced by analyses". The query predicate must match what's actually being measured. When a QC gate says "7 tables", the query must count actual tables, not proxy metrics.
+
+4. **Local migration files are not optional.** This is the third phase where MCP-applied migrations lacked local counterparts. Adding a post-implementation checklist item: "verify local SQL files exist for every MCP-applied migration."
+
+### Migration Note
+
+Migration `029_analysis_plan_columns` must be applied. It adds:
+- `analysis_plan_json` (JSONB, default `[]`) on `public.projects`
+- `analysis_plan_status` (text with CHECK constraint, default `"pending"`) on `public.projects`
+
+Also created missing migration `028_latex_content_canonical` (column comment on `sections.rich_content_json` from Phase 4).
+
+Rollback:
+```sql
+ALTER TABLE public.projects
+  DROP COLUMN IF EXISTS analysis_plan_json,
+  DROP COLUMN IF EXISTS analysis_plan_status;
+```
+
+### New Files
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `lib/validation/analysis-plan-schemas.ts` | 33 | Zod schemas for PlannedAnalysis and AnalysisPlan |
+| `api/projects/[id]/analyses/plan/route.ts` | 285 | Analysis plan GET/POST/PUT endpoints |
+| `api/projects/[id]/analyses/plan/approve/route.ts` | 103 | Analysis plan approval with column validation |
+| `api/projects/[id]/figures/[figureId]/download/route.ts` | 55 | Figure download via R2 signed URL |
+| `components/project/analysis-plan-review.tsx` | 310 | Analysis plan review UI component |
+| `supabase/migrations/028_latex_content_canonical.sql` | 5 | Phase 4 migration (local file) |
+| `supabase/migrations/029_analysis_plan_columns.sql` | 12 | Phase 6 migration (local file) |
+
+---
+
 ## Appendix: Review ID Cross-Reference
 
 Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
@@ -534,3 +635,15 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 | DECISIONS 3.3 | Opus routing for Intro/Discussion (Professional plan) | 5 |
 | DECISIONS 3.5 | Inngest background generation + Realtime live preview | 5 |
 | DECISIONS 4.1 | Canonical word count targets | 5 |
+| A2, E8 | Phase 6a/6b not separated | 6 |
+| D2, D3, W11 | PDF figure preview, figure download, dataset download | 6 |
+| D4 | Descriptive analysis produces no figure | 6 (prompt only, R deferred) |
+| D5 | No minimum figure/table enforcement | 6 |
+| D6 | Subfigure support absent | 6 |
+| D8 | Chart type/colour scheme not exposed in UI | 6 |
+| I-6 | Per-analysis-type runtime limits | 6 |
+| DECISIONS 5.1 | Phase 6a/6b workflow, AI analysis planning | 6 |
+| DECISIONS 5.2 | Demographics AI-planned split | 6 (prompt only, R deferred) |
+| DECISIONS 5.3 | Figure/table QC gates (5 figs, 7 tables, plan match) | 6 |
+| DECISIONS 7.3 | Chart type + colour scheme in UI | 6 |
+| DECISIONS 8.7 | Subfigure support via subcaption | 6 |
