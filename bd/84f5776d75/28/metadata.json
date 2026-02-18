@@ -3,9 +3,9 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "bf5915c6-75c2-4612-ab44-c094d5efe7ed",
   "strategy": "manual-commit",
-  "created_at": "2026-02-18T08:46:12.304958Z",
+  "created_at": "2026-02-18T10:33:19.571122Z",
   "branch": "main",
-  "checkpoints_count": 2,
+  "checkpoints_count": 0,
   "files_touched": [
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
     "apps/web/app/api/projects/[id]/analyses/plan/approve/route.ts",
@@ -31,28 +31,29 @@
     "apps/web/lib/types/database.ts",
     "apps/web/lib/validation/analysis-plan-schemas.ts",
     "apps/web/lib/validation/analysis-schemas.ts",
-    "apps/web/supabase/.temp/cli-latest",
     "apps/web/supabase/migrations/028_latex_content_canonical.sql",
     "apps/web/supabase/migrations/029_analysis_plan_columns.sql",
     "docker/Dockerfile.latex",
     "docs/Mitigation_implementation.md"
   ],
   "agent": "Claude Code",
+  "checkpoint_transcript_start": 911,
+  "transcript_lines_at_start": 911,
   "token_usage": {
-    "input_tokens": 191,
-    "cache_creation_tokens": 436237,
-    "cache_read_tokens": 19650837,
-    "output_tokens": 21927,
-    "api_call_count": 179
+    "input_tokens": 40,
+    "cache_creation_tokens": 137217,
+    "cache_read_tokens": 3809196,
+    "output_tokens": 8430,
+    "api_call_count": 32
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-18T08:46:10.85572Z",
-    "agent_lines": 1458,
-    "human_added": 11,
-    "human_modified": 1,
+    "calculated_at": "2026-02-18T10:33:17.702748Z",
+    "agent_lines": 267,
+    "human_added": 853,
+    "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 1470,
-    "agent_percentage": 99.18367346938776
+    "total_committed": 1120,
+    "agent_percentage": 23.839285714285715
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/bf5915c6-75c2-4612-ab44-c094d5efe7ed.jsonl"
 }

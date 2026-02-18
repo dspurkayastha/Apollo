@@ -1281,3 +1281,284 @@ Please continue the conversation from where we left off without asking the user 
 ---
 
 commit this, push and watch the CI
+
+---
+
+do a git diff
+
+---
+
+now start on phase 7. realign to the Review ,Deiscussion, Mitigation_plan, Mitigation_implementation.md files and create the plan for implementation of phase 7. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me trace through the conversation chronologically:
+
+**Previous conversation context (from summary):**
+- Phase 6 implementation was completed across 14 steps
+- A thorough audit of Phase 6 against governance docs was performed
+- 5 bugs were found and fixed (table count query, plan regeneration guard, finalQC missing gates, local migration files, PDF preview + dataset download)
+- All verified: 0 TypeScript errors, 314 tests passing
+- Phase 6 was documented in Mitigation_implementation.md
+
+**This conversation:**
+
+1. **User message 1**: "commit this, push and watch the CI"
+   - I ran git status, git diff, git log
+   - Staged all Phase 6 files (32 files, 1470 insertions, 92 deletions)
+   - Committed with detailed message about Phase 6 changes
+   - Pushed to origin/main
+   - Watched CI run 22132657207 - all 4 jobs passed:
+     - Lint & Type Check: 40s ✓
+     - Unit Tests: 35s ✓
+     - Security & RLS Tests: 45s ✓
+     - Compile Test: 20s ✓
+   - Commit hash: 343c6cc
+
+2. **User message 2**: "do a git diff"
+   - Ran git diff - clean working tree, no changes
+
+3. **User message 3**: "now start on phase 7. realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files and create the plan for implementation of phase 7. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures"
+   - I entered plan mode
+   - Launched 2 parallel Explore agents:
+     - Agent 1: Read governance docs (Review.md, Discussion.md, Mitigation_plan.md, Mitigation_implementation.md, DECISIONS.md)
+     - Agent 2: Explored current Phase 7+ codebase state
+
+   Key finding from Agent 1: **Mitigation Plan Phase 7** = "Phase 11 Final QC and Completion Flow" (NOT the Discussion chapter). Items 7.1-7.8.
+
+   Then I read key implementation files directly:
+   - `lib/qc/final-qc.ts` (407 lines) - 6 QC checks, QCReport type
+   - `app/api/projects/[id]/qc/route.ts` (146 lines) - POST runs QC, GET retrieves
+   - `app/api/projects/[id]/qc/fix/route.ts` (224 lines) - 3 fix actions
+   - `app/api/projects/[id]/sections/[phase]/approve/route.ts` (395 lines) - phase transitions
+   - `lib/phases/transitions.ts` (67 lines) - canAdvancePhase
+   - `lib/latex/assemble.ts` (519 lines) - thesis assembly
+   - `lib/phases/constants.ts` (34 lines) - PHASES definitions
+   - `components/project/thesis-completion.tsx` (314 lines) - completion UI
+   - `app/api/projects/[id]/sections/[phase]/generate/route.ts` (496 lines) - generation
+   - `project-workspace.tsx` (745 lines) - main workspace UI (LOCKED)
+   - `docker/Dockerfile.latex` (59 lines) - TeX Live packages
+   - `templates/main.tex` - checked for appendices, abbreviations
+   - `lib/ai/prompts.ts` - checked getPhaseSystemPrompt for phases 9-10
+   - `lib/latex/abbreviations.ts` (22 lines) - generateAbbreviationsLatex function
+
+   **Critical bugs found during planning:**
+   1. `qc/route.ts` line 47 selects `compile_log` but the actual DB column is `log_text` → undefined-refs check ALWAYS gets null
+   2. `final-qc.ts` returns `pass` when compile log is null (should be `fail`)
+   3. Phase 11 approval in approve/route.ts sets `status=completed` without any QC validation
+   4. `canAdvancePhase` always receives literal `"approved"` making status check dead code
+   5. Appendices content written to `chapters/appendices.tex` but main.tex never `\input`s it
+   6. `generateAbbreviationsLatex()` exists and is tested but never called
+   7. `mathrsfs` package missing from Dockerfile (subcaption is there but mathrsfs was never added)
+   8. Spelling dictionary duplicated 4 times with inconsistent sizes (21 vs 60 entries)
+
+   Launched Plan agent which designed a detailed 10-step implementation plan.
+
+   Verified key findings:
+   - DB column is `log_text` (confirmed in database.ts line 202 and compile/route.ts lines 269/289)
+   - `mathrsfs` NOT in Dockerfile (confirmed)
+   - `Abbreviation` type exists in database.ts line 221, abbreviations table exists (migration 017)
+   - `assembleThesisContent` called from 3 API routes (compile, export/source, export/docx)
+   - spell-check.ts has 60 entries vs ~21 in the other three files
+   - Phase 7 NOT yet documented in Mitigation_implementation.md (confirmed)
+
+   Wrote final plan to plan file and called ExitPlanMode.
+
+The plan file was written covering 10 steps:
+1. Extract shared spelling dictionary
+2. Fix checkUndefinedReferences (column name + null handling)
+3. Fix canAdvancePhase dead code
+4. Add QC gate to Phase 11 approval
+5. Create Final QC Dashboard component
+6. Integrate dashboard into workspace (LOCKED file)
+7. Fix appendices template injection
+8. Inject abbreviations into template
+9. Add mathrsfs to Docker
+10. Add tests
+
+The user hasn't yet approved the plan - they sent the summary request while in plan mode.
+
+Summary:
+1. Primary Request and Intent:
+   The user made three explicit requests in this session:
+   - **Request 1**: "commit this, push and watch the CI" — Commit the Phase 6 changes (from previous session), push to remote, and monitor CI pipeline.
+   - **Request 2**: "do a git diff" — Verify clean working tree after commit.
+   - **Request 3**: "now start on phase 7. realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files and create the plan for implementation of phase 7. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures" — Create a thorough implementation plan for Mitigation Phase 7 (Final QC and Completion Flow), cross-referenced against governance docs, with bugs identified and proper (not stopgap) fixes proposed.
+
+2. Key Technical Concepts:
+   - **Mitigation Plan Phase 7** = "Phase 11 Final QC and Completion Flow" (items 7.1-7.8), NOT the Discussion chapter (which is thesis workflow Phase 7)
+   - **Two numbering systems**: Thesis workflow phases (0-11: Orientation through Final QC) vs Mitigation implementation phases (1-11: sprint numbering)
+   - **QC pipeline**: `finalQC()` runs 6 checks (citation provenance, section completeness, British English, NBEMS compliance, undefined references, figures/tables), returns `QCReport` with `overallPass` boolean
+   - **QC fix actions**: re-resolve-citations (CrossRef), auto-fix-spelling (American→British), expand-section (redirect to refine)
+   - **Phase 11 flow**: Phase 10 approval → auto-creates Phase 11 section with placeholder → student runs QC → student completes thesis
+   - **Template injection**: `assembleThesisContent()` generates chapter files and injects front matter into template environments
+   - **LOCKED files**: `project-workspace.tsx` requires explicit user approval to modify
+   - **Spelling dictionary**: 4 independent copies across codebase (21 entries in 3 files vs 60 entries in spell-check.ts)
+   - **Column name mismatch**: `compile_log` vs `log_text` in compilations table
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/qc/final-qc.ts`** (407 lines)
+     - Core QC engine with 6 checks returning `QCReport`
+     - **Bug #3**: Lines 334-341 — `checkUndefinedReferences()` returns `status: "pass"` when compile log is null
+     - **Bug #8**: Lines 36-58 — Contains 21-entry `AMERICAN_TO_BRITISH` dictionary (subset of the 60-entry version in spell-check.ts)
+     ```typescript
+     if (!compileLog) {
+       return {
+         name: "undefined-references",
+         status: "pass",  // BUG: should be "fail"
+         blocking: true,
+         message: "No compile log available — compile first",
+         details: [],
+       };
+     }
+     ```
+
+   - **`apps/web/app/api/projects/[id]/qc/route.ts`** (146 lines)
+     - POST runs QC, stores JSON in Phase 11 section's `latex_content`. GET retrieves.
+     - **Bug #2 (CRITICAL)**: Line 47 selects wrong column name
+     ```typescript
+     // Line 47 - BUG: column is "log_text" not "compile_log"
+     .select("compile_log")
+     // Line 69 - BUG: always null due to wrong column
+     const compileLog = (compilation?.compile_log as string) ?? null;
+     ```
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (395 lines)
+     - Handles phase transitions, auto-creates next phases
+     - **Bug #1 (CRITICAL)**: Lines 354-363 — Phase 11 approval sets `status=completed` with NO QC validation
+     ```typescript
+     if (phaseNumber === 11) {
+       await supabase
+         .from("projects")
+         .update({ status: "completed", updated_at: new Date().toISOString() })
+         .eq("id", id);
+     }
+     ```
+     - **Bug #4**: Line 183 — passes literal `"approved"` making `canAdvancePhase` status check dead code
+     ```typescript
+     const transitionCheck = canAdvancePhase(typedProject, "approved");
+     ```
+
+   - **`apps/web/lib/phases/transitions.ts`** (67 lines)
+     - `canAdvancePhase(project, currentSectionStatus)` — checks licence + phase bounds + section status
+     - Status check at line 29 is dead code because caller always passes `"approved"`
+     ```typescript
+     export function canAdvancePhase(
+       project: Project,
+       currentSectionStatus: SectionStatus | null
+     ): TransitionCheck {
+       // ...
+       if (currentSectionStatus !== "approved") {  // DEAD CODE
+         return { allowed: false, reason: "...", code: "SECTION_NOT_APPROVED" };
+       }
+     ```
+
+   - **`apps/web/lib/latex/assemble.ts`** (519 lines)
+     - Thesis assembly: generates chapter files, BibTeX, front matter injection
+     - **Bug #5**: Line 15 maps Phase 10 to `chapters/appendices.tex` but `main.tex` never `\input`s it
+     ```typescript
+     const PHASE_CHAPTER_MAP: Record<number, string> = {
+       // ...
+       10: "chapters/appendices.tex",  // Written but never loaded by main.tex
+     };
+     ```
+     - **Bug #6**: Never calls `generateAbbreviationsLatex()` despite it being imported/tested in `abbreviations.ts`
+
+   - **`apps/web/lib/latex/abbreviations.ts`** (22 lines)
+     - `generateAbbreviationsLatex()` function — exists, tested, NEVER called in assemble pipeline
+     ```typescript
+     export function generateAbbreviationsLatex(abbreviations: Abbreviation[]): string {
+       if (abbreviations.length === 0) return "";
+       const sorted = [...abbreviations].sort((a, b) => a.short_form.localeCompare(b.short_form));
+       const rows = sorted.map((abbr) => `  ${escapeLatex(abbr.short_form)} & ${escapeLatex(abbr.long_form)} \\\\`).join("\n");
+       return `\\begin{abbreviations}\n${rows}\n\\end{abbreviations}\n`;
+     }
+     ```
+
+   - **`templates/main.tex`**
+     - Has `\begin{abbreviations}...\end{abbreviations}` with placeholder (line 243-246)
+     - Has `\annexurematter` section with `\annexurechapter{}` entries and `%% [[PLACEHOLDER — Phase 10]]` comments
+     - Has `\input{chapters/introduction}` through `\input{chapters/conclusion}` but NO `\input{chapters/appendices}`
+
+   - **`docker/Dockerfile.latex`** (59 lines)
+     - **Bug #7**: Has `subcaption` (line 31) but NOT `mathrsfs`
+     - `generate-tex.ts` line 63 adds `\usepackage{mathrsfs}` but package not installed
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (745 lines)
+     - **LOCKED file** per MEMORY.md — requires explicit user approval
+     - Line 89: `AI_GENERATABLE_PHASES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 10])`
+     - Line 128: `isCompleted = project.status === "completed"` → renders `ThesisCompletion`
+     - No special rendering for Phase 11 — shows regular editor with placeholder text
+     - Phase 6 sub-phase stepper already integrated (lines 439-529)
+
+   - **`apps/web/components/project/thesis-completion.tsx`** (314 lines)
+     - Celebration UI with cursor-tracking glow cards, stats, PDF/CSV downloads, disclaimers, ExportMenu
+     - Already working correctly once `project.status === "completed"`
+
+   - **`apps/web/app/api/projects/[id]/qc/fix/route.ts`** (224 lines)
+     - 3 fix actions: re-resolve-citations, auto-fix-spelling, expand-section
+     - Has its own 21-entry AMERICAN_TO_BRITISH dictionary (duplicate)
+
+   - **`apps/web/lib/compliance/spell-check.ts`**
+     - Has the most comprehensive dictionary: 60 entries (superset of all 4 copies)
+
+   - **`apps/web/lib/ai/prompts.ts`**
+     - `getPhaseSystemPrompt()` returns prompts for phases 0-10 (case 9: REFERENCES, case 10: APPENDICES)
+     - Phase 10 APPENDICES_SYSTEM_PROMPT needs updating to use exact annexure heading names
+
+   - **`apps/web/lib/types/database.ts`**
+     - Line 202: `log_text: string | null` (confirms correct column name)
+     - Line 221: `Abbreviation` interface exists with `short_form` and `long_form`
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`**
+     - Lines 269, 289: Uses `log_text` (correct column name)
+     - Calls `assembleThesisContent()` — needs abbreviations parameter added
+
+4. Errors and fixes:
+   - No runtime errors in this session — this was a planning session.
+   - 8 bugs were identified during the audit (see Bugs Found table in plan):
+     1. Phase 11 approval skips QC (CRITICAL) — Plan: add `finalQC()` call with full data gathering
+     2. Wrong column name `compile_log` vs `log_text` (CRITICAL) — Plan: fix column name in qc/route.ts
+     3. Undefined-refs passes on null log (HIGH) — Plan: return `status: "fail"` instead of `"pass"`
+     4. canAdvancePhase dead code (HIGH) — Plan: remove status parameter entirely
+     5. Appendices not rendered (MEDIUM) — Plan: inject into annexure placeholders via regex
+     6. Abbreviations not injected (MEDIUM) — Plan: add parameter + call generateAbbreviationsLatex
+     7. mathrsfs missing from Docker (MEDIUM) — Plan: add to tlmgr install list
+     8. Spelling dict duplicated 4x (LOW) — Plan: extract to shared module
+
+5. Problem Solving:
+   - Clarified the two numbering systems: Mitigation Phase 7 = thesis Phase 11 (Final QC), NOT thesis Phase 7 (Discussion)
+   - Discovered the compile_log vs log_text column mismatch (bug #2) which compounds bug #3 — undefined references check has NEVER worked
+   - Identified that appendices fix needs both assemble.ts changes AND prompt updates (to make AI use exact heading names matching template)
+   - Determined canAdvancePhase fix should remove the parameter entirely (not change callers) since section status is already validated in approve route lines 76-93
+   - Verified abbreviations infrastructure exists (table, migration 017, type, function, tests) but is disconnected from the assemble pipeline
+   - Confirmed Phase 7 has NOT been documented in Mitigation_implementation.md yet
+
+6. All user messages:
+   - "commit this, push and watch the CI"
+   - "do a git diff"
+   - "now start on phase 7. realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files and create the plan for implementation of phase 7. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures"
+
+7. Pending Tasks:
+   - **Phase 7 implementation** — Plan has been written to `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md` and ExitPlanMode was called. The user needs to approve the plan before implementation begins.
+   - The plan covers 10 steps, 3 new files, ~18 edited files, ~+350 net lines
+   - Step 6 (workspace integration) requires explicit approval since `project-workspace.tsx` is LOCKED
+
+8. Current Work:
+   The Phase 7 implementation plan was just completed and written to the plan file. ExitPlanMode was called to present the plan for user approval. The plan covers Mitigation items 7.1-7.8 (Final QC Dashboard, Phase 11 QC gate, canAdvancePhase fix, undefined refs fix, ThesisCompletion flow, appendices injection, abbreviations injection, mathrsfs Docker package).
+
+   The plan file is at: `/Users/devs/.claude/plans/snazzy-frolicking-iverson.md`
+
+9. Optional Next Step:
+   Await user approval of the Phase 7 plan, then begin implementation following the 10-step execution order. The user explicitly requested "proper fixes, never stopgap measures" — the plan addresses this with root-cause fixes for all 8 bugs. Steps 1, 2, 3, 9 can run in parallel as the first batch.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]
