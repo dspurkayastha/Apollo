@@ -1,0 +1,444 @@
+Implement the following plan:
+
+# Phase 9: Privacy and Compliance — Implementation Plan
+
+## Context
+
+Phase 9 addresses DPDP Act 2023 compliance, legal pages, cookie consent, account deletion, and data hygiene — all required before GA launch. The mitigation plan specifies 10 items; 1 is deferred (9.8), 1 is skipped (9.10), and 2 are simplified (9.5 + 9.6 → warning banners only per user preference).
+
+**Legal entity**: SciScribe Solutions (OPC) Pvt Ltd, registered in India
+**Contact**: support@sciscribesolutions.com | Registered office: Assam, India
+**Refund policy**: Non-refundable. 7-day account deletion purges data but no refund.
+
+---
+
+## Items Summary
+
+| Item | Description | Action |
+|------|-------------|--------|
+| 9.1 | Privacy Policy, Terms of Service, Refund Policy pages | Implement |
+| 9.2 | Account Deletion flow (7-day cooling-off + purge cron) | Implement |
+| 9.3 | AI Processing Consent (checkbox at project creation) | Implement |
+| 9.4 | Cookie Consent Banner (floating card, bottom-right) | Implement |
+| 9.5 | Medical Data Warning at synopsis upload | Implement (warning banner only) |
+| 9.6 | Dataset PII Warning at dataset upload | Implement (warning banner only) |
+| 9.7 | Audit Log CASCADE delete migration | Implement |
+| 9.8 | Data Retention Auto-Purge | **DEFERRED** (per DECISIONS.md 6.2) |
+| 9.9 | R2 Cleanup on project/account deletion | Implement |
+| 9.10 | AI Output PII Check | **SKIP** — see justification |
+
+### 9.10 Skip Justification
+
+The plan says "Apply `redactPII()` to AI-generated content before storing." However:
+1. No `redactPII()` function exists in the codebase (never implemented)
+2. AI output is LaTeX content — regex PII detection on LaTeX produces massive false positives (`\author{Name}`, citation names, etc.)
+3. The real PII risk is in AI *input* (synopsis, dataset), not output. Input handling is already addressed by the prompt pipeline (metadata fields are author's own details per governance docs, not patient data)
+4. The governance doc's pre-prompt PII redaction gate is the correct defence layer
+
+---
+
+## Group A: Database Migration + Infrastructure
+
+### A1. Migration 030 — Privacy & Compliance Columns + Audit Log CASCADE
+
+**File**: `apps/web/supabase/migrations/030_privacy_compliance.sql`
+
+```sql
+-- Users: deletion tracking + consent
+ALTER TABLE public.users
+  ADD COLUMN deletion_requested_at TIMESTAMPTZ,
+  ADD COLUMN ai_consent_accepted_at TIMESTAMPTZ,
+  ADD COLUMN analytics_consent BOOLEAN DEFAULT FALSE;
+
+-- Audit log: add ON DELETE CASCADE (9.7)
+ALTER TABLE public.audit_log
+  DROP CONSTRAINT IF EXISTS audit_log_project_id_fkey,
+  ADD CONSTRAINT audit_log_project_id_fkey
+    FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+ALTER TABLE public.audit_log
+  DROP CONSTRAINT IF EXISTS audit_log_user_id_fkey,
+  ADD CONSTRAINT audit_log_user_id_fkey
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+```
+
+**Types update** (`lib/types/database.ts`): Add `deletion_requested_at`, `ai_consent_accepted_at`, `analytics_consent` to `User` interface.
+
+### A2. R2 Cleanup Functions (9.9)
+
+**File**: `apps/web/lib/r2/client.ts` — add `deleteR2Prefix()`
+
+```typescript
+import { ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+
+export async function deleteR2Prefix(prefix: string): Promise<number> {
+  let totalDeleted = 0;
+  let continuationToken: string | undefined;
+
+  do {
+    const listCmd = new ListObjectsV2Command({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Prefix: prefix,
+      MaxKeys: 1000,
+      ContinuationToken: continuationToken,
+    });
+    const listResult = await s3Client.send(listCmd);
+    const objects = listResult.Contents ?? [];
+    if (objects.length === 0) break;
+
+    const deleteCmd = new DeleteObjectsCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Delete: { Objects: objects.map((o) => ({ Key: o.Key! })) },
+    });
+    await s3Client.send(deleteCmd);
+    totalDeleted += objects.length;
+    continuationToken = listResult.NextContinuationToken;
+  } while (continuationToken);
+
+  return totalDeleted;
+}
+```
+
+### A3. Account Deletion Cron (9.2 — backend)
+
+**File**: `apps/web/lib/inngest/functions/account-deletion-cron.ts`
+
+Daily cron (03:00 UTC). Pattern follows `licenceExpiryCronFn`:
+1. Query users where `deletion_requested_at + 7 days < now()`
+2. For each user:
+   - Fetch all project IDs
+   - Call `deleteR2Prefix(`projects/${projectId}/`)` for each project
+   - Hard-delete user row (CASCADE handles projects → sections/citations/datasets/etc. → audit_log)
+   - Delete from Clerk via `@clerk/backend` SDK: `clerkClient.users.deleteUser(clerkUserId)`
+3. Return count
+
+**Register** in `apps/web/app/api/inngest/route.ts` — add to functions array.
+
+### A4. Account Deletion API Route (9.2 — endpoint)
+
+**File**: `apps/web/app/api/account/delete/route.ts`
+
+- `POST`: Set `deletion_requested_at = now()` on user row. Return message with 7-day notice + support email for cancellation.
+- `DELETE`: Cancel — clear `deletion_requested_at` if within 7 days. Return 200.
+
+### A5. Clerk Webhook Extension (9.2 — sync)
+
+**File**: `apps/web/app/api/webhooks/clerk/route.ts`
+
+Add `user.deleted` branch after existing `user.created` handler:
+- When Clerk fires `user.deleted`, set `deletion_requested_at = now()` on user row
+- This handles users who delete their Clerk account directly (triggers the 7-day cron purge)
+
+---
+
+## Group B: Cookie Consent + Analytics Gating (9.4)
+
+### B1. Cookie Consent Banner Component
+
+**File**: `apps/web/components/consent/cookie-consent-banner.tsx`
+
+Floating card in bottom-right corner, zen warm aesthetic:
+- Frosted glass: `backdrop-blur-md bg-white/90 border border-border/60`
+- Warm shadow matching `landing-card` pattern
+- Text: "We use essential cookies for authentication and optional analytics to improve Apollo."
+- Link to `/privacy`
+- Buttons: `Reject` (outline, muted) + `Accept All` (primary, sage-tinted)
+- Stores preference in `localStorage("analytics-consent")` + updates user DB column (if signed in)
+- Only renders if no stored preference (first visit)
+- Slides in from bottom-right (`translate-y` animation)
+- `z-50` overlay, `max-w-sm`, rounded-xl
+- No emoji in the component (per project rules)
+
+### B2. PostHog Consent Gating
+
+**File**: `apps/web/components/providers/posthog-provider.tsx`
+
+Gate PostHog on consent:
+```typescript
+useEffect(() => {
+  if (!POSTHOG_KEY) return;
+  const consent = typeof window !== "undefined"
+    ? localStorage.getItem("analytics-consent")
+    : null;
+
+  posthog.init(POSTHOG_KEY, {
+    api_host: "https://eu.i.posthog.com",
+    loaded: (ph) => {
+      if (process.env.NODE_ENV !== "production" || consent !== "true") {
+        ph.opt_out_capturing();
+      }
+    },
+    // ... existing sanitize_properties unchanged
+  });
+}, []);
+```
+
+Add exported helper:
+```typescript
+export function updateAnalyticsConsent(accepted: boolean): void {
+  localStorage.setItem("analytics-consent", accepted ? "true" : "false");
+  if (accepted) posthog.opt_in_capturing();
+  else posthog.opt_out_capturing();
+}
+```
+
+### B3. Root Layout Integration
+
+**File**: `apps/web/app/layout.tsx`
+
+Add `<CookieConsentBanner />` after `<Toaster>` (fixed-position, no layout impact).
+
+---
+
+## Group C: AI Processing Consent (9.3)
+
+**Key finding**: Project creation is auto-triggered (`/projects/new` auto-POSTs without a form, then redirects to `/projects/${id}/setup`). The setup wizard is where users first provide content. The AI consent checkbox goes in the **synopsis upload step** (wizard Step 2) — this is the moment content is first submitted for AI processing.
+
+### C1. Install shadcn Checkbox
+
+Run: `pnpm dlx shadcn@latest add checkbox` (creates `components/ui/checkbox.tsx`)
+
+### C2. Synopsis Upload Step — AI Consent Checkbox
+
+**File**: `apps/web/components/wizard/steps/synopsis-upload-step.tsx`
+
+Add a consent checkbox **above** the file upload area. Checkbox must be checked before the "Next" button is enabled. Text:
+
+> I acknowledge that my thesis content will be processed by AI services (Anthropic, hosted in the US) for generation purposes. Patient data must be anonymised before upload. [Privacy Policy](/privacy)
+
+This is also the natural location for the medical data warning (D1), so both go on this step.
+
+### C3. Store Consent Timestamp via API
+
+**File**: `apps/web/app/api/projects/[id]/route.ts` (PATCH handler)
+
+When the synopsis is saved (PATCH with `synopsis_text`), also update user's `ai_consent_accepted_at` if null:
+```typescript
+// After successful project update, record consent if synopsis was provided
+if (parsed.data.synopsis_text && !user.ai_consent_accepted_at) {
+  await adminDb.from("users").update({
+    ai_consent_accepted_at: new Date().toISOString(),
+  }).eq("id", userId).is("ai_consent_accepted_at", null);
+}
+```
+
+The consent timestamp is on the **user** (not project), so it's recorded once per user on first synopsis upload. Subsequent projects skip the checkbox if already accepted (check via initial data fetch).
+
+---
+
+## Group D: Medical Data Warnings (9.5 + 9.6)
+
+### D1. Synopsis Upload Warning
+
+Find synopsis input area in workspace (Phase 0/1 content). Add amber warning banner above it:
+
+> Please ensure your synopsis does not contain patient-identifiable information (names, MRNs, dates of birth, Aadhaar numbers). Anonymise all patient data before uploading.
+
+Style: `bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm` — matching `licence-banner.tsx` pattern.
+
+### D2. Dataset Upload Warning
+
+**File**: `apps/web/components/project/dataset-upload.tsx`
+
+Same style amber banner above the file upload area:
+
+> Ensure your dataset is fully anonymised before uploading. Remove all patient names, phone numbers, Aadhaar numbers, and other identifiable information. Apollo processes data via external services.
+
+---
+
+## Group E: Legal Pages (9.1)
+
+### E1. Legal Route Group & Layout
+
+**Files**:
+- `apps/web/app/(legal)/layout.tsx` — Shared layout
+- `apps/web/app/(legal)/privacy/page.tsx`
+- `apps/web/app/(legal)/terms/page.tsx`
+- `apps/web/app/(legal)/refund/page.tsx`
+
+**Layout design**:
+- Centred content (max-w-3xl mx-auto)
+- `font-heading` (Source Serif 4) for headings, `font-body` (Inter) for body
+- Subtle `landing-dot-grid` background
+- "Last updated" date at top
+- Back-to-home link in header
+- Clean prose typography (`prose prose-neutral`)
+
+### E2. Privacy Policy Content
+
+Full AI-drafted text (British English). Sections:
+1. Data Controller — SciScribe Solutions (OPC) Pvt Ltd
+2. Information We Collect — account info, thesis content, datasets, usage analytics
+3. How We Use Your Information — thesis generation, AI processing, service improvement
+4. Legal Basis — DPDP Act 2023 Section 6 (consent)
+5. Data Residency & Cross-Border Transfers — Supabase (India), Hetzner (Germany), R2 (Cloudflare auto), Claude API (US)
+6. Data Retention — per governance/data-classification.md schedule
+7. Your Rights — access, correction, erasure, data portability
+8. Cookies — essential (Clerk auth) + optional analytics (PostHog, EU endpoint)
+9. Children — not intended for users under 18
+10. Contact — support@sciscribesolutions.com, Assam, India
+11. Changes to This Policy
+
+### E3. Terms of Service Content
+
+Full AI-drafted text. Sections:
+1. Service Description
+2. Account Registration
+3. Academic Integrity — Apollo is a writing assistance tool; students bear full responsibility
+4. Thesis Licences — one licence = one project, non-transferable, non-refundable
+5. Acceptable Use — no plagiarism, no uploading others' work, anonymise patient data
+6. Intellectual Property — students retain ownership; SciScribe claims no rights to generated content
+7. Limitation of Liability — service "as is", not responsible for academic outcomes
+8. Account Termination — violations lead to suspension; DPDP deletion rights preserved
+9. Governing Law — laws of India, courts of Assam
+
+### E4. Refund Policy Content
+
+Brief policy:
+1. Non-refundable — thesis licences are non-refundable digital goods
+2. Account Deletion — 7-day cooling-off period, all data purged, no refund triggered
+3. Exceptions — contact support for extraordinary circumstances
+
+### E5. Footer Links Update
+
+**File**: `apps/web/components/landing/footer-section.tsx` — **LOCKED**
+
+```typescript
+const legalLinks = [
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms of Service", href: "/terms" },
+  { label: "Refund Policy", href: "/refund" },
+];
+```
+
+---
+
+## Group F: Settings Page + Account Deletion UI (9.2 frontend)
+
+### F1. Settings Page
+
+**File**: `apps/web/app/(dashboard)/settings/page.tsx`
+
+Sections:
+1. **Profile** — name, email (read-only from Clerk), role badge
+2. **Preferences** — analytics consent toggle (syncs with cookie banner)
+3. **Danger Zone** — red border card with "Delete My Account" button
+
+Delete account flow:
+1. Click button → AlertDialog with confirmation
+2. Dialog: "This action is irreversible after 7 days. All projects, thesis content, datasets, and files will be permanently deleted. Contact support@sciscribesolutions.com within 7 days to cancel."
+3. Type "DELETE" to enable confirm button
+4. POST `/api/account/delete` → success toast → sign out via Clerk
+
+### F2. Sidebar Settings Link
+
+**File**: `apps/web/components/layout/glass-sidebar.tsx` — **LOCKED**
+
+Add to `navItems` array:
+```typescript
+{ id: "settings", label: "Settings", href: "/settings", icon: Settings },
+```
+
+---
+
+## Group G: Project Deletion Enhancement (9.9)
+
+### G1. Hard-Delete with R2 Cleanup
+
+**File**: `apps/web/app/api/projects/[id]/route.ts`
+
+Change DELETE from soft-delete (`status: "archived"`) to hard-delete:
+1. Verify project ownership
+2. Call `deleteR2Prefix(`projects/${id}/`)` to clean R2 files
+3. `DELETE FROM projects WHERE id = $1` (CASCADE handles all child tables + audit_log after migration 030)
+4. Return 200
+
+**Rationale**: DPDP Act requires actual erasure. The 7-day cooling-off applies to account deletion, not individual project deletion. If a user explicitly deletes a project, it should be gone.
+
+---
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `supabase/migrations/030_privacy_compliance.sql` | User columns + audit_log CASCADE |
+| `app/(legal)/layout.tsx` | Shared legal page layout |
+| `app/(legal)/privacy/page.tsx` | Privacy Policy |
+| `app/(legal)/terms/page.tsx` | Terms of Service |
+| `app/(legal)/refund/page.tsx` | Refund Policy |
+| `components/consent/cookie-consent-banner.tsx` | Floating consent card |
+| `app/api/account/delete/route.ts` | Account deletion endpoint |
+| `lib/inngest/functions/account-deletion-cron.ts` | 7-day purge cron |
+| `app/(dashboard)/settings/page.tsx` | Settings with delete account |
+| `components/ui/checkbox.tsx` | shadcn checkbox (via CLI) |
+
+## Files to Modify
+
+| File | Changes | Locked? |
+|------|---------|---------|
+| `lib/r2/client.ts` | Add `deleteR2Prefix()` | No |
+| `lib/types/database.ts` | Add deletion/consent fields to User | No |
+| `wizard/steps/synopsis-upload-step.tsx` | AI consent checkbox + medical data warning | No |
+| `app/api/projects/[id]/route.ts` | Hard-delete + R2 cleanup; store consent on PATCH | No |
+| `app/api/webhooks/clerk/route.ts` | Handle `user.deleted` event | No |
+| `app/api/inngest/route.ts` | Register deletion cron | No |
+| `providers/posthog-provider.tsx` | Consent-gated init | No |
+| `app/layout.tsx` | Add CookieConsentBanner | No |
+| `components/project/dataset-upload.tsx` | PII warning banner | No |
+| `landing/footer-section.tsx` | Update legal links | **YES** |
+| `layout/glass-sidebar.tsx` | Add Settings nav item | **YES** |
+| `docs/Mitigation_implementation.md` | Phase 9 log | No |
+
+---
+
+## Implementation Order
+
+1. **A1** — Migration 030 (DB columns + audit_log CASCADE)
+2. **A2** — R2 `deleteR2Prefix()` function
+3. **A3 + A4** — Account deletion cron + API route
+4. **A5** — Clerk webhook `user.deleted` handler
+5. **C1** — Install shadcn checkbox
+6. **C2 + C3** — AI consent (synopsis step checkbox + PATCH consent recording)
+7. **D1 + D2** — Medical data warning banners
+8. **B1 + B2 + B3** — Cookie consent banner + PostHog gating + layout
+9. **E1–E4** — Legal pages (privacy, terms, refund)
+10. **G1** — Project hard-delete + R2 cleanup
+11. **F1** — Settings page
+12. **E5 + F2** — Footer links + sidebar link (**LOCKED** — need approval)
+13. Update `Mitigation_implementation.md`
+
+---
+
+## Verification
+
+- `pnpm tsc --noEmit` — 0 errors
+- `pnpm test` — all tests pass (324+)
+- Cookie banner: shows on first visit, remembers preference, no flash on return
+- PostHog: does NOT capture events when consent=false; captures when consent=true
+- Project creation: blocked without AI consent checkbox; timestamp stored in users table
+- Legal pages: `/privacy`, `/terms`, `/refund` render with correct content and British English
+- Account deletion: POST sets timestamp; cancel clears it; cron purges after 7 days
+- Project hard-delete: cascades to all children + R2 objects cleaned
+- Warning banners: visible at synopsis upload (Phase 0–1) and dataset upload (Phase 6a)
+- Settings page: renders with profile, preferences, danger zone
+- Clerk webhook: `user.deleted` triggers deletion flow
+- Audit log: CASCADE confirmed — deleting a project removes its audit entries
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+The legal, privacy etc pages are text heavy pages, ensure that design, layout etc match the orginal dashboard bg, and the typography and formatting etc are proper. Use brand fonts (playfair Display) for the word 'Apollo' whenever it appears, and also for main headings.
+
+---
+
+NOw realign to the Review ,Deiscussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 9 for consistency, correctness, errors , logical fallacies, redundancies and other logic issues. Think ultra hard
+
+---
+
+so now all issues are fixed? and the mitigation_implimentation doc has been updated?
+
+---
+
+commit this, push and keep watching the CI
