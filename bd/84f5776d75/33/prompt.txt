@@ -2406,3 +2406,58 @@ curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refuse
 ---
 
 I DO NOT want stop gap 'pragmatic' measures. Diagnose properly, and do production grade fixes
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r -C /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f          
+  docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 12, done.
+remote: Counting objects: 100% (12/12), done.
+remote: Compressing objects: 100% (6/6), done.
+remote: Total 8 (delta 4), reused 6 (delta 2), pack-reused 0 (from 0)
+Unpacking objects: 100% (8/8), 2.66 KiB | 388.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   4f95f26..f39cf87  main       -> origin/main
+Updating 4f95f26..f39cf87
+Fast-forward
+ docker/apparmor-r-plumber | 107 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++------------------------
+ 1 file changed, 83 insertions(+), 24 deletions(-)
+flag needs an argument: 'f' in -f
+docker-compose.yml: command not found
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r -C /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+[+] up 2/2
+ ✔ Container apollo-r-plumber Recreated                                                                                                                                                                   0.2ss
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.4s
+CONTAINER ID   IMAGE              COMMAND                  CREATED          STATUS                    PORTS                      NAMES
+deaed4fd0868   apollo-latex       "sleep infinity"         41 seconds ago   Up 30 seconds                                        apollo-latex
+e1eb9bd77e8a   apollo-r-plumber   "R -e 'plumber::pr_r…"   41 seconds ago   Up 30 seconds (healthy)   127.0.0.1:8787->8787/tcp   apollo-r-plumber
+{"status":["ok"],"service":["apollo-r-plumber"],"r_version":["4.4.0"],"timestamp":["2026-02-19 19:22:05"],"packages":{"survival":[true],"pROC":[true],"meta":[true]}}root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# dmesg | grep apparmor | grep apollo-r-plumber | tail -20   
+[24271.892694] audit: type=1400 audit(1771528530.549:56): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="apollo-r-plumber//healthcheck" pid=55391 comm="apparmor_parser"
+[24283.225026] audit: type=1400 audit(1771528541.881:57): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/dev/tty" pid=55611 comm="R" requested_mask="wr" denied_mask="wr" fsuid=0 ouid=0
+[24283.226013] audit: type=1400 audit(1771528541.885:58): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/nsswitch.conf" pid=55611 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24283.226221] audit: type=1400 audit(1771528541.885:59): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/passwd" pid=55611 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24283.227739] audit: type=1400 audit(1771528541.885:60): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/usr/bin/R" pid=55611 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24590.783126] audit: type=1400 audit(1771528849.450:61): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="apollo-r-plumber" pid=55776 comm="apparmor_parser"
+[24590.805310] audit: type=1400 audit(1771528849.474:62): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="apollo-r-plumber//healthcheck" pid=55776 comm="apparmor_parser"
+[24625.802106] audit: type=1400 audit(1771528884.471:63): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="apollo-r-plumber" pid=55816 comm="apparmor_parser"
+[24625.805441] audit: type=1400 audit(1771528884.475:64): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="apollo-r-plumber//healthcheck" pid=55816 comm="apparmor_parser"
+[24636.984783] audit: type=1400 audit(1771528895.655:65): apparmor="ALLOWED" operation="open" profile="apollo-r-plumber" name="/sys/devices/system/cpu/possible" pid=55948 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24636.985540] audit: type=1400 audit(1771528895.655:66): apparmor="ALLOWED" operation="open" profile="apollo-r-plumber" name="/sys/devices/system/cpu/possible" pid=55948 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24637.011510] audit: type=1400 audit(1771528895.683:67): apparmor="ALLOWED" operation="open" profile="apollo-r-plumber" name="/proc/1/loginuid" pid=55948 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24637.013734] audit: type=1400 audit(1771528895.683:68): apparmor="ALLOWED" operation="open" profile="apollo-r-plumber" name="/proc/1/loginuid" pid=55948 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24637.265915] audit: type=1400 audit(1771528895.935:69): apparmor="ALLOWED" operation="exec" profile="apollo-r-plumber" name="/usr/bin/dash" pid=56023 comm="R" requested_mask="x" denied_mask="x" fsuid=0 ouid=0 target="apollo-r-plumber//null-/usr/bin/dash"
+[24637.265924] audit: type=1400 audit(1771528895.935:70): apparmor="ALLOWED" operation="exec" info="no new privs" error=-1 profile="apollo-r-plumber" name="/bin/sh" pid=56023 comm="R" requested_mask="x" denied_mask="x" fsuid=0 ouid=0 target="apollo-r-plumber//null-/usr/bin/dash"
+[24637.267501] audit: type=1400 audit(1771528895.939:71): apparmor="ALLOWED" operation="exec" profile="apollo-r-plumber" name="/usr/bin/which.debianutils" pid=56024 comm="sh" requested_mask="x" denied_mask="x" fsuid=0 ouid=0 target="apollo-r-plumber//null-/usr/bin/which.debianutils"
+[24637.267507] audit: type=1400 audit(1771528895.939:72): apparmor="ALLOWED" operation="exec" info="no new privs" error=-1 profile="apollo-r-plumber" name="/usr/bin/which" pid=56024 comm="sh" requested_mask="x" denied_mask="x" fsuid=0 ouid=0 target="apollo-r-plumber//null-/usr/bin/which.debianutils"
+[24637.268681] audit: type=1400 audit(1771528895.939:73): apparmor="ALLOWED" operation="open" profile="apollo-r-plumber" name="/usr/bin/which.debianutils" pid=56024 comm="which" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24637.270023] audit: type=1400 audit(1771528895.939:74): apparmor="ALLOWED" operation="exec" profile="apollo-r-plumber" name="/usr/bin/dash" pid=56025 comm="R" requested_mask="x" denied_mask="x" fsuid=0 ouid=0 target="apollo-r-plumber//null-/usr/bin/dash"
+[24644.296386] audit: type=1400 audit(1771528902.963:79): apparmor="ALLOWED" operation="open" profile="apollo-r-plumber" name="/proc/1/loginuid" pid=55948 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+root@hetzner-sciscribe:/opt/apollo/docker#
