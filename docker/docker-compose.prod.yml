@@ -9,6 +9,4 @@
 services:
   r-plumber:
     security_opt:
-      - no-new-privileges:true
-      - seccomp:./seccomp-r.json
       - apparmor:apollo-r-plumber
