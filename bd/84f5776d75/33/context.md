@@ -341,3 +341,12 @@ Platform: x86_64-pc-linux-gnu
 R is free software and comes with ABSOLUTELY NO WARRANTY.
 You are welcome to redis...
 
+### Prompt 44
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health 
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 710 bytes | 355.00 KiB...
+

@@ -3,30 +3,30 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "bf398ed3-5bdc-4f8c-bc81-7bcee5b7cc92",
   "strategy": "manual-commit",
-  "created_at": "2026-02-19T19:06:17.024127Z",
+  "created_at": "2026-02-19T19:08:45.385531Z",
   "branch": "main",
   "checkpoints_count": 1,
   "files_touched": [
-    "docker/seccomp-r.json"
+    "docker/docker-compose.yml"
   ],
   "agent": "Claude Code",
-  "transcript_identifier_at_start": "be859063-685c-47f1-a8cc-15bfd923a015",
-  "checkpoint_transcript_start": 1988,
-  "transcript_lines_at_start": 1988,
+  "transcript_identifier_at_start": "a0cd9c3d-4627-40a9-aec0-6e8f2e786204",
+  "checkpoint_transcript_start": 2049,
+  "transcript_lines_at_start": 2049,
   "token_usage": {
-    "input_tokens": 19,
-    "cache_creation_tokens": 7869,
-    "cache_read_tokens": 1420222,
-    "output_tokens": 333,
-    "api_call_count": 10
+    "input_tokens": 5,
+    "cache_creation_tokens": 2637,
+    "cache_read_tokens": 591476,
+    "output_tokens": 498,
+    "api_call_count": 4
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-19T19:06:14.404449Z",
+    "calculated_at": "2026-02-19T19:08:42.739206Z",
     "agent_lines": 0,
-    "human_added": 10,
-    "human_modified": 0,
+    "human_added": 2,
+    "human_modified": 1,
     "human_removed": 0,
-    "total_committed": 10,
+    "total_committed": 2,
     "agent_percentage": 0
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/bf398ed3-5bdc-4f8c-bc81-7bcee5b7cc92.jsonl"
