@@ -2380,3 +2380,25 @@ CONTAINER ID   IMAGE              COMMAND                  CREATED          STAT
 5852678d058e   apollo-latex       "sleep infinity"         26 seconds ago   Up 15 seconds                                        apollo-latex
 059760b0b030   apollo-r-plumber   "R -e 'plumber::pr_r…"   26 seconds ago   Up 15 seconds (healthy)   127.0.0.1:8787->8787/tcp   apollo-r-plumber
 {"status":["ok"],"service":["apollo-r-plumber"],"r_version":["4.4.0"],"timestamp":["2026-02-19 19:12:16"],"packages":{"survival":[true],"pROC":[true],"meta":[true]}}root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 599 bytes | 299.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   a594e68..4f95f26  main       -> origin/main
+Updating a594e68..4f95f26
+Fast-forward
+ docker/apparmor-r-plumber | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+[+] up 2/2
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.4s
+ ✔ Container apollo-r-plumber Recreated                                                                                                                                                                   10.6s
+CONTAINER ID   IMAGE          COMMAND            CREATED          STATUS          PORTS     NAMES
+44789c293c4c   apollo-latex   "sleep infinity"   40 seconds ago   Up 30 seconds             apollo-latex
+curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refused

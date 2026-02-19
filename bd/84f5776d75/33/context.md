@@ -366,3 +366,11 @@ root@hetzner-sciscribe:/opt/apollo/docker# docker compose -f docker-compose.yml 
  ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.5s
  ✔ Container apollo-r-plumber Recreated                                                                        ...
 
+### Prompt 47
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remo...
+
