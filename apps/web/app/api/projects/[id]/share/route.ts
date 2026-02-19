@@ -25,6 +25,20 @@ export async function POST(
 
     if (!project) return notFound("Project not found");
 
+    // Limit: 5 active (non-expired) tokens per project
+    const { count: activeTokenCount } = await supabase
+      .from("review_tokens")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", id)
+      .gte("expires_at", new Date().toISOString());
+
+    if ((activeTokenCount ?? 0) >= 5) {
+      return NextResponse.json(
+        { error: { code: "LIMIT_EXCEEDED", message: "Maximum 5 active review links per project" } },
+        { status: 409 }
+      );
+    }
+
     // Generate a cryptographically random token
     const token = crypto.randomBytes(24).toString("hex"); // 48 chars
 

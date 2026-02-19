@@ -81,8 +81,6 @@ export async function POST(
     // Don't change status to "generating" --- the client consumes the stream
     // and refreshes when done. Keeping current status avoids a broken UI state
     // if the page is refreshed mid-stream.
-    let streamCompleted = false;
-
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -184,7 +182,6 @@ export async function POST(
               .eq("phase_number", phaseNumber);
           }
 
-          streamCompleted = true;
 
           // Resolve new citations (non-blocking with 10s timeout)
           let citationSummary = null;
@@ -212,7 +209,6 @@ export async function POST(
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (err) {
-          streamCompleted = true;
 
           const errorMessage =
             err instanceof Error ? err.message : "Refinement failed";

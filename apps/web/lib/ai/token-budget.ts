@@ -98,7 +98,8 @@ export async function recordTokenUsage(
   phaseNumber: number,
   inputTokens: number,
   outputTokens: number,
-  modelUsed: string
+  modelUsed: string,
+  messages?: Array<{ role: string; content: string }>
 ): Promise<string | null> {
   const supabase = createAdminSupabaseClient();
 
@@ -107,7 +108,7 @@ export async function recordTokenUsage(
     .insert({
       project_id: projectId,
       phase_number: phaseNumber,
-      messages_json: [],
+      messages_json: messages ?? [],
       model_used: modelUsed,
       input_tokens: inputTokens,
       output_tokens: outputTokens,

@@ -1083,3 +1083,58 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 | I-12 | LaTeX container network isolation | 10 (already done pre-Phase 10) |
 | C7, D6 | mathrsfs + subcaption in Dockerfile | 10 (already done pre-Phase 10) |
 | IV-E9 | Health check endpoint enhancement | 10 |
+
+---
+
+## Phase 11: Cleanup and Testing
+
+**Status**: COMPLETE
+**Duration**: ~1 session
+**Tests**: 329 passing (5 new), 0 TypeScript errors, 0 lint warnings
+
+### Items Implemented
+
+| Item | Description | Implementation |
+|------|-------------|----------------|
+| 11.1 | Lint warnings (19 across 18 files) | All 19 fixed: removed unused imports/vars, added alt/aria-label props, removed dead `currentPhase` prop + callers, removed `FATAL_ERROR_PATTERNS`, `ColumnPreview`, `roundRect`, `X` import. 0 warnings remaining. |
+| 11.2 | Dead code removal | Deleted `phase-stepper.tsx` (replaced by PipelineTimeline) and `app-sidebar.tsx` (replaced by glass-sidebar). Confirmed zero imports before deletion. |
+| 11.4 | `phases_completed` deduplication | `approve/route.ts`: wrapped in `Array.from(new Set([...]))` to prevent duplicate phase entries on re-approval. |
+| 11.6 | Warning budget (warn only) | `compile/route.ts`: added `WARNING_BUDGET = 20` threshold. Response includes `warning_budget_exceeded: boolean`. Non-blocking --- users can still access PDF. |
+| 11.7 | Brace-checking bug fix | `validate.ts`: added `countPrecedingBackslashes()` helper. Fixed `\\{` edge case for braces, `%` comment detection, `#` hash detection, and `&` ampersand detection. All 4 checks now use the same helper. 5 new test cases added. |
+| 11.8 | Pre-seeded references persistence | `generate/route.ts`: after `preSeedReferences()`, upserts Tier A citations to `citations` table with `onConflict: "project_id,cite_key"`. Uses correct schema columns (`evidence_type`, `source_pmid`, `evidence_value`, `verified_at`). Requires unique constraint (applied in migration 032). **Post-audit fix**: original implementation used non-existent columns (`source`, `source_id`, `title`, `resolved`, `resolved_at`) --- corrected to match 006\_create\_citations.sql schema. |
+| 11.10 | RLS test enhancement | Rewrote `rls.test.ts` with per-user Supabase clients via HS256 JWT signing (Node.js `crypto`). Tests: project/section/citation/dataset/compilation/licence isolation. Graceful skip when `JWT_SECRET` unavailable. Proper cleanup in `afterAll`. |
+| 11.11 | Missing RLS policies | Migration 032: datasets UPDATE, compilations UPDATE+DELETE (owner via projects FK), review_comments INSERT (service-role-only deny), citations unique constraint `(project_id, cite_key)`. Applied via Supabase MCP. |
+| 11.12 | MermaidEditor dynamic import | `project-workspace.tsx`: converted static import to `next/dynamic` with `ssr: false`. Saves ~100KB from initial bundle. |
+| 11.13 | PDF thumbnail lazy-load | `pdf-viewer.tsx`: added `LazyThumbnail` component with `IntersectionObserver` (200px rootMargin). Only thumbnails in/near viewport render actual PDF pages. Placeholder skeleton for off-screen thumbnails. |
+| 11.14 | `messages_json` population | `token-budget.ts`: added optional `messages` parameter to `recordTokenUsage()`. `ai-generate.ts`: passes truncated (50K chars) user+assistant messages for audit trail. |
+| 11.15 | Phase sequence enforcement | `generate/route.ts`: blocks generation for phases beyond `current_phase + 1`. Phase 0 (synopsis) handled before this check. |
+| 11.16b | Review comment rate limit | `comments/route.ts`: 10 comments per hour per token, DB-based count check. Returns 429 on exceed. |
+| 11.16c | Review token generation limit | `share/route.ts`: max 5 active (non-expired) tokens per project. Returns 409 on exceed. |
+
+### Items Skipped (Already Resolved)
+
+| Item | Why |
+|------|-----|
+| 11.3 | Dictionary SSOT already shared via `spelling-dictionary.ts` (79 entries, 4 consumers) |
+| 11.5 | Moot --- `rich_content_json` deprecated since Phase 4 |
+| 11.9 | 32 migrations now tracked in `supabase/migrations/` (001--032) |
+| 11.16a | `canAdvancePhase` NOT dead --- used in `transitions.ts` for licence gates |
+| 11.16d | `public/sw.js` already exists with network-first API + cache-first assets |
+
+### Audit Findings (Post-Implementation Consistency Check)
+
+| Finding | Severity | Description | Fix |
+|---------|----------|-------------|-----|
+| C1 | CRITICAL | Pre-seed citation upsert (11.8) used 5 non-existent columns (`source`, `source_id`, `title`, `resolved`, `resolved_at`). PostgREST rejects unknown columns; error swallowed by try/catch. Pre-seeded references were NEVER actually persisted. | Corrected to schema columns: `evidence_type: "pmid"`, `source_pmid`, `evidence_value`, `verified_at`. Removed `title` and `resolved`. |
+| C2 | LOW | `#` and `&` per-line checks used regex lookbehind `(?<!\\)` which fails for `\\#`/`\\&` (same bug class as 11.7 brace fix). Theoretical risk --- `\\#` is extremely rare in thesis LaTeX. | Refactored both to use `countPrecedingBackslashes()` helper, matching the brace/comment checks. |
+| I1 | INFO | Migration 032 creates `citations_project_id_cite_key_key` unique constraint, but migration 006 already has `idx_citations_project_key` unique index on same columns. Redundant index. | Not fixed --- harmless. The unique index from 006 already satisfies the `onConflict` clause. The constraint adds a second index but causes no issues. |
+| I2 | INFO | Rate limit for review comments is 10/hour (implementation), while Mitigation\_plan.md IV-L3 says "10/min". 60x more restrictive. | Intentional --- approved in implementation plan. 10/hour is more appropriate for review comments (low-volume operation). |
+| I3 | INFO | 6 other `recordTokenUsage()` callers (refine, synopsis, dataset, checker, review-section, auto-detect) don't pass `messages` parameter. Only Inngest ai-generate populates `messages_json`. | By design --- parameter is optional. Only the primary generation path needs full audit trail. |
+
+### Verification
+
+- **Lint**: `pnpm exec next lint` --- 0 warnings (down from 19)
+- **TypeScript**: `pnpm exec tsc --noEmit` --- 0 errors
+- **Tests**: 329 passing across 32 files (5 new brace-checking tests), 23/23 validate.ts tests pass after `#`/`&` fix
+- **Security advisors**: Supabase security lint clean (0 issues)
+- **Dead code**: grep confirmed 0 references to deleted files

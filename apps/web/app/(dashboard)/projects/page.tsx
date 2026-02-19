@@ -2,7 +2,6 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { relativeTime, projectStatusClasses } from "@/lib/format";
 import type { Project } from "@/lib/types/database";
-import { DeleteProjectButton } from "@/components/project/delete-project-button";
 import { TemplateGallery } from "@/components/project/template-gallery";
 import { ProjectCard } from "./project-card";
 

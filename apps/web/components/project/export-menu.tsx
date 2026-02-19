@@ -14,7 +14,6 @@ import {
 interface ExportMenuProps {
   projectId: string;
   projectStatus: string;
-  currentPhase: number;
 }
 
 type ExportType = "pdf" | "source" | "stats";
@@ -32,7 +31,7 @@ const ALL_EXPORTS: { type: ExportType; label: string; icon: typeof FileText; des
  *   Licensed >=6b    → full export (PDF/Source/Stats)
  *   Completed        → full export (clean)
  */
-function getAvailableExports(projectStatus: string, _currentPhase: number) {
+function getAvailableExports(projectStatus: string) {
   if (projectStatus === "sandbox") {
     return ALL_EXPORTS.filter((e) => e.type === "pdf");
   }
@@ -40,13 +39,13 @@ function getAvailableExports(projectStatus: string, _currentPhase: number) {
   return ALL_EXPORTS;
 }
 
-export function ExportMenu({ projectId, projectStatus, currentPhase }: ExportMenuProps) {
+export function ExportMenu({ projectId, projectStatus }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<ExportType | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const canExport = projectStatus === "licensed" || projectStatus === "completed" || projectStatus === "sandbox";
-  const exports = getAvailableExports(projectStatus, currentPhase);
+  const exports = getAvailableExports(projectStatus);
 
   const handleExport = async (type: ExportType) => {
     if (!canExport) return;

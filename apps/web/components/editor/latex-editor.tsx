@@ -77,7 +77,10 @@ export function LaTeXEditor({
     };
   }, []);
 
-  // Capture editor view on mount
+  // Capture editor view on mount — no deps array intentional: CodeMirror
+  // lazily creates the view after the first render, so we need to re-check
+  // on every render until the view is available.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (cmRef.current?.view) {
       setEditorView(cmRef.current.view);

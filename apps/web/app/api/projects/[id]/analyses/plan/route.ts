@@ -15,7 +15,6 @@ import { recordTokenUsage } from "@/lib/ai/token-budget";
 import { ANALYSIS_PLANNING_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import {
   analysisPlanSchema,
-  type PlannedAnalysis,
 } from "@/lib/validation/analysis-plan-schemas";
 
 // ── GET /api/projects/:id/analyses/plan — Get current analysis plan ──────────

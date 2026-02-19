@@ -61,6 +61,13 @@ export async function POST(
       return handlePhase0Generate(request, typedProject, supabase);
     }
 
+    // Enforce phase sequence: can only generate for current phase or next
+    if (phaseNumber > typedProject.current_phase + 1) {
+      return badRequest(
+        `Cannot generate Phase ${phaseNumber} content --- complete Phase ${typedProject.current_phase} first`
+      );
+    }
+
     // Phases 1-8: General thesis section generation
     const systemPrompt = getPhaseSystemPrompt(phaseNumber);
     if (!systemPrompt) {
@@ -289,6 +296,24 @@ async function handleSectionGenerate(
 
       if (preSeeded.length > 0) {
         userMessage += formatReferencesForPrompt(preSeeded);
+
+        // Persist pre-seeded references as Tier A citations
+        // Column names must match citations schema (006_create_citations.sql)
+        const now = new Date().toISOString();
+        const citationRows = preSeeded.map((ref) => ({
+          project_id: project.id,
+          cite_key: ref.citeKey,
+          provenance_tier: "A",
+          evidence_type: "pmid",
+          evidence_value: ref.pmid,
+          source_pmid: ref.pmid,
+          bibtex_entry: ref.bibtex,
+          verified_at: now,
+        }));
+
+        await supabase
+          .from("citations")
+          .upsert(citationRows, { onConflict: "project_id,cite_key" });
       }
     } catch (err) {
       console.warn("Pre-seed references failed (non-blocking):", err);

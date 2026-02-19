@@ -9,7 +9,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  X,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { useGlassSidebar } from "./glass-sidebar-provider";

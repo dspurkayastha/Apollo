@@ -77,6 +77,22 @@ export async function POST(
       );
     }
 
+    // Rate limit: 10 comments per hour per token
+    const supabaseRL = createAdminSupabaseClient();
+    const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+    const { count: recentCount } = await supabaseRL
+      .from("review_comments")
+      .select("id", { count: "exact", head: true })
+      .eq("review_token_id", validation.tokenId)
+      .gte("created_at", oneHourAgo);
+
+    if ((recentCount ?? 0) >= 10) {
+      return NextResponse.json(
+        { error: { code: "RATE_LIMITED", message: "Too many comments. Try again later." } },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const parsed = commentSchema.safeParse(body);
     if (!parsed.success) {

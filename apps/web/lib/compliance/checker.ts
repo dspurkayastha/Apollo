@@ -1,4 +1,3 @@
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getAnthropicClient } from "@/lib/ai/client";
 import { recordTokenUsage } from "@/lib/ai/token-budget";
 import { getChecklist, type ChecklistItem } from "./checklists";

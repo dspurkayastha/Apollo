@@ -186,4 +186,60 @@ The prevalence varies by region, with rates of 20--60\\% reported globally.
       expect(issue.chapter).toBe("chapters/introduction.tex");
     }
   });
+
+  // A4: Brace-checking edge cases for escaped backslashes
+  it("treats \\\\{ as unescaped brace (backslash is itself escaped)", () => {
+    // \\{ means an escaped backslash followed by a real brace
+    const latex = "text \\\\{inner}";
+    const issues = preflightChapter("test.tex", latex);
+    const braceErrors = issues.filter(
+      (i) => i.severity === "error" && i.message.includes("braces")
+    );
+    // \\{ = escaped backslash + real {, so braces are balanced: {inner}
+    expect(braceErrors).toHaveLength(0);
+  });
+
+  it("treats \\{ as escaped brace (not counted)", () => {
+    // \{ is an escaped brace, should NOT count towards depth
+    const latex = "text \\{not a group\\}";
+    const issues = preflightChapter("test.tex", latex);
+    const braceErrors = issues.filter(
+      (i) => i.severity === "error" && i.message.includes("braces")
+    );
+    expect(braceErrors).toHaveLength(0);
+  });
+
+  it("handles \\\\\\{ correctly (escaped backslash + escaped brace)", () => {
+    // \\\{ = escaped backslash + escaped brace
+    const latex = "text \\\\\\{literal\\}";
+    const issues = preflightChapter("test.tex", latex);
+    const braceErrors = issues.filter(
+      (i) => i.severity === "error" && i.message.includes("braces")
+    );
+    // \\\ before { = 3 backslashes, 3 is odd, so { is escaped
+    // The } has 1 backslash before it (odd), so also escaped
+    // Net brace depth = 0
+    expect(braceErrors).toHaveLength(0);
+  });
+
+  it("detects unbalanced braces after double-backslash", () => {
+    // \\{ followed by nothing = escaped backslash + real open brace, no close
+    const latex = "text \\\\{unclosed";
+    const issues = preflightChapter("test.tex", latex);
+    const braceErrors = issues.filter(
+      (i) => i.severity === "error" && i.message.includes("braces")
+    );
+    expect(braceErrors.length).toBeGreaterThan(0);
+    expect(braceErrors[0].message).toContain("unclosed");
+  });
+
+  it("ignores % comments even with escaped backslash before them", () => {
+    // \\% = escaped backslash + real %, should start a comment
+    const latex = "text \\\\% this is a comment with {unbalanced\nreal content";
+    const issues = preflightChapter("test.tex", latex);
+    const braceErrors = issues.filter(
+      (i) => i.severity === "error" && i.message.includes("braces")
+    );
+    expect(braceErrors).toHaveLength(0);
+  });
 });

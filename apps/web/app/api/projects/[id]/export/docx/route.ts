@@ -66,7 +66,7 @@ export async function GET(
     // For DOCX, we compile all chapter LaTeX into a single body
     // In production, this would call pandoc in Docker
     // For now, return a simplified text export
-    const { chapterFiles, warnings } = assembleThesisContent(
+    const { chapterFiles } = assembleThesisContent(
       "", // Template not needed for chapter extraction
       project,
       sections,

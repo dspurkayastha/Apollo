@@ -164,7 +164,7 @@ export function FigureGallery({
             ) : fig.source_tool === "mermaid" ? (
               <Code2 className="h-8 w-8 text-muted-foreground" />
             ) : (
-              <Image className="h-8 w-8 text-muted-foreground" />
+              <Image aria-label="Figure thumbnail" className="h-8 w-8 text-muted-foreground" />
             )}
           </div>
           <p className="truncate text-xs font-medium">{fig.caption}</p>
@@ -249,7 +249,7 @@ export function FigureGallery({
 
       {figures.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8">
-          <Image className="h-10 w-10 text-muted-foreground" />
+          <Image aria-label="No figures placeholder" className="h-10 w-10 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             No figures yet. Upload an image or create a Mermaid diagram.
           </p>
@@ -278,7 +278,7 @@ export function FigureGallery({
           {otherFigures.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Image className="h-4 w-4 text-[#6B6B6B]" />
+                <Image aria-label="Uploaded and diagrams" className="h-4 w-4 text-[#6B6B6B]" />
                 <h4 className="text-sm font-semibold text-[#2F2F2F]">
                   Uploaded &amp; Diagrams
                 </h4>

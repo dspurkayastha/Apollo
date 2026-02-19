@@ -249,10 +249,9 @@ export async function POST(
 
     // Approve section and advance phase
     const newPhase = phaseNumber + 1;
-    const newPhasesCompleted = [
-      ...typedProject.phases_completed,
-      phaseNumber,
-    ];
+    const newPhasesCompleted = Array.from(
+      new Set([...(typedProject.phases_completed as number[]), phaseNumber])
+    );
 
     const [sectionResult, projectResult] = await Promise.all([
       supabase

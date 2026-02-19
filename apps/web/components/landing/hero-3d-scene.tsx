@@ -147,19 +147,6 @@ function createPageTexture(variant: 0 | 1 | 2): THREE.CanvasTexture {
   return texture;
 }
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-  ctx.fill();
-}
-
 // ── Thesis Page mesh ────────────────────────────────────────────────────────
 function ThesisPageMesh({ variant }: { variant: 0 | 1 | 2 }) {
   const texture = useMemo(() => createPageTexture(variant), [variant]);

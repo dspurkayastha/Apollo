@@ -140,7 +140,7 @@ export const aiGenerateFn = inngest.createFunction(
         .eq("phase_number", phaseNumber);
     });
 
-    // Step 4: Record token usage
+    // Step 4: Record token usage (with truncated messages for audit/debug)
     await step.run("record-tokens", async () => {
       await recordTokenUsage(
         projectId,
@@ -148,6 +148,10 @@ export const aiGenerateFn = inngest.createFunction(
         result.inputTokens,
         result.outputTokens,
         model,
+        [
+          { role: "user", content: userMessage.slice(0, 50000) },
+          { role: "assistant", content: finalContent.slice(0, 50000) },
+        ],
       );
     });
 

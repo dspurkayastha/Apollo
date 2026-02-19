@@ -1,6 +1,6 @@
 // ── PubMed PMID lookup and search ───────────────────────────────────────────
 
-import { lookupDOI, crossRefWorkToBibtex, stripDoiField } from "./crossref";
+import { lookupDOI, crossRefWorkToBibtex } from "./crossref";
 
 const EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
 const TIMEOUT_MS = 10_000;

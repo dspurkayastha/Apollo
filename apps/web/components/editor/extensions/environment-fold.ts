@@ -5,7 +5,8 @@ import { foldService } from "@codemirror/language";
  * Detects `\begin{env}` at a line and folds to the matching `\end{env}`,
  * handling nested environments via depth tracking.
  */
-export const environmentFold = foldService.of((state, from, to) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- `_to` required by foldService callback signature
+export const environmentFold = foldService.of((state, from, _to) => {
   const line = state.doc.lineAt(from);
   const beginMatch = line.text.match(/\\begin\{(\w+)\}/);
   if (!beginMatch) return null;

@@ -17,20 +17,6 @@ export interface ParsedLog {
 }
 
 /**
- * Patterns for `! ...` lines that are truly fatal — no usable PDF.
- */
-const FATAL_ERROR_PATTERNS = [
-  /Fatal error/,
-  /Emergency stop/,
-  /Misplaced alignment tab/,
-  /Missing \$ inserted/,
-  /Too many \}'s/,
-  /Extra alignment tab/,
-  /Incomplete \\if/,
-  /\\ can be used only in paragraph mode/,
-];
-
-/**
  * Patterns for `! ...` lines that pdflatex survives — demote to warnings.
  * The PDF is still produced (possibly with visual artefacts).
  */
@@ -62,10 +48,6 @@ const WARNING_PATTERNS = [
 
 function isNonFatalError(line: string): boolean {
   return NON_FATAL_ERROR_PATTERNS.some((p) => p.test(line));
-}
-
-function isFatalError(line: string): boolean {
-  return FATAL_ERROR_PATTERNS.some((p) => p.test(line));
 }
 
 export function parseLatexLog(logContent: string): ParsedLog {

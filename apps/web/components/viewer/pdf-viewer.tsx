@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,58 @@ interface PdfViewerProps {
   url: string | null;
   isSandbox?: boolean;
   projectId?: string;
+}
+
+function LazyThumbnail({
+  pageNum,
+  isActive,
+  onClick,
+}: {
+  pageNum: number;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setIsVisible(true);
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      className={`rounded border transition-all ${
+        isActive
+          ? "border-[#8B9D77] ring-1 ring-[#8B9D77]/30"
+          : "border-transparent hover:border-[#D1D1D1]"
+      }`}
+    >
+      {isVisible ? (
+        <Page
+          pageNumber={pageNum}
+          width={72}
+          renderTextLayer={false}
+          renderAnnotationLayer={false}
+        />
+      ) : (
+        <div className="h-[102px] w-[72px] rounded bg-[#E8E8E8]" />
+      )}
+      <span className="block text-center text-[9px] text-[#6B6B6B]">
+        {pageNum}
+      </span>
+    </button>
+  );
 }
 
 export function PdfViewer({ url, isSandbox, projectId }: PdfViewerProps) {
@@ -150,25 +202,12 @@ export function PdfViewer({ url, isSandbox, projectId }: PdfViewerProps) {
           >
             <Document file={url}>
               {Array.from({ length: numPages }, (_, i) => (
-                <button
+                <LazyThumbnail
                   key={i + 1}
+                  pageNum={i + 1}
+                  isActive={pageNumber === i + 1}
                   onClick={() => setPageNumber(i + 1)}
-                  className={`rounded border transition-all ${
-                    pageNumber === i + 1
-                      ? "border-[#8B9D77] ring-1 ring-[#8B9D77]/30"
-                      : "border-transparent hover:border-[#D1D1D1]"
-                  }`}
-                >
-                  <Page
-                    pageNumber={i + 1}
-                    width={72}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                  />
-                  <span className="block text-center text-[9px] text-[#6B6B6B]">
-                    {i + 1}
-                  </span>
-                </button>
+                />
               ))}
             </Document>
           </div>

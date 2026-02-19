@@ -43,33 +43,32 @@ export function preflightChapter(
     inTabularEnv += tabOpens - tabCloses;
     inTabularEnv = Math.max(0, inTabularEnv);
 
-    // Unescaped # not preceded by \ (the exact bug we hit)
-    // Match # that is NOT preceded by \ and NOT inside a comment (line starting with %)
+    // Unescaped # not preceded by odd backslashes
+    // Uses countPrecedingBackslashes (hoisted function declaration) to handle \\# correctly
     if (!line.trimStart().startsWith("%")) {
-      const hashMatches = line.matchAll(/(?<!\\)#/g);
-      for (const match of hashMatches) {
-        // Skip if inside a \# sequence (already escaped)
-        const pos = match.index!;
-        if (pos > 0 && line[pos - 1] === "\\") continue;
-        issues.push({
-          chapter: chapterName,
-          severity: "error",
-          message: `Unescaped '#' character — use '\\#' in LaTeX`,
-          line: lineNum,
-        });
+      for (let c = 0; c < line.length; c++) {
+        if (line[c] === "#" && countPrecedingBackslashes(line, c) % 2 === 0) {
+          issues.push({
+            chapter: chapterName,
+            severity: "error",
+            message: `Unescaped '#' character — use '\\#' in LaTeX`,
+            line: lineNum,
+          });
+        }
       }
     }
 
     // Bare & outside tabular environments (causes "Misplaced alignment tab character &")
     if (!line.trimStart().startsWith("%") && !inTabularEnv) {
-      const ampMatches = line.matchAll(/(?<!\\)&/g);
-      for (const _match of ampMatches) {
-        issues.push({
-          chapter: chapterName,
-          severity: "warning",
-          message: `Bare '&' character — should be '\\&' outside tabular environments`,
-          line: lineNum,
-        });
+      for (let c = 0; c < line.length; c++) {
+        if (line[c] === "&" && countPrecedingBackslashes(line, c) % 2 === 0) {
+          issues.push({
+            chapter: chapterName,
+            severity: "warning",
+            message: `Bare '&' character --- should be '\\&' outside tabular environments`,
+            line: lineNum,
+          });
+        }
       }
     }
 
@@ -105,11 +104,20 @@ export function preflightChapter(
   }
 
   // Unbalanced braces
+  // Helper: count consecutive backslashes preceding position `pos`.
+  // A character is escaped only if preceded by an ODD number of backslashes
+  // (e.g. `\{` is escaped, but `\\{` is not --- the backslash is itself escaped).
+  function countPrecedingBackslashes(str: string, pos: number): number {
+    let count = 0;
+    for (let j = pos - 1; j >= 0 && str[j] === "\\"; j--) count++;
+    return count;
+  }
+
   let braceDepth = 0;
   let inComment = false;
   for (let i = 0; i < latex.length; i++) {
     const ch = latex[i];
-    if (ch === "%" && (i === 0 || latex[i - 1] !== "\\")) {
+    if (ch === "%" && countPrecedingBackslashes(latex, i) % 2 === 0) {
       inComment = true;
       continue;
     }
@@ -119,9 +127,9 @@ export function preflightChapter(
     }
     if (inComment) continue;
 
-    if (ch === "{" && (i === 0 || latex[i - 1] !== "\\")) {
+    if (ch === "{" && countPrecedingBackslashes(latex, i) % 2 === 0) {
       braceDepth++;
-    } else if (ch === "}" && (i === 0 || latex[i - 1] !== "\\")) {
+    } else if (ch === "}" && countPrecedingBackslashes(latex, i) % 2 === 0) {
       braceDepth--;
     }
   }

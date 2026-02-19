@@ -18,7 +18,7 @@ import {
   Info,
 } from "lucide-react";
 import type { Dataset, Analysis, Figure } from "@/lib/types/database";
-import type { AnalysisRecommendation, AnalysisType } from "@/lib/validation/analysis-schemas";
+import type { AnalysisRecommendation } from "@/lib/validation/analysis-schemas";
 import { ANALYSIS_ELI15 } from "@/lib/ai/analysis-explanations";
 
 const CHART_TYPE_OPTIONS: Record<string, string[]> = {

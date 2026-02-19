@@ -35,7 +35,10 @@ import { DatasetUpload } from "@/components/project/dataset-upload";
 import { AnalysisWizard } from "@/components/project/analysis-wizard";
 import { ComplianceDashboard } from "@/components/project/compliance-dashboard";
 import { FigureGallery } from "@/components/project/figure-gallery";
-import { MermaidEditor } from "@/components/project/mermaid-editor";
+const MermaidEditor = dynamic(
+  () => import("@/components/project/mermaid-editor").then((m) => m.MermaidEditor),
+  { ssr: false }
+);
 import { ProgressDashboard } from "@/components/project/progress-dashboard";
 import { AnalysisPlanReview } from "@/components/project/analysis-plan-review";
 import { FinalQCDashboard } from "@/components/project/final-qc-dashboard";
@@ -171,7 +174,7 @@ export function ProjectWorkspace({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentSection?.status, project.id, viewingPhase, supabase, router]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentSection?.status, project.id, viewingPhase, supabase, router]);
   const phaseDef = PHASES.find((p) => p.number === viewingPhase);
   const isCurrentPhase = viewingPhase === project.current_phase;
   const isEditable =
@@ -433,7 +436,7 @@ export function ProjectWorkspace({
         {/* Show export menu from Phase 6b onwards (DECISIONS.md 8.4) */}
         {(project.current_phase > 6 ||
           (project.current_phase === 6 && project.analysis_plan_status === "approved")) && (
-          <ExportMenu projectId={project.id} projectStatus={project.status} currentPhase={project.current_phase} />
+          <ExportMenu projectId={project.id} projectStatus={project.status} />
         )}
 
       </div>

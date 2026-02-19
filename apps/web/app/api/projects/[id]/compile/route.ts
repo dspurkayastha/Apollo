@@ -254,6 +254,10 @@ export async function POST(
         ...result.log.warnings.map(String),
       ];
 
+      // Warning budget: warn (non-blocking) when warnings exceed threshold
+      const WARNING_BUDGET = 20;
+      const warningBudgetExceeded = allWarnings.length > WARNING_BUDGET;
+
       if (result.success && result.pdfPath) {
         // Upload compiled PDF to R2
         let pdfUrl = result.pdfPath;
@@ -281,6 +285,7 @@ export async function POST(
             compilation_id: compilation.id,
             status: "completed",
             warnings: allWarnings,
+            warning_budget_exceeded: warningBudgetExceeded,
             errors: [],
             compile_time_ms: result.compileTimeMs,
           },

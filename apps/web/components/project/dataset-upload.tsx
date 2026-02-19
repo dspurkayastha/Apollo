@@ -23,12 +23,6 @@ interface DatasetUploadProps {
 
 type Tab = "upload" | "generate";
 
-interface ColumnPreview {
-  name: string;
-  type: string;
-  role?: string;
-}
-
 interface DatasetPreview {
   dataset: Dataset;
   headers: string[];
