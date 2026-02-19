@@ -131,3 +131,88 @@ Let me chronologically analyze the conversation:
 
 2. **User Message 1**: "we ha...
 
+### Prompt 19
+
+Now check the Deployment.md file in /docs/ Check how much if it can you do independently . At each step, give me step by step instructions to achieve what is required from my end (eg prvisioning a vps etc) , and continue when you have checked and found step as complete. Create a deployment implementation file in /docs, which will contain completion reports of each step for audit trail, and lessons learnt, and deferred or todo items. While the deployment.md file is the guide, do not assume that s...
+
+### Prompt 20
+
+check
+
+### Prompt 21
+
+[Image source: REDACTED 2026-02-19 at 6.01.33 PM.png]
+
+### Prompt 22
+
+root@hetzner-sciscribe:~# docker --version && docker compose version && node --version && pnpm --version && pm2 --version && caddy version
+Docker version 29.2.1, build a5c7197
+Docker Compose version v5.0.2
+v20.20.0
+10.30.0
+
+                        -------------
+
+__/\\\\\\\\\\\\\____/\\\\____________/\\\\____/\\\\\\\\\_____
+ _\/\\\/////////\\\_\/\\\\\\________/\\\\\\__/\\\///////\\\___
+  _\/\\\_______\/\\\_\/\\\//\\\____/\\\//\\\_\///______\//\\\__
+   _\/\\\\\\\\\\\\\/__\/\\\\///\\\/\\\/_\/\\\___...
+
+### Prompt 23
+
+root@hetzner-sciscribe:/opt/apollo# docker build -t apollo-latex -f docker/Dockerfile.latex
+ERROR: docker: 'docker buildx build' requires 1 argument
+
+Usage:  docker buildx build [OPTIONS] PATH | URL | -
+
+Run 'docker buildx build --help' for more information
+root@hetzner-sciscribe:/opt/apollo#
+
+### Prompt 24
+
+------                                                                                                                                                                                                         
+ > [2/8] RUN tlmgr install     latexmk     bibtex     fancyhdr     geometry     graphicx     hyperref     xcolor     setspace     titlesec     tocloft     caption     subcaption     longtable     booktabs     multirow     array     tabularx     pdfpages     amsmath     amssymb     natbib    ...
+
+### Prompt 25
+
+the fully updated repo is on the main branch, but default branch is differemnt i think
+
+### Prompt 26
+
+devs@Devrajs-MacBook-Air Apollo % ssh root@37.27.211.131
+Enter passphrase for key '/Users/devs/.ssh/id_ed25519': 
+Enter passphrase for key '/Users/devs/.ssh/id_ed25519': 
+Welcome to Ubuntu 22.04.5 LTS (GNU/Linux 5.15.0-164-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Feb 19 01:18:15 PM UTC 2026
+
+  System load:  0.0                Processes:             124
+  ...
+
+### Prompt 27
+
+give me more detailed instructions on these
+
+### Prompt 28
+
+[Request interrupted by user]
+
+### Prompt 29
+
+While Docker builds — Set up service accounts (Steps 3-10)
+
+  These are all independent. You need to create/collect credentials from:
+
+  ┌────────────────────┬─────────────────────────────────┬──────────────────────────────────────┐
+  │      Service       │          What you need          │           ...
+
+### Prompt 30
+
+root@hetzner-sciscribe:/opt/apollo# docker build -t apollo-latex -f docker/Dockerfile.latex .
+[+] Building 293.2s (7/14)                                                                                                                                                                      docker:default
+ => [internal] load build definition from Dockerfile.latex                                                                                                                                             ...
+

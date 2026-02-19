@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 204,
+  "checkpoints_count": 206,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -321,6 +321,7 @@
     "docker/watermark.sh",
     "docs/DECISIONS.md",
     "docs/DEPLOYMENT.md",
+    "docs/DEPLOYMENT_IMPLEMENTATION.md",
     "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
@@ -576,10 +577,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108959,
-    "cache_creation_tokens": 8099012,
-    "cache_read_tokens": 281377004,
-    "output_tokens": 579019,
-    "api_call_count": 2913
+    "input_tokens": 108886,
+    "cache_creation_tokens": 8092356,
+    "cache_read_tokens": 280610866,
+    "output_tokens": 575249,
+    "api_call_count": 2911
   }
 }

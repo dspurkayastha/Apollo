@@ -1648,3 +1648,372 @@ Summary:
 
 If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
 Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+Now check the Deployment.md file in /docs/ Check how much if it can you do independently . At each step, give me step by step instructions to achieve what is required from my end (eg prvisioning a vps etc) , and continue when you have checked and found step as complete. Create a deployment implementation file in /docs, which will contain completion reports of each step for audit trail, and lessons learnt, and deferred or todo items. While the deployment.md file is the guide, do not assume that suggestions and alternatives are not welcome. ask clarifying questions at each step as necessary
+
+---
+
+check
+
+---
+
+[Image source: REDACTED 2026-02-19 at 6.01.33 PM.png]
+
+---
+
+root@hetzner-sciscribe:~# docker --version && docker compose version && node --version && pnpm --version && pm2 --version && caddy version
+Docker version 29.2.1, build a5c7197
+Docker Compose version v5.0.2
+v20.20.0
+10.30.0
+
+                        -------------
+
+__/\\\\\\\\\\\\\____/\\\\____________/\\\\____/\\\\\\\\\_____
+ _\/\\\/////////\\\_\/\\\\\\________/\\\\\\__/\\\///////\\\___
+  _\/\\\_______\/\\\_\/\\\//\\\____/\\\//\\\_\///______\//\\\__
+   _\/\\\\\\\\\\\\\/__\/\\\\///\\\/\\\/_\/\\\___________/\\\/___
+    _\/\\\/////////____\/\\\__\///\\\/___\/\\\________/\\\//_____
+     _\/\\\_____________\/\\\____\///_____\/\\\_____/\\\//________
+      _\/\\\_____________\/\\\_____________\/\\\___/\\\/___________
+       _\/\\\_____________\/\\\_____________\/\\\__/\\\\\\\\\\\\\\\_
+        _\///______________\///______________\///__\///////////////__
+
+
+                          Runtime Edition
+
+        PM2 is a Production Process Manager for Node.js applications
+                     with a built-in Load Balancer.
+
+                Start and Daemonize any application:
+                $ pm2 start app.js
+
+                Load Balance 4 instances of api.js:
+                $ pm2 start api.js -i 4
+
+                Monitor in production:
+                $ pm2 monitor
+
+                Make pm2 auto-boot at server restart:
+                $ pm2 startup
+
+                To go further checkout:
+                http://pm2.io/
+
+
+                        -------------
+
+[PM2] Spawning PM2 daemon with pm2_home=/root/.pm2
+[PM2] PM2 Successfully daemonized
+6.0.14
+v2.10.2 h1:REDACTED@Devrajs-MacBook-Air Apollo % dig apollo.sciscribesolutions.com +short
+37.27.211.131
+
+---
+
+root@hetzner-sciscribe:/opt/apollo# docker build -t apollo-latex -f docker/Dockerfile.latex
+ERROR: docker: 'docker buildx build' requires 1 argument
+
+Usage:  docker buildx build [OPTIONS] PATH | URL | -
+
+Run 'docker buildx build --help' for more information
+root@hetzner-sciscribe:/opt/apollo#
+
+---
+
+------                                                                                                                                                                                                         
+ > [2/8] RUN tlmgr install     latexmk     bibtex     fancyhdr     geometry     graphicx     hyperref     xcolor     setspace     titlesec     tocloft     caption     subcaption     longtable     booktabs     multirow     array     tabularx     pdfpages     amsmath     amssymb     natbib     etoolbox     ifthen     fontenc     inputenc     babel     times     helvet     courier     bookmark     xstring     pdflscape     float     enumitem     parskip     url     doi     draftwatermark     tools     latex     && rm -rf /tmp/*:                                                                                          
+5.707 tlmgr install: package amssymb not present in repository.                                                                                                                                                
+5.707 tlmgr install: package array not present in repository.                                                                                                                                                  
+5.707 tlmgr install: package fontenc not present in repository.
+5.707 tlmgr install: package graphicx not present in repository.
+5.707 tlmgr install: package helvet not present in repository.
+5.707 tlmgr install: package ifthen not present in repository.
+5.707 tlmgr install: package inputenc not present in repository.
+5.708 tlmgr install: package longtable not present in repository.
+5.709 tlmgr install: package subcaption not present in repository.
+5.709 tlmgr install: package tabularx not present in repository.
+5.711 tlmgr: package repository https://mirror.5i.fi/tex-archive/systems/texlive/tlnet (verified)
+5.711 tlmgr install: package already present: bibtex
+5.711 [1/58, ??:??/??:??] install: amsmath [31k]
+5.916 [2/58, 00:00/00:00] install: atbegshi [5k]
+6.343 [3/58, 00:00/00:00] install: atveryend [2k]
+6.476 [4/58, 00:01/00:53] install: auxhook [2k]
+6.640 [5/58, 00:01/00:51] install: babel [238k]
+7.125 [6/58, 00:01/00:07] install: bigintcalc [7k]
+7.242 [7/58, 00:01/00:06] install: bitset [6k]
+7.373 [8/58, 00:02/00:13] install: bookmark [8k]
+7.495 [9/58, 00:02/00:13] install: booktabs [3k]
+7.612 [10/58, 00:02/00:13] install: caption [61k]
+7.785 [11/58, 00:02/00:10] install: courier [470k]
+8.080 [12/58, 00:02/00:04] install: doi [3k]
+8.208 [13/58, 00:02/00:04] install: draftwatermark [3k]
+8.345 [14/58, 00:03/00:07] install: enumitem [14k]
+8.466 [15/58, 00:03/00:06] install: eso-pic [4k]
+8.591 [16/58, 00:03/00:06] install: etexcmds [3k]
+8.888 [17/58, 00:03/00:06] install: etoolbox [9k]
+9.014 [18/58, 00:03/00:06] install: fancyhdr [9k]
+9.142 [19/58, 00:03/00:06] install: float [3k]
+9.298 [20/58, 00:03/00:06] install: geometry [9k]
+9.425 [21/58, 00:04/00:08] install: gettitlestring [3k]
+9.540 [22/58, 00:04/00:08] install: graphics [16k]
+9.681 [23/58, 00:04/00:08] install: graphics-cfg [2k]
+9.827 [24/58, 00:04/00:08] install: grfext [3k]
+9.997 [25/58, 00:04/00:08] install: grffile [4k]
+10.16 [26/58, 00:04/00:08] install: hycolor [4k]
+10.32 [27/58, 00:04/00:08] install: hyperref [88k]
+10.51 [28/58, 00:05/00:09] install: infwarerr [3k]
+10.66 [29/58, 00:05/00:09] install: intcalc [6k]
+10.78 [30/58, 00:05/00:09] install: kvdefinekeys [3k]
+10.92 [31/58, 00:05/00:09] install: kvoptions [8k]
+11.04 [32/58, 00:05/00:09] install: kvsetkeys [4k]
+11.18 [33/58, 00:05/00:09] install: latex [254k]
+11.44 [34/58, 00:06/00:09] install: latexmk.x86_64-linux [1k]
+11.62 [35/58, 00:06/00:09] install: latexmk [122k]
+11.83 [36/58, 00:06/00:08] install: letltxmacro [3k]
+11.95 [37/58, 00:06/00:08] install: ltxcmds [5k]
+12.09 [38/58, 00:06/00:08] install: multirow [3k]
+12.24 [39/58, 00:06/00:08] install: natbib [17k]
+12.40 [40/58, 00:07/00:09] install: oberdiek [35k]
+12.58 [41/58, 00:07/00:09] install: parskip [3k]
+12.75 [42/58, 00:07/00:09] install: pdfescape [5k]
+12.89 [43/58, 00:07/00:09] install: pdflscape [3k]
+13.03 [44/58, 00:07/00:09] install: pdfpages [15k]
+13.21 [45/58, 00:07/00:09] install: pdftexcmds [7k]
+13.35 [46/58, 00:08/00:10] install: refcount [3k]
+13.50 [47/58, 00:08/00:10] install: rerunfilecheck [4k]
+13.64 [48/58, 00:08/00:10] install: setspace [8k]
+13.81 [49/58, 00:08/00:10] install: stringenc [23k]
+13.96 [50/58, 00:08/00:10] install: times [281k]
+14.24 [51/58, 00:08/00:08] install: titlesec [20k]
+14.41 [52/58, 00:09/00:09] install: tocloft [7k]
+14.56 [53/58, 00:09/00:09] install: tools [47k]
+14.74 [54/58, 00:09/00:09] install: uniquecounter [3k]
+14.88 [55/58, 00:09/00:09] install: url [6k]
+15.02 [56/58, 00:09/00:09] install: xcolor [18k]
+15.18 [57/58, 00:09/00:09] install: xstring [12k]
+15.34 [58/58, 00:09/00:09] install: zapfding [46k]
+15.54 tlmgr: action install returned an error; continuing.
+15.55 running mktexlsr ...
+15.74 done running mktexlsr.
+15.80 running updmap-sys ...
+16.29 tlmgr: An error has occurred. See above messages. Exiting.
+16.30 done running updmap-sys.
+16.30 tlmgr: package log updated: /usr/local/texlive/2025/texmf-var/web2c/tlmgr.log
+16.30 tlmgr: command log updated: /usr/local/texlive/2025/texmf-var/web2c/tlmgr-commands.log
+------
+Dockerfile.latex:4
+--------------------
+   3 |     # Install required TeX Live packages
+   4 | >>> RUN tlmgr install \
+   5 | >>>     latexmk \
+   6 | >>>     bibtex \
+   7 | >>>     fancyhdr \
+   8 | >>>     geometry \
+   9 | >>>     graphicx \
+  10 | >>>     hyperref \
+  11 | >>>     xcolor \
+  12 | >>>     setspace \
+  13 | >>>     titlesec \
+  14 | >>>     tocloft \
+  15 | >>>     caption \
+  16 | >>>     subcaption \
+  17 | >>>     longtable \
+  18 | >>>     booktabs \
+  19 | >>>     multirow \
+  20 | >>>     array \
+  21 | >>>     tabularx \
+  22 | >>>     pdfpages \
+  23 | >>>     amsmath \
+  24 | >>>     amssymb \
+  25 | >>>     natbib \
+  26 | >>>     etoolbox \
+  27 | >>>     ifthen \
+  28 | >>>     fontenc \
+  29 | >>>     inputenc \
+  30 | >>>     babel \
+  31 | >>>     times \
+  32 | >>>     helvet \
+  33 | >>>     courier \
+  34 | >>>     bookmark \
+  35 | >>>     xstring \
+  36 | >>>     pdflscape \
+  37 | >>>     float \
+  38 | >>>     enumitem \
+  39 | >>>     parskip \
+  40 | >>>     url \
+  41 | >>>     doi \
+  42 | >>>     draftwatermark \
+  43 | >>>     tools \
+  44 | >>>     latex \
+  45 | >>>     && rm -rf /tmp/*
+  46 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c tlmgr install     latexmk     bibtex     fancyhdr     geometry     graphicx     hyperref     xcolor     setspace     titlesec     tocloft     caption     subcaption     longtable     booktabs     multirow     array     tabularx     pdfpages     amsmath     amssymb     natbib     etoolbox     ifthen     fontenc     inputenc     babel     times     helvet     courier     bookmark     xstring     pdflscape     float     enumitem     parskip     url     doi     draftwatermark     tools     latex     && rm -rf /tmp/*" did not complete successfully: exit code: 1
+root@hetzner-sciscribe:/opt/apollo#
+
+---
+
+the fully updated repo is on the main branch, but default branch is differemnt i think
+
+---
+
+devs@Devrajs-MacBook-Air Apollo % ssh root@37.27.211.131
+Enter passphrase for key '/Users/devs/.ssh/id_ed25519': 
+Enter passphrase for key '/Users/devs/.ssh/id_ed25519': 
+Welcome to Ubuntu 22.04.5 LTS (GNU/Linux 5.15.0-164-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Thu Feb 19 01:18:15 PM UTC 2026
+
+  System load:  0.0                Processes:             124
+  Usage of /:   10.0% of 37.23GB   Users logged in:       1
+  Memory usage: 12%                IPv4 address for eth0: 37.27.211.131
+  Swap usage:   0%                 IPv6 address for eth0: 2a01:4f9:c013:e000::1
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+0 updates can be applied immediately.
+
+1 additional security update can be applied with ESM Apps.
+Learn more about enabling ESM Apps service at https://ubuntu.com/esm
+
+New release '24.04.4 LTS' available.
+Run 'do-release-upgrade' to upgrade to it.
+
+
+*** System restart required ***
+Last login: Thu Feb 19 12:48:07 2026 from 223.237.150.249
+root@hetzner-sciscribe:~# cd /opt/apollo && git checkout main && git pull origin main
+Branch 'main' set up to track remote branch 'main' from 'origin'.
+Switched to a new branch 'main'
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+root@hetzner-sciscribe:/opt/apollo#  head -10 docker/Dockerfile.latex
+FROM texlive/texlive:latest-minimal
+
+# Install scheme-small (collection-basic + collection-latex + collection-latexrecommended
+# + collection-fontsrecommended + collection-metapost + collection-xetex + epstopdf).
+# This covers the vast majority of common packages and their transitive dependencies,
+# eliminating one-by-one missing-package issues.
+RUN tlmgr install scheme-small && rm -rf /tmp/*
+
+# Install extra packages required by sskm-thesis.cls / ssuhs-thesis.cls
+# that are NOT part of scheme-small
+root@hetzner-sciscribe:/opt/apollo#
+
+---
+
+give me more detailed instructions on these
+
+---
+
+[Request interrupted by user]
+
+---
+
+While Docker builds — Set up service accounts (Steps 3-10)
+
+  These are all independent. You need to create/collect credentials from:
+
+  ┌────────────────────┬─────────────────────────────────┬──────────────────────────────────────┐
+  │      Service       │          What you need          │                Action                │
+  ├────────────────────┼─────────────────────────────────┼──────────────────────────────────────┤
+  │ Supabase (Step 3)  │ New production project + 3 keys │ Create apollo-production in Mumbai   │
+  ├────────────────────┼─────────────────────────────────┼──────────────────────────────────────┤
+  │ Clerk (Step 4)     │ Production instance + 3 keys    │ Create prod instance, webhook        │
+  ├────────────────────┼─────────────────────────────────┼──────────────────────────────────────┤
+  │ R2 (Step 5)        │ CORS update + 3 keys            │ May already have bucket; update CORS │
+  ├────────────────────┼─────────────────────────────────┼──────────────────────────────────────┤
+  │ Anthropic (Step 6) │ Verify API key                  │ Likely already have this             │
+  ├────────────────────┼─────────────────────────────────┼──────────────────────────────────────┤
+  │ Inngest (Step 8)   │ New account + 2 keys            │ Sign up, create app                  │
+  ├────────────────────┼─────────────────────────────────┼──────────────────────────────────────┤
+  │ Razorpay (Step 9)  │ Plans + webhook + 4 keys        │ KYC done; create plans               │
+  ├────────────────────┼─────────────────────────────────┼──────────────────────────────────────┤
+  │ Stripe (Step 10)   │ Products + webhook + 6 keys     │ Create products, prices              │
+  └────────────────────┴─────────────────────────────────┴──────────────────────────────────────┘
+
+---
+
+root@hetzner-sciscribe:/opt/apollo# docker build -t apollo-latex -f docker/Dockerfile.latex .
+[+] Building 293.2s (7/14)                                                                                                                                                                      docker:default
+ => [internal] load build definition from Dockerfile.latex                                                                                                                                                0.0s
+ => => transferring dockerfile: 1.71kB                                                                                                                                                                    0.0s
+ => [internal] load metadata for docker.io/texlive/texlive:latest-minimal                                                                                                                                 0.8s
+ => [internal] load .dockerignore                                                                                                                                                                         0.0s
+ => => transferring context: 2B                                                                                                                                                                           0.0s
+ => CACHED [ 1/10] FROM docker.io/texlive/texlive:latest-minimal@sha256:f0356bdc020544626117c378ed336bc63500e0c5029b2284b80098704cf9d2e8                                                                  0.0s
+ => => resolve docker.io/texlive/texlive:latest-minimal@sha256:f0356bdc020544626117c378ed336bc63500e0c5029b2284b80098704cf9d2e8                                                                           0.0s
+ => [internal] load build context                                                                                                                                                                         0.0s
+ => => transferring context: 1.92kB                                                                                                                                                                       0.0s
+ => [ 2/10] RUN tlmgr install scheme-small && rm -rf /tmp/*                                                                                                                                             283.3s
+ => ERROR [ 3/10] RUN tlmgr install     natbib     titlesec     tocloft     enumitem     doi     draftwatermark     needspace     lastpage     hyphenat     datetime     fmtcount     emptypage     lett  9.0s 
+------                                                                                                                                                                                                         
+ > [ 3/10] RUN tlmgr install     natbib     titlesec     tocloft     enumitem     doi     draftwatermark     needspace     lastpage     hyphenat     datetime     fmtcount     emptypage     lettrine     nomencl     threeparttable     multirow     bookmark     xstring     babel-english     subcaption     mathrsfs     && rm -rf /tmp/*:                                                                                
+5.737 tlmgr install: package mathrsfs not present in repository.                                                                                                                                               
+5.737 tlmgr install: package subcaption not present in repository.                                                                                                                                             
+5.740 tlmgr: package repository https://mirror.5i.fi/tex-archive/systems/texlive/tlnet (verified)                                                                                                              
+5.740 tlmgr install: package already present: babel-english
+5.740 tlmgr install: package already present: bookmark
+5.740 tlmgr install: package already present: natbib
+5.740 [1/16, ??:??/??:??] install: datetime [14k]
+5.903 [2/16, 00:00/00:00] install: doi [3k]
+6.059 [3/16, 00:00/00:00] install: draftwatermark [3k]
+6.258 [4/16, 00:01/00:06] install: emptypage [2k]
+6.421 [5/16, 00:01/00:06] install: enumitem [14k]
+6.575 [6/16, 00:01/00:03] install: fmtcount [27k]
+6.777 [7/16, 00:01/00:02] install: hyphenat [2k]
+6.938 [8/16, 00:01/00:02] install: lastpage [5k]
+7.129 [9/16, 00:01/00:01] install: lettrine [9k]
+7.304 [10/16, 00:02/00:03] install: multirow [3k]
+7.461 [11/16, 00:02/00:03] install: needspace [1k]
+7.611 [12/16, 00:02/00:03] install: nomencl [4k]
+7.765 [13/16, 00:02/00:03] install: threeparttable [6k]
+7.944 [14/16, 00:02/00:02] install: titlesec [20k]
+8.100 [15/16, 00:02/00:02] install: tocloft [7k]
+8.260 [16/16, 00:03/00:03] install: xstring [12k]
+8.416 tlmgr: action install returned an error; continuing.
+8.417 running mktexlsr ...
+8.647 done running mktexlsr.
+8.736 tlmgr: An error has occurred. See above messages. Exiting.
+8.747 tlmgr: package log updated: /usr/local/texlive/2025/texmf-var/web2c/tlmgr.log
+8.747 tlmgr: command log updated: /usr/local/texlive/2025/texmf-var/web2c/tlmgr-commands.log
+------
+Dockerfile.latex:11
+--------------------
+  10 |     # that are NOT part of scheme-small
+  11 | >>> RUN tlmgr install \
+  12 | >>>     natbib \
+  13 | >>>     titlesec \
+  14 | >>>     tocloft \
+  15 | >>>     enumitem \
+  16 | >>>     doi \
+  17 | >>>     draftwatermark \
+  18 | >>>     needspace \
+  19 | >>>     lastpage \
+  20 | >>>     hyphenat \
+  21 | >>>     datetime \
+  22 | >>>     fmtcount \
+  23 | >>>     emptypage \
+  24 | >>>     lettrine \
+  25 | >>>     nomencl \
+  26 | >>>     threeparttable \
+  27 | >>>     multirow \
+  28 | >>>     bookmark \
+  29 | >>>     xstring \
+  30 | >>>     babel-english \
+  31 | >>>     subcaption \
+  32 | >>>     mathrsfs \
+  33 | >>>     && rm -rf /tmp/*
+  34 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c tlmgr install     natbib     titlesec     tocloft     enumitem     doi     draftwatermark     needspace     lastpage     hyphenat     datetime     fmtcount     emptypage     lettrine     nomencl     threeparttable     multirow     bookmark     xstring     babel-english     subcaption     mathrsfs     && rm -rf /tmp/*" did not complete successfully: exit code: 1
+root@hetzner-sciscribe:/opt/apollo#
