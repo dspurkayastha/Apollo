@@ -5,11 +5,18 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/nameservice>
 
   # ── Shell access (R's /usr/bin/R is a bash wrapper script) ──
+  # Debian merged-usr: /bin → /usr/bin, so both paths are needed.
   /bin/sh rix,
   /bin/bash rix,
   /bin/dash rix,
+  /usr/bin/sh rix,
+  /usr/bin/bash rix,
+  /usr/bin/dash rix,
   /usr/bin/env rix,
+
+  # ── Shell utilities (called by R wrapper scripts) ──
   /usr/bin/which rix,
+  /usr/bin/which.debianutils rix,
   /usr/bin/uname rix,
   /usr/bin/dirname rix,
   /usr/bin/basename rix,
@@ -20,9 +27,18 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   /usr/bin/locale rix,
   /usr/bin/tput rix,
   /usr/bin/stty rix,
+  /usr/bin/tr rix,
+  /usr/bin/sort rix,
+  /usr/bin/head rix,
+  /usr/bin/tail rix,
+  /usr/bin/cut rix,
+  /usr/bin/wc rix,
+  /usr/bin/expr rix,
+  /usr/bin/test rix,
+  /usr/bin/[ rix,
 
   # ── R runtime ──
-  # /usr/bin/R is a bash script → calls /usr/lib/R/bin/R → calls /usr/lib/R/bin/exec/R
+  # /usr/bin/R → bash script → /usr/lib/R/bin/R → /usr/lib/R/bin/exec/R
   /usr/bin/R rix,
   /usr/bin/Rscript rix,
   /usr/lib/R/** mrix,
@@ -44,7 +60,6 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
 
   # ── Plumber application ──
   /app/** r,
-  /app/plumber.R r,
 
   # ── Temp directory (mapped via tmpfs) ──
   /tmp/** rwk,
@@ -54,8 +69,9 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   @{PROC}/cpuinfo r,
   @{PROC}/stat r,
   @{PROC}/loadavg r,
-  @{PROC}/self/status r,
-  @{PROC}/self/maps r,
+  @{PROC}/*/loginuid r,
+  @{PROC}/*/status r,
+  @{PROC}/*/maps r,
   @{PROC}/self/exe r,
   @{PROC}/self/fd/ r,
   @{PROC}/self/fd/** r,
@@ -63,6 +79,9 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   @{PROC}/self/mountinfo r,
   @{PROC}/self/cgroup r,
   @{PROC}/sys/vm/overcommit_memory r,
+
+  # ── /sys filesystem (R reads CPU topology) ──
+  /sys/devices/system/cpu/** r,
 
   # ── Fonts (required by ggplot2/graphics) ──
   /etc/fonts/** r,
@@ -88,7 +107,7 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   /dev/shm/** rw,
   /dev/tty rw,
 
-  # ── Curl (for healthcheck) ──
+  # ── Curl (healthcheck — runs in restricted sub-profile) ──
   /usr/bin/curl Cx -> healthcheck,
   profile healthcheck {
     #include <abstractions/base>
