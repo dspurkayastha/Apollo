@@ -249,3 +249,24 @@ For more information about these matters, see the file
 named COPYING and the pdfTeX source.
 Primary author of pdfTeX: Han The Thanh (pdf...
 
+### Prompt 35
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 557 bytes | 139.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   9c0bcec..17f8975  main       -> origin/main
+Updating 9c0bcec.....
+
+### Prompt 36
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber                                                                                                                                                                                  
+  docker logs apollo-r-plumber
+162b2f492433   apollo-r-plumber   "R -e 'plumber::pr_r…"   About a minute ago   Exited (126) About a minute ago             apollo-r-plumber
+/bin/bash: /usr/bin/R: Permission denied
+root@hetzner-sciscribe:/opt/apollo/d...
+

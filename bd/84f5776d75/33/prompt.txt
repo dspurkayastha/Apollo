@@ -2138,3 +2138,37 @@ root@hetzner-sciscribe:/opt/apollo# cd /opt/apollo/docker
 root@hetzner-sciscribe:/opt/apollo/docker# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 validating /opt/apollo/docker/docker-compose.prod.yml: services.r-plumber.security_opt items at 0 and 2 are equal
 root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 557 bytes | 139.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   9c0bcec..17f8975  main       -> origin/main
+Updating 9c0bcec..17f8975
+Fast-forward
+ docker/docker-compose.prod.yml | 2 --
+ 1 file changed, 2 deletions(-)
+root@hetzner-sciscribe:/opt/apollo# cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+[+] up 3/3
+ ✔ Network docker_default     Created                                                                                                                                                                      0.1s
+ ✔ Container apollo-r-plumber Created                                                                                                                                                                      0.2s
+ ✔ Container apollo-latex     Created                                                                                                                                                                      0.2s
+root@hetzner-sciscribe:/opt/apollo/docker# sleep 30 && docker ps && curl http://localhost:8787/health      
+CONTAINER ID   IMAGE          COMMAND            CREATED          STATUS          PORTS     NAMES
+389270a97130   apollo-latex   "sleep infinity"   40 seconds ago   Up 40 seconds             apollo-latex
+curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refused
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber                                                                                                                                                                                  
+  docker logs apollo-r-plumber
+162b2f492433   apollo-r-plumber   "R -e 'plumber::pr_r…"   About a minute ago   Exited (126) About a minute ago             apollo-r-plumber
+/bin/bash: /usr/bin/R: Permission denied
+root@hetzner-sciscribe:/opt/apollo/docker#
