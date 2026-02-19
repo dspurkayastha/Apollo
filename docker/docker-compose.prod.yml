@@ -6,7 +6,14 @@
 #   sudo cp apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber
 #   sudo apparmor_parser -r /etc/apparmor.d/apollo-r-plumber
 
-services:
-  r-plumber:
-    security_opt:
-      - apparmor:apollo-r-plumber
+# Production overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# NOTE: AppArmor for R Plumber is deferred. The R runtime needs access to
+# many system paths (shared libs, locales, etc.) that require extensive
+# profiling. The container is secured via: cap_drop:ALL, read-only rootfs,
+# no-new-privileges, memory limit, pids limit, localhost-only port.
+#
+# TODO: Generate AppArmor profile using `aa-genprof` or complain mode.
+
+services: {}
