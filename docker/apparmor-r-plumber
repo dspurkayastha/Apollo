@@ -35,7 +35,6 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   /usr/bin/wc rix,
   /usr/bin/expr rix,
   /usr/bin/test rix,
-  /usr/bin/[ rix,
 
   # ── R runtime ──
   # /usr/bin/R → bash script → /usr/lib/R/bin/R → /usr/lib/R/bin/exec/R
