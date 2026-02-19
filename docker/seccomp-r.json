@@ -113,6 +113,16 @@
         "close_range"
       ],
       "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Resource limits and misc — required by bash/R startup",
+      "names": [
+        "prlimit64", "getrlimit", "setrlimit",
+        "sysinfo", "umask",
+        "socketpair", "flock",
+        "fadvise64", "mlock", "munlock"
+      ],
+      "action": "SCMP_ACT_ALLOW"
     }
   ]
 }
