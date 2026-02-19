@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 207,
+  "checkpoints_count": 203,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -114,7 +114,6 @@
     "apps/web/components/landing/pricing-section.tsx",
     "apps/web/components/landing/sponsors-section.tsx",
     "apps/web/components/landing/testimonials-section.tsx",
-    "apps/web/components/layout/app-sidebar.tsx",
     "apps/web/components/layout/glass-sidebar-provider.tsx",
     "apps/web/components/layout/glass-sidebar.tsx",
     "apps/web/components/layout/navbar.tsx",
@@ -321,6 +320,7 @@
     "docker/seccomp-r.json",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
+    "docs/DEPLOYMENT.md",
     "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
@@ -576,10 +576,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108986,
-    "cache_creation_tokens": 8179996,
-    "cache_read_tokens": 293025861,
-    "output_tokens": 582779,
-    "api_call_count": 3010
+    "input_tokens": 108864,
+    "cache_creation_tokens": 8077199,
+    "cache_read_tokens": 280830421,
+    "output_tokens": 576100,
+    "api_call_count": 2898
   }
 }
