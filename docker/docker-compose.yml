@@ -44,7 +44,9 @@ services:
     pids_limit: 256
     security_opt:
       - no-new-privileges:true
-      - seccomp:./seccomp-r.json
+      # Using Docker's default seccomp (blocks ~44 dangerous syscalls).
+      # Custom seccomp-r.json was too restrictive for R/bash startup.
+      # Security: cap_drop:ALL + read_only + AppArmor + no-new-privileges.
     cap_drop:
       - ALL
     cap_add:
