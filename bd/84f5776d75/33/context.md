@@ -87,3 +87,7 @@ Let me chronologically analyze the entire conversation:
 
 complete all non breaking pending itmes (ie no CSP headers), Fix production blockers (DOCX export if possible with minimal change, should be enabled for licenced users, only after full completion of thesis.) Then give me a logical step by step including all steps (eg Hetzner coolify, razorpay, stripe,inngest, r2 check,  migrating all from dev to prod in others like clerk) for a fully working production deployment which I can share for beta testing. I also own the domain sciscribesolutions.com, s...
 
+### Prompt 11
+
+The point 1 and point 2 are chicken and egg situation> find a logical soultion
+

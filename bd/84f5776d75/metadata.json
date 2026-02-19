@@ -299,7 +299,6 @@
     "apps/web/supabase/migrations/029_analysis_plan_columns.sql",
     "apps/web/supabase/migrations/030_privacy_compliance.sql",
     "apps/web/supabase/migrations/031_database_audit_fixes.sql",
-    "apps/web/supabase/migrations/032_missing_rls_policies.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -307,7 +306,6 @@
     "apps/web/tests/pricing/config.test.ts",
     "apps/web/tests/pricing/velocity.test.ts",
     "apps/web/tests/security/licence-gates.test.ts",
-    "apps/web/tests/security/rls.test.ts",
     "apps/web/vancouver.bst",
     "docker/Dockerfile.latex",
     "docker/Dockerfile.r-plumber",
@@ -576,10 +574,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108864,
-    "cache_creation_tokens": 8077199,
-    "cache_read_tokens": 280830421,
-    "output_tokens": 576100,
-    "api_call_count": 2898
+    "input_tokens": 108819,
+    "cache_creation_tokens": 7930696,
+    "cache_read_tokens": 275645809,
+    "output_tokens": 571690,
+    "api_call_count": 2857
   }
 }
