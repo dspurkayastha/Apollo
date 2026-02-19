@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 202,
+  "checkpoints_count": 207,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -114,6 +114,7 @@
     "apps/web/components/landing/pricing-section.tsx",
     "apps/web/components/landing/sponsors-section.tsx",
     "apps/web/components/landing/testimonials-section.tsx",
+    "apps/web/components/layout/app-sidebar.tsx",
     "apps/web/components/layout/glass-sidebar-provider.tsx",
     "apps/web/components/layout/glass-sidebar.tsx",
     "apps/web/components/layout/navbar.tsx",
@@ -299,6 +300,7 @@
     "apps/web/supabase/migrations/029_analysis_plan_columns.sql",
     "apps/web/supabase/migrations/030_privacy_compliance.sql",
     "apps/web/supabase/migrations/031_database_audit_fixes.sql",
+    "apps/web/supabase/migrations/032_missing_rls_policies.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -306,6 +308,7 @@
     "apps/web/tests/pricing/config.test.ts",
     "apps/web/tests/pricing/velocity.test.ts",
     "apps/web/tests/security/licence-gates.test.ts",
+    "apps/web/tests/security/rls.test.ts",
     "apps/web/vancouver.bst",
     "docker/Dockerfile.latex",
     "docker/Dockerfile.r-plumber",
@@ -563,13 +566,20 @@
       "context": "/bd/84f5776d75/32/context.md",
       "content_hash": "/bd/84f5776d75/32/content_hash.txt",
       "prompt": "/bd/84f5776d75/32/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/33/metadata.json",
+      "transcript": "/bd/84f5776d75/33/full.jsonl",
+      "context": "/bd/84f5776d75/33/context.md",
+      "content_hash": "/bd/84f5776d75/33/content_hash.txt",
+      "prompt": "/bd/84f5776d75/33/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 108812,
-    "cache_creation_tokens": 7925590,
-    "cache_read_tokens": 274826050,
-    "output_tokens": 571629,
-    "api_call_count": 2852
+    "input_tokens": 108986,
+    "cache_creation_tokens": 8179996,
+    "cache_read_tokens": 293025861,
+    "output_tokens": 582779,
+    "api_call_count": 3010
   }
 }

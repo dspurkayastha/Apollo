@@ -1,0 +1,907 @@
+Implement the following plan:
+
+# Phase 11: Cleanup and Testing — Implementation Plan
+
+## Context
+
+Phase 11 is the final pre-launch phase. It addresses 16 items from `Mitigation_plan.md` (items 11.1–11.16) covering lint cleanup, dead code removal, bug fixes, missing RLS policies, performance improvements, and low-severity security items. 5 items are already resolved (dictionary SSOT, spelling-fix moot, migrations tracked, canAdvancePhase not dead, PWA exists). 14 items require work across ~25 file modifications, 1 new migration, and RLS test rewrites.
+
+**User decisions captured:**
+- Locked files: approved for lint fixes (no visual/functional change)
+- Warning budget: warn only (no hard gate — users can still access PDF)
+- PDF thumbnails: IntersectionObserver lazy-load (no new dependency)
+
+---
+
+## Items Skipped (Already Resolved)
+
+| Item | Why |
+|------|-----|
+| 11.3 Dictionary SSOT | `lib/compliance/spelling-dictionary.ts` (79 entries) already imported by all 4 consumers |
+| 11.5 Spelling fix both columns | Moot — `rich_content_json` deprecated since Phase 4 |
+| 11.9 Migration tracking | 31 migrations now exist (001–031), well-tracked in `supabase/migrations/` |
+| 11.16a `canAdvancePhase` dead code | NOT dead — actively used for licence gate checks in transitions.ts |
+| 11.16d Service worker | `public/sw.js` already exists with network-first API + cache-first assets |
+
+---
+
+## Group A: Quick Code Fixes
+
+### A1. Lint Warnings (11.1)
+
+19 warnings across 18 files. All are unused vars/imports or missing alt props.
+
+| File | Line | Fix |
+|------|------|-----|
+| `project-workspace.tsx` | 174 | Remove unused eslint-disable directive |
+| `projects/page.tsx` (**LOCKED**) | 5 | Remove unused `DeleteProjectButton` import |
+| `analyses/plan/route.ts` | 18 | Remove unused `PlannedAnalysis` import |
+| `export/docx/route.ts` | 69 | Prefix `warnings` with `_` or remove |
+| `refine/route.ts` | 84 | Prefix `streamCompleted` with `_` or remove |
+| `environment-fold.ts` | 8 | Remove unused `to` from destructuring |
+| `latex-editor.tsx` | 81 | Add missing deps to useEffect or suppress with comment |
+| `hero-3d-scene.tsx` (**LOCKED**) | 150 | Remove unused `roundRect` |
+| `glass-sidebar.tsx` (**LOCKED**) | 12 | Remove unused `X` import |
+| `analysis-wizard.tsx` | 21 | Remove unused `AnalysisType` import |
+| `citation-search-dialog.tsx` | 8 | Remove unused `cn` import |
+| `dataset-upload.tsx` | 26 | Remove unused `ColumnPreview` import |
+| `export-menu.tsx` | 35 | Remove `_currentPhase` (already prefixed but still flagged) |
+| `figure-gallery.tsx` | 167, 252, 281 | Add `alt` prop to 3 `<Image>` elements |
+| `pubmed.ts` | 3 | Remove unused `stripDoiField` import |
+| `checker.ts` | 1 | Remove unused `createAdminSupabaseClient` import |
+| `parse-log.ts` | 67 | Remove unused `isFatalError` |
+| `validate.ts` | 66 | Remove unused `_match` |
+
+**Approach**: Each fix is a 1-line removal or addition. Read each file, apply fix, move on.
+
+### A2. Dead Code Removal (11.2)
+
+Delete 2 files confirmed dead (zero imports anywhere):
+
+| File | Reason |
+|------|--------|
+| `components/project/phase-stepper.tsx` | Marked `@deprecated`, replaced by `PipelineTimeline` |
+| `components/layout/app-sidebar.tsx` | Replaced by `glass-sidebar.tsx` |
+
+**NOT deleting**: `lib/latex/front-matter.ts` — still imported by `approve/route.ts`.
+
+### A3. `phases_completed` Deduplication (11.4)
+
+**File**: `app/api/projects/[id]/sections/[phase]/approve/route.ts:252-255`
+
+**Current** (buggy):
+```typescript
+const newPhasesCompleted = [
+  ...typedProject.phases_completed,
+  phaseNumber,
+];
+```
+
+**Fix**:
+```typescript
+const newPhasesCompleted = Array.from(
+  new Set([...(typedProject.phases_completed as number[]), phaseNumber])
+);
+```
+
+### A4. Brace-Checking Bug Fix (11.7)
+
+**File**: `lib/latex/validate.ts:122-126`
+
+**Current** (buggy — fails for `\\{`):
+```typescript
+if (ch === "{" && (i === 0 || latex[i - 1] !== "\\")) {
+```
+
+**Fix** — count consecutive preceding backslashes, only escaped if odd count:
+```typescript
+function countPrecedingBackslashes(str: string, pos: number): number {
+  let count = 0;
+  for (let j = pos - 1; j >= 0 && str[j] === "\\"; j--) count++;
+  return count;
+}
+
+// In the loop:
+if (ch === "{" && countPrecedingBackslashes(latex, i) % 2 === 0) {
+  braceDepth++;
+} else if (ch === "}" && countPrecedingBackslashes(latex, i) % 2 === 0) {
+  braceDepth--;
+}
+```
+
+Also apply the same fix to the `%` comment detection on line 112 (same bug class).
+
+**Tests**: Add test cases to `validate.test.ts` for `\\{`, `\\\\{`, and `\{`.
+
+---
+
+## Group B: Compile & Validation
+
+### B1. Warning Budget (11.6) — Warn Only
+
+**File**: `app/api/projects/[id]/compile/route.ts:257-287`
+
+After `allWarnings` is assembled (line 255), add a `warning_budget_exceeded` field to the response when count > 20. Status remains `"completed"`.
+
+**Change** (after line 255):
+```typescript
+const WARNING_BUDGET = 20;
+const warningBudgetExceeded = allWarnings.length > WARNING_BUDGET;
+```
+
+In the success response (line 279-287), add:
+```typescript
+return NextResponse.json({
+  data: {
+    compilation_id: compilation.id,
+    status: "completed",
+    warnings: allWarnings,
+    warning_budget_exceeded: warningBudgetExceeded,
+    errors: [],
+    compile_time_ms: result.compileTimeMs,
+  },
+});
+```
+
+### B2. Phase Sequence Enforcement (11.15)
+
+**File**: `app/api/projects/[id]/sections/[phase]/generate/route.ts:59-68`
+
+Add check after Phase 0 handling (line 62), before general generation:
+
+```typescript
+// Enforce phase sequence: can only generate for current phase or next
+if (phaseNumber > typedProject.current_phase + 1) {
+  return badRequest(
+    `Cannot generate Phase ${phaseNumber} content — complete Phase ${typedProject.current_phase} first`
+  );
+}
+```
+
+**Exception**: Phase 0 (synopsis parsing) is handled before this check so it's unaffected.
+
+---
+
+## Group C: Citation & AI
+
+### C1. Pre-Seeded References Persistence (11.8)
+
+**File**: `app/api/projects/[id]/sections/[phase]/generate/route.ts:272-296`
+
+After `preSeedReferences()` returns, persist each reference to the `citations` table as Tier A (they have PMIDs). This ensures they survive even if AI truncates the BibTeX trailer.
+
+**Change** — after line 290 (`if (preSeeded.length > 0)`):
+
+```typescript
+if (preSeeded.length > 0) {
+  userMessage += formatReferencesForPrompt(preSeeded);
+
+  // Persist pre-seeded references as Tier A citations
+  const citationRows = preSeeded.map((ref) => ({
+    project_id: project.id,
+    section_id: null, // Will be linked after generation
+    cite_key: ref.citeKey,
+    tier: "A",
+    source: "pubmed",
+    source_id: ref.pmid,
+    bibtex_entry: ref.bibtex,
+    title: ref.article.title,
+    resolved: true,
+    resolved_at: new Date().toISOString(),
+  }));
+
+  await supabase
+    .from("citations")
+    .upsert(citationRows, { onConflict: "project_id,cite_key" })
+    .select("id");
+}
+```
+
+**Key**: Uses `upsert` with `onConflict` so re-generating the same phase doesn't create duplicate citations.
+
+**Prerequisite**: Verify `citations` table has a unique constraint on `(project_id, cite_key)`. Check migration files — if missing, add in the Phase 11 migration.
+
+### C2. `messages_json` Population (11.14)
+
+**File**: `lib/ai/token-budget.ts:110`
+
+**Current**: `messages_json: []` (hardcoded empty)
+
+**Change**: Accept messages as a parameter:
+
+```typescript
+export async function recordTokenUsage(
+  projectId: string,
+  phaseNumber: number,
+  inputTokens: number,
+  outputTokens: number,
+  modelUsed: string,
+  messages?: Array<{ role: string; content: string }>
+): Promise<string | null> {
+```
+
+And use it:
+```typescript
+messages_json: messages ?? [],
+```
+
+**Caller change**: In `lib/inngest/functions/ai-generate.ts`, pass the actual messages when calling `recordTokenUsage`:
+
+```typescript
+await recordTokenUsage(
+  projectId, phaseNumber, inputTokens, outputTokens, modelUsed,
+  [
+    { role: "user", content: userMessage.slice(0, 50000) },
+    { role: "assistant", content: finalContent.slice(0, 50000) },
+  ]
+);
+```
+
+Truncate to 50K chars each to avoid bloating the DB. The full content is in `sections.latex_content` anyway — this is for audit/debug.
+
+---
+
+## Group D: Database & Security
+
+### D1. Missing RLS Policies (11.11)
+
+**New migration**: `032_missing_rls_policies.sql`
+
+```sql
+-- D1a: datasets UPDATE policy (owner only)
+CREATE POLICY "Users can update their own datasets"
+  ON public.datasets FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects p
+      WHERE p.id = datasets.project_id
+      AND p.user_id = auth.uid()
+    )
+  );
+
+-- D1b: compilations UPDATE policy (owner only)
+CREATE POLICY "Users can update their own compilations"
+  ON public.compilations FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects p
+      WHERE p.id = compilations.project_id
+      AND p.user_id = auth.uid()
+    )
+  );
+
+-- D1c: compilations DELETE policy (owner only)
+CREATE POLICY "Users can delete their own compilations"
+  ON public.compilations FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.projects p
+      WHERE p.id = compilations.project_id
+      AND p.user_id = auth.uid()
+    )
+  );
+
+-- D1d: review_comments INSERT policy (via valid token)
+-- review_comments are inserted by external reviewers via API routes
+-- that validate tokens. RLS INSERT should allow service-role only
+-- (matches existing pattern — admin client used in route).
+-- Adding explicit deny for anon/authenticated to lock it down.
+CREATE POLICY "review_comments INSERT via service role only"
+  ON public.review_comments FOR INSERT
+  WITH CHECK (false);
+-- This blocks browser-client INSERT. API routes use admin client (bypasses RLS).
+
+-- D1e: citations unique constraint for pre-seed upsert (C1 prerequisite)
+-- Check if constraint exists first; add if missing
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'citations_project_id_cite_key_key'
+  ) THEN
+    ALTER TABLE public.citations
+      ADD CONSTRAINT citations_project_id_cite_key_key
+      UNIQUE (project_id, cite_key);
+  END IF;
+END $$;
+```
+
+Apply via Supabase MCP + local file.
+
+### D2. RLS Test Enhancement (11.10)
+
+**File**: `tests/security/rls.test.ts`
+
+The current tests only use `adminClient`. Rewrite to test actual per-user isolation:
+
+1. Create two test users with different IDs
+2. Create projects/datasets for each user
+3. Create per-user Supabase clients with mock JWTs
+4. Assert: User A CAN read own data, CANNOT read User B's data
+5. Assert: UPDATE/DELETE blocked for non-owner
+
+**Approach**: Use Supabase `createClient` with a service role to set up data, then create user-scoped clients for isolation tests. The test file already has infrastructure for this — it just needs the actual isolation assertions.
+
+**Note**: This requires the test environment to have Supabase running locally or a test project with JWT secret access. If the test env can't mint JWTs, these tests should be marked as integration tests that run against a real Supabase instance (not CI).
+
+### D3. Review Comment Rate Limit (11.16b)
+
+**File**: `app/api/review/[token]/comments/route.ts:80`
+
+Add a simple DB-based rate limit after token validation (line 78):
+
+```typescript
+// Rate limit: 10 comments per hour per token
+const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+const { count } = await supabase
+  .from("review_comments")
+  .select("id", { count: "exact", head: true })
+  .eq("review_token_id", validation.tokenId)
+  .gte("created_at", oneHourAgo);
+
+if ((count ?? 0) >= 10) {
+  return NextResponse.json(
+    { error: { code: "RATE_LIMITED", message: "Too many comments. Try again later." } },
+    { status: 429 }
+  );
+}
+```
+
+### D4. Review Token Generation Limit (11.16c)
+
+**File**: `app/api/projects/[id]/share/route.ts:28`
+
+Add check before token creation (after line 26):
+
+```typescript
+// Limit: 5 active (non-expired) tokens per project
+const { count } = await supabase
+  .from("review_tokens")
+  .select("id", { count: "exact", head: true })
+  .eq("project_id", id)
+  .gte("expires_at", new Date().toISOString());
+
+if ((count ?? 0) >= 5) {
+  return NextResponse.json(
+    { error: { code: "LIMIT_EXCEEDED", message: "Maximum 5 active review links per project" } },
+    { status: 409 }
+  );
+}
+```
+
+---
+
+## Group E: Performance
+
+### E1. MermaidEditor Dynamic Wrapping (11.12)
+
+Mermaid (~100KB) uses dynamic `import()` inside useEffect but the component itself isn't lazy-loaded. Wrap it at the call site.
+
+**Find the consumer** of `MermaidEditor` and replace:
+```typescript
+import { MermaidEditor } from "@/components/project/mermaid-editor";
+```
+with:
+```typescript
+const MermaidEditor = dynamic(
+  () => import("@/components/project/mermaid-editor").then(m => m.MermaidEditor),
+  { ssr: false }
+);
+```
+
+### E2. PDF Thumbnail Lazy-Load (11.13)
+
+**File**: `components/viewer/pdf-viewer.tsx:152-172`
+
+Replace the `Array.from({ length: numPages })` that renders ALL thumbnails with an IntersectionObserver-based lazy loader.
+
+**Approach**: Create a `LazyThumbnail` sub-component:
+
+```tsx
+function LazyThumbnail({ pageNum, isActive, onClick }: {
+  pageNum: number;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setIsVisible(true); },
+      { rootMargin: "200px" } // Pre-load 200px before visible
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <button ref={ref} onClick={onClick} className={/* existing classes */}>
+      {isVisible ? (
+        <Page pageNumber={pageNum} width={72} renderTextLayer={false} renderAnnotationLayer={false} />
+      ) : (
+        <div className="h-[102px] w-[72px] rounded bg-[#E8E8E8]" /> // placeholder
+      )}
+      <span className="block text-center text-[9px] text-[#6B6B6B]">{pageNum}</span>
+    </button>
+  );
+}
+```
+
+Then replace lines 152-172 with:
+```tsx
+{Array.from({ length: numPages }, (_, i) => (
+  <LazyThumbnail
+    key={i + 1}
+    pageNum={i + 1}
+    isActive={pageNumber === i + 1}
+    onClick={() => setPageNumber(i + 1)}
+  />
+))}
+```
+
+**Result**: Only thumbnails in/near viewport render actual PDF pages. 200-page thesis: ~10-15 DOM nodes instead of 200+.
+
+---
+
+## Implementation Order
+
+| Step | Items | Dependencies | Files |
+|------|-------|-------------|-------|
+| 1 | A1 (lint), A2 (dead code) | None | 18 files + 2 deletions |
+| 2 | A3 (dedup), A4 (brace fix) | None | approve/route.ts, validate.ts |
+| 3 | B1 (warning budget), B2 (phase sequence) | None | compile/route.ts, generate/route.ts |
+| 4 | D1 (RLS migration) | None | New migration 032 + MCP |
+| 5 | C1 (pre-seed persist) | D1 (needs unique constraint) | generate/route.ts |
+| 6 | C2 (messages_json) | None | token-budget.ts, ai-generate.ts |
+| 7 | D3, D4 (rate limits) | None | comments/route.ts, share/route.ts |
+| 8 | E1, E2 (performance) | None | mermaid consumer, pdf-viewer.tsx |
+| 9 | D2 (RLS tests) | D1 (needs policies applied) | rls.test.ts |
+| 10 | Update Mitigation_implementation.md | All above | docs/ |
+
+---
+
+## Verification
+
+1. **Lint**: `npx next lint` — 0 warnings
+2. **TypeScript**: `npx tsc --noEmit` — 0 errors
+3. **Tests**: `pnpm test` — all 324+ tests pass (new validate.ts tests added)
+4. **RLS**: New migration applied via MCP, verify with `pnpm test:rls` (if available) or manual Supabase query
+5. **Seccomp JSON**: `jq empty` on any new JSON files
+6. **Dead code**: Grep for deleted file names — zero references
+
+---
+
+## Files Inventory
+
+| Action | File | Est. |
+|--------|------|------|
+| MODIFY (×18) | 18 files with lint fixes | 1 line each |
+| DELETE | `components/project/phase-stepper.tsx` | — |
+| DELETE | `components/layout/app-sidebar.tsx` | — |
+| MODIFY | `app/api/.../approve/route.ts` | 3 lines (dedup) |
+| MODIFY | `lib/latex/validate.ts` | 15 lines (brace fix + helper) |
+| MODIFY | `app/api/.../compile/route.ts` | 5 lines (warning budget) |
+| MODIFY | `app/api/.../generate/route.ts` | 20 lines (phase check + pre-seed persist) |
+| MODIFY | `lib/ai/token-budget.ts` | 5 lines (messages param) |
+| MODIFY | `lib/inngest/functions/ai-generate.ts` | 5 lines (pass messages) |
+| MODIFY | `app/api/review/[token]/comments/route.ts` | 10 lines (rate limit) |
+| MODIFY | `app/api/projects/[id]/share/route.ts` | 10 lines (token limit) |
+| MODIFY | `components/viewer/pdf-viewer.tsx` | 30 lines (lazy thumbnails) |
+| MODIFY | MermaidEditor consumer | 5 lines (dynamic import) |
+| CREATE | `supabase/migrations/032_missing_rls_policies.sql` | ~40 lines |
+| MODIFY | `tests/security/rls.test.ts` | Significant rewrite |
+| MODIFY | `docs/Mitigation_implementation.md` | Phase 11 section |
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.claude/projects/-Users-devs-Downloads-Apollo/d97ae08b-ea44-4fc7-90fa-e493a3e73a14.jsonl
+
+---
+
+<task-notification>
+<task-id>a189a84</task-id>
+<status>completed</status>
+<summary>Agent "Fix lint warnings batch 2" completed</summary>
+<result>All six lint fixes are complete. Here is a summary of each change:
+
+1. **`/Users/devs/Downloads/Apollo/apps/web/components/editor/latex-editor.tsx`** (line 81) -- Added an `eslint-disable-next-line react-hooks/exhaustive-deps` comment with an explanation: the `useEffect` intentionally has no dependency array because CodeMirror lazily creates its `view` after the first render, so the effect must re-run on every render until the view becomes available.
+
+2. **`/Users/devs/Downloads/Apollo/apps/web/components/landing/hero-3d-scene.tsx`** (line 150) -- Removed the unused `roundRect` function (lines 150-161). This function was never called anywhere in the file; the `createPageTexture` function above it uses `ctx.roundRect()` directly on the canvas context, not this wrapper.
+
+3. **`/Users/devs/Downloads/Apollo/apps/web/components/layout/glass-sidebar.tsx`** (line 12) -- Removed the unused `X` import from `lucide-react`. The `X` icon was imported but never referenced in the component's JSX.
+
+4. **`/Users/devs/Downloads/Apollo/apps/web/components/project/analysis-wizard.tsx`** (line 21) -- Removed the unused `AnalysisType` from the type import. Only `AnalysisRecommendation` is used in this file.
+
+5. **`/Users/devs/Downloads/Apollo/apps/web/components/project/citation-search-dialog.tsx`** (line 8) -- Removed the unused `cn` import from `@/lib/utils`. The `cn` utility is not called anywhere in this component.
+
+6. **`/Users/devs/Downloads/Apollo/apps/web/components/project/dataset-upload.tsx`** (line 26) -- Removed the unused `ColumnPreview` interface (lines 26-30). This interface was defined but never referenced anywhere in the file.
+
+All changes are purely lint-related -- no visual or functional behaviour was modified.</result>
+<usage>total_tokens: 61580
+tool_uses: 31
+duration_ms: 57496</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a189a84.output
+
+---
+
+<task-notification>
+<task-id>a09d6fe</task-id>
+<status>completed</status>
+<summary>Agent "Fix lint warnings batch 1" completed</summary>
+<result>All six fixes verified. Here is a summary of what was changed:
+
+---
+
+**Fix 1** -- `/Users/devs/Downloads/Apollo/apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` line 174
+Removed the unused `// eslint-disable-line react-hooks/exhaustive-deps` comment. The dependency array already lists all used dependencies, so the directive was unnecessary.
+
+**Fix 2** -- `/Users/devs/Downloads/Apollo/apps/web/app/(dashboard)/projects/page.tsx` line 5
+Removed the unused `DeleteProjectButton` import. The component is not referenced anywhere in the file.
+
+**Fix 3** -- `/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/analyses/plan/route.ts` line 18
+Removed the unused `type PlannedAnalysis` from the import. Only `analysisPlanSchema` is used in the file.
+
+**Fix 4** -- `/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/export/docx/route.ts` line 69
+Renamed `warnings` to `_warnings` in the destructuring (`{ chapterFiles, warnings: _warnings }`) since the variable is extracted but never read.
+
+**Fix 5** -- `/Users/devs/Downloads/Apollo/apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts` line 84
+Renamed `streamCompleted` to `_streamCompleted` (and its two assignment sites on the former lines 187 and 215). The variable is assigned but never read.
+
+**Fix 6** -- `/Users/devs/Downloads/Apollo/apps/web/components/editor/extensions/environment-fold.ts` line 8
+Renamed the unused `to` parameter to `_to` in the `foldService.of` callback signature. The parameter is required by the callback type but not used in the function body.</result>
+<usage>total_tokens: 34299
+tool_uses: 41
+duration_ms: 82733</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a09d6fe.output
+
+---
+
+<task-notification>
+<task-id>a5f245f</task-id>
+<status>completed</status>
+<summary>Agent "Fix lint warnings batch 3" completed</summary>
+<result>Good. The `_match` was renamed to `_` which is the conventional way to name an unused loop variable in TypeScript.
+
+Here is a summary of all fixes applied:
+
+---
+
+**1. `/Users/devs/Downloads/Apollo/apps/web/components/project/export-menu.tsx`** -- Removed unused `currentPhase` parameter
+
+- Removed `currentPhase: number` from `ExportMenuProps` interface (line 17)
+- Removed `currentPhase` from the component's destructured props (line 43)
+- Removed `_currentPhase` parameter from `getAvailableExports` function signature (line 35)
+- Removed `currentPhase` from the call to `getAvailableExports` (line 49)
+- Updated two call sites that passed `currentPhase`:
+  - `/Users/devs/Downloads/Apollo/apps/web/components/project/thesis-completion.tsx` (line 309)
+  - `/Users/devs/Downloads/Apollo/apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` (line 436)
+
+**2. `/Users/devs/Downloads/Apollo/apps/web/components/project/figure-gallery.tsx`** -- Added `aria-label` to 3 Lucide `Image` icon components
+
+These are Lucide React SVG icons (not Next.js `<Image>` components), so the accessibility attribute is `aria-label` rather than `alt`:
+- Line 167: Added `aria-label="Figure thumbnail"`
+- Line 252: Added `aria-label="No figures placeholder"`
+- Line 281: Added `aria-label="Uploaded and diagrams"`
+
+**3. `/Users/devs/Downloads/Apollo/apps/web/lib/citations/pubmed.ts`** -- Removed unused `stripDoiField` import
+
+Changed the import from `{ lookupDOI, crossRefWorkToBibtex, stripDoiField }` to `{ lookupDOI, crossRefWorkToBibtex }`.
+
+**4. `/Users/devs/Downloads/Apollo/apps/web/lib/compliance/checker.ts`** -- Removed unused `createAdminSupabaseClient` import
+
+Deleted the entire `import { createAdminSupabaseClient } from "@/lib/supabase/admin";` line.
+
+**5. `/Users/devs/Downloads/Apollo/apps/web/lib/latex/parse-log.ts`** -- Removed unused `isFatalError` function
+
+Deleted the entire `isFatalError` function (lines 67-69). The `FATAL_ERROR_PATTERNS` array is still retained as it may be used elsewhere or intended for future use, and the user only flagged the function.
+
+**6. `/Users/devs/Downloads/Apollo/apps/web/lib/latex/validate.ts`** -- Removed unused `_match` variable
+
+Changed `for (const _match of ampMatches)` to `for (const _ of ampMatches)`, using the conventional unused variable name.
+
+All changes pass TypeScript type checking with zero errors (`tsc --noEmit` clean).</result>
+<usage>total_tokens: 49604
+tool_uses: 28
+duration_ms: 109414</usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/a5f245f.output
+
+---
+
+NOw realign to the Review ,Deiscussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 11 for consistency, correctness, errors , logical fallacies, redundancies and other logic issues. Think ultra hard
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the entire conversation:
+
+1. **User Request**: Implement Phase 11 (Cleanup and Testing) from a detailed plan with 16 items covering lint cleanup, dead code removal, bug fixes, missing RLS policies, performance improvements, and security items. The plan was structured into groups A-E with specific implementation details.
+
+2. **My Approach**: Created 10 tracked tasks and worked through them systematically, using parallel agents for lint fixes and sequential edits for the more complex changes.
+
+3. **Key Implementation Groups**:
+   - Group A: Lint fixes (19 warnings across 18 files), dead code deletion (2 files), phases_completed dedup, brace-checking bug
+   - Group B: Warning budget (warn-only), phase sequence enforcement
+   - Group C: Pre-seeded references persistence, messages_json population
+   - Group D: RLS migration (032), RLS test rewrite, rate limits
+   - Group E: MermaidEditor dynamic import, PDF thumbnail lazy-load
+
+4. **Errors encountered**:
+   - validate.ts was modified by lint agent while I was editing → re-read and re-applied
+   - rls.test.ts used `jose` library which wasn't installed → replaced with Node.js `crypto` (createHmac)
+   - `createUserClient` was async with jose, needed to remove `await` when switched to sync crypto
+   - After lint agents, 5 residual warnings remained (underscore-prefixed vars still flagged) → further fixed by removing dead assignments, removing unused `FATAL_ERROR_PATTERNS`, converting loop pattern, adding eslint-disable comment
+   - `pnpm test` from root failed (no package.json) → ran from apps/web directory
+
+5. **Final user request**: "Now realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 11 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues." AND create a detailed summary.
+
+Let me trace all the specific files modified and code changes:
+
+**Files Modified:**
+- approve/route.ts: phases_completed dedup
+- validate.ts: brace-checking fix + loop pattern fix
+- compile/route.ts: warning budget
+- generate/route.ts: phase sequence enforcement + pre-seed persistence
+- token-budget.ts: messages parameter
+- ai-generate.ts: pass messages to recordTokenUsage
+- comments/route.ts: rate limit
+- share/route.ts: token limit
+- pdf-viewer.tsx: LazyThumbnail + IntersectionObserver
+- project-workspace.tsx: MermaidEditor dynamic import + ExportMenu prop removal
+- 18 lint fix files across 3 agent batches
+- parse-log.ts: removed FATAL_ERROR_PATTERNS
+- refine/route.ts: removed dead _streamCompleted
+- docx/route.ts: removed _warnings destructuring
+- environment-fold.ts: eslint-disable comment for _to
+- validate.test.ts: 5 new test cases
+- rls.test.ts: complete rewrite
+- Mitigation_implementation.md: Phase 11 section added
+
+**Files Created:**
+- supabase/migrations/032_missing_rls_policies.sql
+
+**Files Deleted:**
+- components/project/phase-stepper.tsx
+- components/layout/app-sidebar.tsx
+
+**Migration Applied:**
+- 032_missing_rls_policies.sql via Supabase MCP
+
+Now for the current request - the user wants me to:
+1. Check all Phase 11 changes against Review, Discussion, Mitigation_plan, Mitigation_implementation.md for consistency
+2. Create a detailed summary
+
+The user said "Do NOT use any tools" and "respond with ONLY the summary block". So I should not read those docs files and instead provide the summary based on conversation context.
+
+Let me be thorough about the user messages:
+1. "Implement the following plan: # Phase 11: Cleanup and Testing — Implementation Plan" (with full plan)
+2. (No explicit user messages between - just system reminders and task notifications)
+3. "Now realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 11 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard. Your task is to create a detailed summary..."
+
+Pending tasks: The user wants a consistency/correctness check against the docs files, but the summary request says "Do NOT use any tools" - so the consistency check is a pending task that would need to be done after the summary.
+
+Let me think about potential issues with the Phase 11 implementation:
+
+1. **C1 Pre-seed persistence**: The plan said `tier: "A"` but citations table likely uses `provenance_tier` column (based on approve/route.ts line 361 which references `c.provenance_tier`). I used `provenance_tier: "A"` which matches the existing code pattern. Good.
+
+2. **C1 Pre-seed persistence**: The plan mentioned `section_id: null` and `resolved_at` fields. I omitted `section_id` (it's nullable by default) but included `resolved_at`. I also used `source_id` for PMID. Need to verify these column names match the schema. Looking at the citations insert in rls.test.ts beforeAll, I see it uses `cite_key` and `bibtex_entry` - those match. But the additional columns I used (`provenance_tier`, `source`, `source_id`, `title`, `resolved`, `resolved_at`) may or may not exist. This is a potential issue - if those columns don't exist, the upsert would fail silently via Supabase.
+
+3. **D1 Migration**: The review_comments INSERT policy uses `WITH CHECK (false)` which blocks ALL inserts from authenticated/anon roles. This is correct since API routes use admin client. But need to verify no browser-client INSERT path exists.
+
+4. **B2 Phase sequence**: The check `phaseNumber > typedProject.current_phase + 1` allows generating for current phase and next phase. But what about Phase 6 sub-phases (6a/6b)? The phase number is still 6 for both, so this should be fine.
+
+5. **E2 PDF lazy thumbnails**: The `LazyThumbnail` component uses `useRef` and `useEffect` which are imported at the top of the file. I verified I added `useRef` and `useEffect` to the import.
+
+6. **rls.test.ts**: I used `createHmac` from Node.js crypto for JWT signing. The approach creates auth users via `adminClient.auth.admin.createUser()` and also inserts rows in the `users` table. However, there's a potential issue: the `id` field in the users table insert is set to `userAId` (from auth), but the users table might auto-generate its own UUID. This depends on the schema - if `id` is the primary key and matches auth.uid(), it should work.
+
+7. **Lint batch 3 agent**: Removed `currentPhase` prop from ExportMenu entirely and updated call sites. This is a more aggressive fix than just prefixing with `_`, but since the prop was unused in the component body, it's the correct approach. However, it modified LOCKED files (project-workspace.tsx, thesis-completion.tsx). The plan approved locked files for lint fixes only, and removing an unused prop counts as a lint fix.
+
+8. **figure-gallery.tsx**: The agent added `aria-label` instead of `alt` because the `Image` components are Lucide icons (SVGs), not Next.js `<Image>` components. This is technically correct but the original plan said "Add `alt` prop to 3 `<Image>` elements" - so the implementation diverged from the plan in a correct way.
+
+9. **validate.ts test for `\\%`**: My test case `"text \\\\% this is a comment with {unbalanced\nreal content"` tests that `\\%` starts a comment. With the new `countPrecedingBackslashes` function: `\\` before `%` = 2 backslashes (even count), so `%` is NOT escaped, meaning it DOES start a comment. This is correct behavior.
+
+Let me compile the full summary now.
+
+Summary:
+1. Primary Request and Intent:
+   The user requested implementation of **Phase 11: Cleanup and Testing** — the final pre-launch phase of the Apollo thesis generation platform. This covered 16 items from `Mitigation_plan.md` (items 11.1–11.16) organized into 5 groups: (A) lint cleanup + dead code + bug fixes, (B) compile validation, (C) citation/AI improvements, (D) database security + RLS, (E) performance optimizations. 5 items were pre-identified as already resolved. The user provided a comprehensive implementation plan with exact file paths, line numbers, code snippets, and an implementation order.
+
+   After implementation, the user then requested: **"Now realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 11 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues."** This consistency check has NOT yet been performed — only the summary was generated.
+
+2. Key Technical Concepts:
+   - **RLS (Row-Level Security)**: Supabase PostgreSQL policies for per-user data isolation
+   - **LaTeX brace validation**: Counting preceding backslashes to determine if `{`, `}`, `%` are escaped (odd = escaped, even = literal)
+   - **IntersectionObserver**: Browser API for lazy-loading PDF thumbnails with 200px rootMargin pre-load
+   - **next/dynamic**: Code-splitting heavy components (MermaidEditor ~100KB) with SSR disabled
+   - **JWT signing with Node.js crypto**: HS256 HMAC-based JWT creation for RLS test isolation without external deps
+   - **Supabase upsert with onConflict**: Idempotent citation persistence using `(project_id, cite_key)` unique constraint
+   - **DB-based rate limiting**: Counting recent rows with `gte("created_at", oneHourAgo)` for review comments and tokens
+   - **Phase sequence enforcement**: Blocking AI generation for phases beyond `current_phase + 1`
+   - **Warning budget**: Non-blocking threshold (20 warnings) added to compile response
+
+3. Files and Code Sections:
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (A3: dedup fix)
+     - Prevents duplicate entries in `phases_completed` array on re-approval
+     ```typescript
+     const newPhasesCompleted = Array.from(
+       new Set([...(typedProject.phases_completed as number[]), phaseNumber])
+     );
+     ```
+
+   - **`apps/web/lib/latex/validate.ts`** (A4: brace-checking bug fix + lint fix)
+     - Added `countPrecedingBackslashes()` helper function for correct escape detection
+     - Fixed `\\{` edge case where double-backslash + brace was incorrectly treated as escaped
+     - Applied same fix to `%` comment detection
+     - Changed bare `&` loop from `for (const _ of ampMatches)` to count-based loop to eliminate lint warning
+     ```typescript
+     function countPrecedingBackslashes(str: string, pos: number): number {
+       let count = 0;
+       for (let j = pos - 1; j >= 0 && str[j] === "\\"; j--) count++;
+       return count;
+     }
+     // Usage:
+     if (ch === "{" && countPrecedingBackslashes(latex, i) % 2 === 0) {
+       braceDepth++;
+     }
+     ```
+
+   - **`apps/web/lib/latex/validate.test.ts`** (A4: 5 new test cases)
+     - Tests for `\\{` (escaped backslash + real brace), `\{` (escaped brace), `\\\{` (3 backslashes), unbalanced after double-backslash, and `\\%` comment detection
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** (B1: warning budget)
+     - Added `WARNING_BUDGET = 20` threshold and `warning_budget_exceeded: boolean` field in response
+     - Non-blocking — users can still access PDF regardless of warning count
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (B2 + C1)
+     - B2: Phase sequence enforcement after Phase 0 handling, before general generation
+     ```typescript
+     if (phaseNumber > typedProject.current_phase + 1) {
+       return badRequest(`Cannot generate Phase ${phaseNumber} content --- complete Phase ${typedProject.current_phase} first`);
+     }
+     ```
+     - C1: Pre-seeded references persisted as Tier A citations via upsert
+     ```typescript
+     const citationRows = preSeeded.map((ref) => ({
+       project_id: project.id,
+       cite_key: ref.citeKey,
+       provenance_tier: "A",
+       source: "pubmed",
+       source_id: ref.pmid,
+       bibtex_entry: ref.bibtex,
+       title: ref.article.title,
+       resolved: true,
+       resolved_at: new Date().toISOString(),
+     }));
+     await supabase
+       .from("citations")
+       .upsert(citationRows, { onConflict: "project_id,cite_key" });
+     ```
+
+   - **`apps/web/lib/ai/token-budget.ts`** (C2: messages_json)
+     - Added optional `messages` parameter to `recordTokenUsage()`
+     ```typescript
+     export async function recordTokenUsage(
+       projectId: string, phaseNumber: number,
+       inputTokens: number, outputTokens: number,
+       modelUsed: string,
+       messages?: Array<{ role: string; content: string }>
+     ): Promise<string | null> {
+     ```
+
+   - **`apps/web/lib/inngest/functions/ai-generate.ts`** (C2: pass messages)
+     - Passes truncated (50K chars) user+assistant messages for audit
+     ```typescript
+     await recordTokenUsage(projectId, phaseNumber, result.inputTokens, result.outputTokens, model,
+       [
+         { role: "user", content: userMessage.slice(0, 50000) },
+         { role: "assistant", content: finalContent.slice(0, 50000) },
+       ],
+     );
+     ```
+
+   - **`apps/web/app/api/review/[token]/comments/route.ts`** (D3: rate limit)
+     - 10 comments per hour per token, DB-based count check returning 429
+
+   - **`apps/web/app/api/projects/[id]/share/route.ts`** (D4: token limit)
+     - Max 5 active (non-expired) review tokens per project, returns 409
+
+   - **`apps/web/supabase/migrations/032_missing_rls_policies.sql`** (D1: migration — NEW FILE)
+     - datasets UPDATE policy (owner via projects FK)
+     - compilations UPDATE + DELETE policies (owner via projects FK)
+     - review_comments INSERT deny policy (`WITH CHECK (false)` — service-role only)
+     - citations unique constraint `(project_id, cite_key)` for C1 upsert prerequisite
+     - Applied via Supabase MCP — security advisors returned clean
+
+   - **`apps/web/tests/security/rls.test.ts`** (D2: complete rewrite)
+     - Per-user Supabase clients via HS256 JWT signing using Node.js `createHmac`
+     - Tests: project/section/citation/dataset/compilation/licence isolation
+     - Creates real auth users via `adminClient.auth.admin.createUser()`
+     - `describeWithJwt` skip pattern when `SUPABASE_JWT_SECRET` unavailable
+     - Proper `afterAll` cleanup in reverse dependency order
+
+   - **`apps/web/components/viewer/pdf-viewer.tsx`** (E2: lazy thumbnails)
+     - Added `LazyThumbnail` sub-component with IntersectionObserver (200px rootMargin)
+     - Placeholder skeleton `<div className="h-[102px] w-[72px] rounded bg-[#E8E8E8]" />` for off-screen thumbnails
+     - Added `useRef` and `useEffect` to imports
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (E1 + lint fixes)
+     - MermaidEditor converted from static import to `next/dynamic` with `ssr: false`
+     - Removed unused eslint-disable directive, DeleteProjectButton import (via agent), ExportMenu `currentPhase` prop (via agent)
+
+   - **18 lint-fixed files** (via 3 parallel agents):
+     - `projects/page.tsx`: removed unused `DeleteProjectButton` import
+     - `analyses/plan/route.ts`: removed unused `PlannedAnalysis` import
+     - `export/docx/route.ts`: removed `_warnings` destructuring entirely
+     - `refine/route.ts`: removed dead `_streamCompleted` variable and all assignments
+     - `environment-fold.ts`: added eslint-disable comment for `_to` (required by callback signature)
+     - `latex-editor.tsx`: added eslint-disable comment for intentionally dep-less useEffect
+     - `hero-3d-scene.tsx`: removed unused `roundRect` function
+     - `glass-sidebar.tsx`: removed unused `X` import from lucide-react
+     - `analysis-wizard.tsx`: removed unused `AnalysisType` import
+     - `citation-search-dialog.tsx`: removed unused `cn` import
+     - `dataset-upload.tsx`: removed unused `ColumnPreview` interface
+     - `export-menu.tsx`: removed entire unused `currentPhase` prop + updated 2 call sites
+     - `figure-gallery.tsx`: added `aria-label` to 3 Lucide `Image` SVG icons
+     - `pubmed.ts`: removed unused `stripDoiField` import
+     - `checker.ts`: removed unused `createAdminSupabaseClient` import
+     - `parse-log.ts`: removed unused `isFatalError` function AND `FATAL_ERROR_PATTERNS` array
+     - `thesis-completion.tsx`: removed `currentPhase` prop from ExportMenu usage
+     - `validate.ts`: loop variable fix (count-based instead of unused iterator)
+
+   - **Deleted files** (A2):
+     - `components/project/phase-stepper.tsx` (replaced by PipelineTimeline)
+     - `components/layout/app-sidebar.tsx` (replaced by glass-sidebar.tsx)
+
+   - **`docs/Mitigation_implementation.md`**: Added Phase 11 section with all 14 implemented items, 5 skipped items, and verification results
+
+4. Errors and Fixes:
+   - **validate.ts concurrent modification**: Lint agent modified the file while I was editing → "File has been modified since read" error. Fixed by re-reading the file before applying the brace-checking fix.
+   - **jose dependency missing**: `rls.test.ts` initially imported `jose` for JWT signing → `TS2307: Cannot find module 'jose'`. Fixed by replacing with Node.js built-in `crypto.createHmac("sha256", ...)` for HS256 signing. Also changed `createUserClient` from async to sync (removed `await` at call sites).
+   - **5 residual lint warnings after agents**: `_warnings`, `_streamCompleted`, `_to`, `FATAL_ERROR_PATTERNS`, `_` all still flagged despite underscore prefix. Fixed individually: removed dead destructuring (`_warnings` → just `{ chapterFiles }`), removed dead variable entirely (`_streamCompleted`), added eslint-disable comment (`_to`), removed unused constant (`FATAL_ERROR_PATTERNS`), converted to count-based loop (`_` iterator).
+   - **pnpm test from root failed**: No package.json at project root → ran from `apps/web/` directory instead.
+   - **npx tsc not found**: Used `pnpm exec tsc` instead.
+
+5. Problem Solving:
+   - **Parallel execution**: Launched 3 lint-fix agents simultaneously to cover 18 files, while concurrently reading files needed for Groups B-E
+   - **Agent 3 (batch 3) went beyond plan**: Removed `currentPhase` prop entirely from ExportMenu rather than just prefixing — this was correct since the prop was dead code, but modified 2 additional call sites in LOCKED files (approved for lint-only changes)
+   - **figure-gallery.tsx deviation from plan**: Plan said "Add `alt` prop" but the `Image` components were Lucide SVG icons, not Next.js `<Image>`. Agent correctly used `aria-label` instead.
+   - **Citation column names**: Used `provenance_tier` (matching existing code in approve/route.ts line 361) rather than plan's `tier` field name
+
+6. All User Messages:
+   - **Message 1**: "Implement the following plan: # Phase 11: Cleanup and Testing — Implementation Plan [full plan with all groups A-E, implementation order, verification steps]"
+   - **Message 2** (current): "Now realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 11 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues. Think ultra hard. Your task is to create a detailed summary..."
+
+7. Pending Tasks:
+   - **Consistency check**: Read and cross-reference `docs/REVIEW.md`, `docs/DECISIONS.md`, `docs/Mitigation_plan.md`, `docs/Mitigation_implementation.md` against all Phase 11 changes for correctness, logical fallacies, redundancies, and other issues. This was explicitly requested but not yet performed.
+   - **Potential issues to verify in consistency check**:
+     - C1 citation upsert column names (`provenance_tier`, `source`, `source_id`, `title`, `resolved`, `resolved_at`) must match actual schema
+     - D1 review_comments INSERT deny policy (`WITH CHECK (false)`) must not block any legitimate browser-client INSERT path
+     - RLS test `users` table insert with explicit `id` must match schema expectations
+     - figure-gallery `aria-label` vs `alt` deviation from plan should be noted
+
+8. Current Work:
+   All Phase 11 implementation tasks are complete. The final verification passed:
+   - **Lint**: 0 warnings (down from 19)
+   - **TypeScript**: 0 errors  
+   - **Tests**: 329 passing across 32 files (5 new)
+   - **Security advisors**: Clean
+   - **Mitigation_implementation.md**: Updated with Phase 11 section
+
+9. Optional Next Step:
+   The user explicitly requested: **"Now realign to the Review, Discussion, Mitigation_plan, Mitigation_implementation.md files in /docs/ and check all the changes made in phase 11 for consistency, correctness, errors, logical fallacies, redundancies and other logic issues."**
+   
+   This requires reading `docs/REVIEW.md`, `docs/DECISIONS.md`, `docs/Mitigation_plan.md`, and `docs/Mitigation_implementation.md`, then cross-referencing every Phase 11 change against these source documents to identify any inconsistencies, correctness issues, logical fallacies, or redundancies. This has not yet been performed and is the immediate next step.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+now commit and push this , watch the CI
