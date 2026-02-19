@@ -2,58 +2,117 @@
 
 profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
+  #include <abstractions/nameservice>
 
-  # Allow R runtime (R's /usr/bin/R is a bash script that calls
-  # /usr/lib/R/bin/R which calls /usr/lib/R/bin/exec/R — all need ix)
-  /usr/lib/R/** mrix,
-  /usr/local/lib/R/** mrix,
-  /usr/share/R/** r,
-  /usr/bin/R ix,
-  /usr/bin/Rscript ix,
-
-  # Allow Plumber app
-  /app/** r,
-  /app/plumber.R r,
-
-  # Temp directory (mapped via tmpfs)
-  /tmp/** rwk,
-
-  # Allow shell execution (R's /usr/bin/R is a bash wrapper script)
+  # ── Shell access (R's /usr/bin/R is a bash wrapper script) ──
   /bin/sh rix,
   /bin/bash rix,
   /bin/dash rix,
   /usr/bin/env rix,
+  /usr/bin/which rix,
+  /usr/bin/uname rix,
+  /usr/bin/dirname rix,
+  /usr/bin/basename rix,
+  /usr/bin/cat rix,
+  /usr/bin/sed rix,
+  /usr/bin/grep rix,
+  /usr/bin/id rix,
+  /usr/bin/locale rix,
+  /usr/bin/tput rix,
+  /usr/bin/stty rix,
 
-  # Deny dangerous executables
-  deny /usr/bin/python* x,
-  deny /usr/bin/perl x,
-  deny /usr/bin/wget x,
+  # ── R runtime ──
+  # /usr/bin/R is a bash script → calls /usr/lib/R/bin/R → calls /usr/lib/R/bin/exec/R
+  /usr/bin/R rix,
+  /usr/bin/Rscript rix,
+  /usr/lib/R/** mrix,
+  /usr/local/lib/R/** mrix,
+  /usr/share/R/** r,
 
-  # Allow curl ONLY for health check (container-internal)
+  # R configuration
+  /etc/R/** r,
+
+  # ── Installed R packages (site-library) ──
+  /usr/local/lib/R/site-library/** mrix,
+
+  # ── Shared libraries (libc, libm, libpng, libcurl, etc.) ──
+  /lib/** mr,
+  /lib/x86_64-linux-gnu/** mr,
+  /usr/lib/x86_64-linux-gnu/** mr,
+  /etc/ld.so.cache r,
+  /etc/ld.so.preload r,
+
+  # ── Plumber application ──
+  /app/** r,
+  /app/plumber.R r,
+
+  # ── Temp directory (mapped via tmpfs) ──
+  /tmp/** rwk,
+
+  # ── /proc filesystem (R queries system info) ──
+  @{PROC}/meminfo r,
+  @{PROC}/cpuinfo r,
+  @{PROC}/stat r,
+  @{PROC}/loadavg r,
+  @{PROC}/self/status r,
+  @{PROC}/self/maps r,
+  @{PROC}/self/exe r,
+  @{PROC}/self/fd/ r,
+  @{PROC}/self/fd/** r,
+  @{PROC}/self/auxv r,
+  @{PROC}/self/mountinfo r,
+  @{PROC}/self/cgroup r,
+  @{PROC}/sys/vm/overcommit_memory r,
+
+  # ── Fonts (required by ggplot2/graphics) ──
+  /etc/fonts/** r,
+  /usr/share/fonts/** r,
+  /usr/share/fontconfig/** r,
+  /var/cache/fontconfig/** rw,
+
+  # ── Locale and timezone ──
+  /usr/lib/locale/** r,
+  /usr/share/locale/** r,
+  /usr/share/zoneinfo/** r,
+  /usr/share/i18n/** r,
+  /etc/localtime r,
+  /etc/timezone r,
+  /etc/default/locale r,
+
+  # ── SSL certificates (for HTTPS if needed) ──
+  /etc/ssl/** r,
+  /usr/share/ca-certificates/** r,
+  /etc/ca-certificates/** r,
+
+  # ── Device files ──
+  /dev/shm/** rw,
+  /dev/tty rw,
+
+  # ── Curl (for healthcheck) ──
   /usr/bin/curl Cx -> healthcheck,
   profile healthcheck {
     #include <abstractions/base>
     #include <abstractions/nameservice>
     network inet stream,
+    network inet6 stream,
     /usr/bin/curl mr,
+    /etc/ssl/** r,
+    /usr/share/ca-certificates/** r,
   }
 
-  # Network access — HTTP server on 8787
+  # ── Network — HTTP server on 8787 ──
   network inet stream,
   network inet6 stream,
 
-  # Deny raw network access
+  # ── Deny dangerous operations ──
+  deny /usr/bin/python* x,
+  deny /usr/bin/perl x,
+  deny /usr/bin/wget x,
   deny network raw,
   deny network packet,
-
-  # Deny mount/umount
   deny mount,
   deny umount,
   deny pivot_root,
-
-  # Deny ptrace
   deny ptrace,
-
-  # Deny kernel module loading
   deny @{PROC}/sys/kernel/** w,
 }
