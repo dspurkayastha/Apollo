@@ -2461,3 +2461,23 @@ root@hetzner-sciscribe:/opt/apollo/docker# dmesg | grep apparmor | grep apollo-r
 [24637.270023] audit: type=1400 audit(1771528895.939:74): apparmor="ALLOWED" operation="exec" profile="apollo-r-plumber" name="/usr/bin/dash" pid=56025 comm="R" requested_mask="x" denied_mask="x" fsuid=0 ouid=0 target="apollo-r-plumber//null-/usr/bin/dash"
 [24644.296386] audit: type=1400 audit(1771528902.963:79): apparmor="ALLOWED" operation="open" profile="apollo-r-plumber" name="/proc/1/loginuid" pid=55948 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
 root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 1016 bytes | 254.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   f39cf87..2cc8856  main       -> origin/main
+Updating f39cf87..2cc8856
+Fast-forward
+ docker/apparmor-r-plumber | 29 ++++++++++++++++++++++++-----
+ 1 file changed, 24 insertions(+), 5 deletions(-)
+apparmor_parser: Regex grouping error: Unclosed grouping or character class, expecting close }
+apparmor_parser: Unable to parse input line '/usr/bin/['
+ERROR processing regexs for profile apollo-r-plumber, failed to load
+root@hetzner-sciscribe:/opt/apollo#

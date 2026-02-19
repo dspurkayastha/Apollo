@@ -392,3 +392,11 @@ root@hetzner-sciscribe:/opt/apollo/docker# dmesg | grep apparmor | grep apollo-r
 [24271.892694] audit: type=1400 audit(1771528530.549:56): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="apollo-r-plumber//healthcheck" pid=55391 comm="apparmor_parser"
 [24283.225026] audit: type=1400 audit(1771528541.881:57): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/dev/tty" pid=55611 comm="R" reques...
 
+### Prompt 51
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remo...
+

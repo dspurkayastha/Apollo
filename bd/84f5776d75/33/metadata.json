@@ -3,27 +3,27 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "bf398ed3-5bdc-4f8c-bc81-7bcee5b7cc92",
   "strategy": "manual-commit",
-  "created_at": "2026-02-19T19:24:57.80545Z",
+  "created_at": "2026-02-19T19:27:38.890638Z",
   "branch": "main",
   "checkpoints_count": 1,
   "files_touched": [
     "docker/apparmor-r-plumber"
   ],
   "agent": "Claude Code",
-  "transcript_identifier_at_start": "270c2a49-15c0-45f0-97dc-822e26a8849c",
-  "checkpoint_transcript_start": 2145,
-  "transcript_lines_at_start": 2145,
+  "transcript_identifier_at_start": "df7a8c47-1858-4bb6-8f6c-7594d91a71f8",
+  "checkpoint_transcript_start": 2171,
+  "transcript_lines_at_start": 2171,
   "token_usage": {
-    "input_tokens": 7,
-    "cache_creation_tokens": 6467,
-    "cache_read_tokens": 643085,
-    "output_tokens": 29,
-    "api_call_count": 4
+    "input_tokens": 4,
+    "cache_creation_tokens": 1075,
+    "cache_read_tokens": 495524,
+    "output_tokens": 28,
+    "api_call_count": 3
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-19T19:24:55.126506Z",
+    "calculated_at": "2026-02-19T19:27:36.194911Z",
     "agent_lines": 0,
-    "human_added": 82,
+    "human_added": 81,
     "human_modified": 24,
     "human_removed": 0,
     "total_committed": 105,
