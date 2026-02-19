@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 204,
+  "checkpoints_count": 202,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -566,10 +566,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 113691,
-    "cache_creation_tokens": 8015498,
-    "cache_read_tokens": 280439836,
-    "output_tokens": 575042,
-    "api_call_count": 2930
+    "input_tokens": 108812,
+    "cache_creation_tokens": 7925590,
+    "cache_read_tokens": 274826050,
+    "output_tokens": 571629,
+    "api_call_count": 2852
   }
 }

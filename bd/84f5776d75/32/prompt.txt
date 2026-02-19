@@ -745,3 +745,11 @@ fix all the bugs, ask questions as necessary
 ---
 
 commit and push to remote , keep an eye on the CI. Any migrations etc, docker files etc left  to push anywhere?
+
+---
+
+now start on phase 11. realign to the Review ,Deiscussion, Mitigation_plan, Mitigation_implementation.md files inside /docs/ folder and create the plan for implementation of phase 11. While creating the plan, be sure to check for logical errors, possible code errors etc. Opt for proper fixes, never stopgap measures. Ask detailed clarifying questions as required. Consider my inputs important, but you may suggest better options.
+
+---
+
+[Request interrupted by user for tool use]
