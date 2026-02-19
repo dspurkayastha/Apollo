@@ -1,6 +1,8 @@
 # Apollo Production Deployment Guide
 
-Step-by-step guide for deploying Apollo to production at `apollo.sciscribesolutions.com` on Hetzner CX23 via Coolify.
+Step-by-step guide for deploying Apollo to production at `apollo.sciscribesolutions.com` on Hetzner CX23.
+
+**Architecture**: Next.js runs natively on the host (not containerised) because it calls `docker run` for LaTeX compilation. Caddy handles reverse proxy + auto-SSL. Docker Compose manages LaTeX and R Plumber services.
 
 ---
 
@@ -9,7 +11,7 @@ Step-by-step guide for deploying Apollo to production at `apollo.sciscribesoluti
 - Hetzner CX23 VPS (2 vCPU, 4 GB RAM, 40 GB SSD) with Ubuntu 22.04+
 - Domain `sciscribesolutions.com` with DNS access
 - Accounts created (free tiers are fine to start):
-  - [Supabase](https://supabase.com) (database + auth policies)
+  - [Supabase](https://supabase.com) (database + auth + RLS)
   - [Clerk](https://clerk.com) (authentication)
   - [Cloudflare](https://cloudflare.com) (R2 storage + optional DNS)
   - [Anthropic](https://console.anthropic.com) (Claude API)
@@ -21,7 +23,7 @@ Step-by-step guide for deploying Apollo to production at `apollo.sciscribesoluti
 
 ---
 
-## Step 1: Reactivate Domain + Hetzner VPS (do in parallel)
+## Step 1: Reactivate Domain + Provision Hetzner VPS (do in parallel)
 
 These two tasks have no dependency on each other --- start both simultaneously.
 
@@ -38,37 +40,16 @@ If `sciscribesolutions.com` has been dormant for 6 months:
 
 1. Go to [Hetzner Cloud Console](https://console.hetzner.cloud)
 2. Create a new server:
-   - **Location**: Ashburn (US) or Falkenstein (EU) --- pick closest to your users
+   - **Location**: Falkenstein (EU) or Ashburn (US) --- pick closest to your users (Indian users: Falkenstein has lower latency than Ashburn)
    - **Image**: Ubuntu 22.04
-   - **Type**: CX23 (2 vCPU, 4 GB RAM, 40 GB SSD) --- ~€4.50/month
+   - **Type**: CX23 (2 vCPU, 4 GB RAM, 40 GB SSD) --- ~EUR 4.50/month
    - **SSH key**: Add your public key (or use password)
 3. Click **Create & Buy Now**
 4. **Note the IP address** --- you need this for the next step
 
-### 1c. Initial server setup
-
-```bash
-# SSH into your new VPS
-ssh root@<vps-ip>
-
-# Update system
-apt update && apt upgrade -y
-
-# Install Docker
-curl -fsSL https://get.docker.com | sh
-systemctl enable docker
-
-# Install Docker Compose plugin
-apt install -y docker-compose-plugin
-
-# Verify
-docker --version    # Should be 24+
-docker compose version  # Should be v2+
-```
-
 ---
 
-## Step 2: DNS + Coolify (depends on Step 1)
+## Step 2: DNS + VPS Setup (depends on Step 1)
 
 Now that you have the VPS IP and the domain is active, wire them together.
 
@@ -96,33 +77,51 @@ dig apollo.sciscribesolutions.com +short
 # Other providers may take up to 30 minutes
 ```
 
-### 2c. Install Coolify on VPS
+### 2c. Install server dependencies
 
 ```bash
 # SSH into VPS
 ssh root@<vps-ip>
 
-curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
-```
+# Update system
+apt update && apt upgrade -y
 
-After installation:
-1. Open `http://<vps-ip>:8000` in your browser
-2. Create your admin account
-3. Complete the initial setup wizard
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+systemctl enable docker
 
-### 2d. Configure Coolify domain
+# Install Docker Compose plugin
+apt install -y docker-compose-plugin
 
-In Coolify dashboard:
-1. Go to **Settings** > **General**
-2. Set your instance FQDN to `coolify.sciscribesolutions.com` (or just use `http://<vps-ip>:8000`)
-3. SSL is auto-configured when you add the app domain later in Step 12
+# Install Node.js 20 LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
 
-### 2e. (Optional) Add www redirect
+# Install pnpm
+npm install -g pnpm
 
-```
-Type: CNAME
-Name: www.apollo
-Value: apollo.sciscribesolutions.com
+# Install PM2 (process manager)
+npm install -g pm2
+
+# Install Caddy (reverse proxy + auto-SSL)
+apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+apt update && apt install -y caddy
+
+# Set up firewall (only allow SSH, HTTP, HTTPS)
+ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
+
+# Verify installations
+docker --version       # Should be 24+
+docker compose version # Should be v2+
+node --version         # Should be v20.x
+pnpm --version         # Should be 9+
+pm2 --version          # Should be 5+
+caddy version          # Should be 2.x
 ```
 
 ---
@@ -144,14 +143,14 @@ You have 32 migrations (001--032). Apply them in order:
 **Option A: Via Supabase CLI** (recommended)
 ```bash
 # Install Supabase CLI
-npm install -g supabase
+npx supabase --version   # Uses npx, no global install needed
 
 # Link to your project
-cd Apollo/apps/web
-supabase link --project-ref <your-project-ref>
+cd /opt/apollo/apps/web
+npx supabase link --project-ref <your-project-ref>
 
 # Push all migrations
-supabase db push
+npx supabase db push
 ```
 
 **Option B: Via SQL Editor**
@@ -174,9 +173,6 @@ From Supabase Dashboard > Settings > API:
 - `NEXT_PUBLIC_SUPABASE_URL` = Project URL (e.g., `https://xxxxx.supabase.co`)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = anon/public key
 - `SUPABASE_SERVICE_ROLE_KEY` = service_role key (**keep secret**)
-
-From Settings > Database:
-- Note the JWT Secret (needed for RLS tests, not for app)
 
 ---
 
@@ -218,6 +214,7 @@ In Clerk Dashboard > Webhooks:
 From Clerk Dashboard > API Keys:
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` = Publishable key (starts with `pk_live_`)
 - `CLERK_SECRET_KEY` = Secret key (starts with `sk_live_`)
+- `CLERK_WEBHOOK_SECRET` = Webhook signing secret from Step 4d
 
 ### 4f. Migrate from dev to prod
 
@@ -234,7 +231,7 @@ If you have users in development:
 
 1. Go to Cloudflare Dashboard > R2
 2. Click **Create bucket**
-3. Name: `apollo-uploads`
+3. Name: `apollo-files`
 4. Location hint: Choose closest region
 
 ### 5b. Create API token
@@ -242,7 +239,7 @@ If you have users in development:
 1. Go to R2 > Manage R2 API Tokens
 2. Click **Create API token**
 3. Permissions: **Object Read & Write**
-4. Specify bucket: `apollo-uploads`
+4. Specify bucket: `apollo-files`
 5. TTL: No expiry (or set a long expiry and rotate)
 
 ### 5c. Collect credentials
@@ -250,7 +247,7 @@ If you have users in development:
 - `R2_ACCOUNT_ID` = Your Cloudflare Account ID (top-right of dashboard)
 - `R2_ACCESS_KEY_ID` = Access Key ID from the API token
 - `R2_SECRET_ACCESS_KEY` = Secret Access Key from the API token
-- `R2_BUCKET_NAME` = `apollo-uploads`
+- `R2_BUCKET_NAME` = `apollo-files`
 
 ### 5d. Configure CORS (for client-side uploads)
 
@@ -322,10 +319,16 @@ From Inngest Dashboard > Manage > Keys:
 
 ### 8c. Configure event source
 
-After deployment, Inngest needs to know your app URL:
+After deployment (Step 13), Inngest needs to know your app URL:
 1. Go to Inngest Dashboard > Apps
 2. Set the app URL to: `https://apollo.sciscribesolutions.com/api/inngest`
-3. Inngest will auto-discover your functions
+3. Inngest will auto-discover your functions (6 total):
+   - `thesis-phase-workflow` --- orchestrates phase transitions
+   - `ai-generate-section` --- AI content generation (concurrency: 5)
+   - `analysis-runner` --- R statistical analyses
+   - `stale-cleanup` --- cleans stale compilations (every 5 min)
+   - `licence-expiry-cron` --- sweeps expired licences (daily 2 AM)
+   - `account-deletion-cron` --- purges deleted accounts (daily 3 AM)
 
 ---
 
@@ -421,13 +424,13 @@ Dashboard > Developers > Webhooks:
 
 ## Step 11: Build and Deploy Docker Containers
 
-### 11a. Build images on VPS
+### 11a. Clone repository and build images
 
 ```bash
 # SSH into VPS
 ssh root@<vps-ip>
 
-# Clone the repo (or pull latest)
+# Clone the repo (if private, add a deploy key first: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys)
 cd /opt
 git clone <your-repo-url> apollo
 cd apollo
@@ -476,7 +479,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 docker ps
 # Should show apollo-latex (sleeping) and apollo-r-plumber (healthy)
 
-# Test R Plumber health
+# Test R Plumber health (port 8787 is mapped to localhost)
 curl http://localhost:8787/health
 # Should return {"status":"ok","r_version":"4.4.0",...}
 
@@ -487,38 +490,47 @@ docker run --rm apollo-latex pdflatex --version
 
 ---
 
-## Step 12: Deploy Next.js App via Coolify
+## Step 12: Deploy Next.js App
 
-### 12a. Add Git repository to Coolify
+Next.js runs directly on the host (not in Docker) because it needs to call `docker run` for LaTeX compilation and access the Docker socket. We use `next start` (not the standalone server.js) because `compile.ts` resolves template and seccomp paths relative to `process.cwd()` --- standalone mode overrides cwd and breaks these paths.
 
-1. Open Coolify dashboard (`http://<vps-ip>:8000`)
-2. Go to **Projects** > **Add New Resource** > **Application**
-3. Source: **Git Repository** (public or add deploy key for private)
-4. Repository URL: `<your-repo-url>`
-5. Branch: `main`
-6. Build Pack: **Nixpacks** (auto-detects Next.js)
+### 12a. Update next.config.ts for production
 
-### 12b. Configure build settings
+Before building, update the Supabase image hostname to your **production** project:
 
-In the application settings:
-- **Base Directory**: `apps/web`
-- **Build Command**: `pnpm install && pnpm build`
-- **Start Command**: `node .next/standalone/server.js`
-- **Port**: `3000`
+```bash
+cd /opt/apollo/apps/web
+nano next.config.ts
+```
 
-### 12c. Set domain
+In the `images.remotePatterns` array, replace the dev hostname:
+```typescript
+// Change this:
+hostname: "ugkqdopvsmtzsqvnnmck.supabase.co",
+// To your production project:
+hostname: "<your-prod-project-ref>.supabase.co",
+```
 
-In Coolify > Application > Domain:
-1. Add domain: `apollo.sciscribesolutions.com`
-2. Enable HTTPS (Let's Encrypt auto-configured by Coolify)
-3. Force HTTPS redirect: Yes
+### 12b. Install dependencies
 
-### 12d. Set environment variables
+```bash
+cd /opt/apollo/apps/web
+pnpm install --frozen-lockfile
+```
 
-In Coolify > Application > Environment Variables, add ALL of these:
+### 12c. Set environment variables
+
+Create and edit `/opt/apollo/apps/web/.env.local`:
+
+```bash
+cp .env.example .env.local
+nano .env.local
+```
+
+Fill in ALL production values:
 
 ```env
-# === REQUIRED ===
+# === REQUIRED (app fails to start without these) ===
 
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
@@ -528,6 +540,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 # Clerk
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_SECRET_KEY=sk_live_...
+CLERK_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
@@ -540,7 +553,20 @@ ANTHROPIC_API_KEY=sk-ant-...
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
-R2_BUCKET_NAME=apollo-uploads
+R2_BUCKET_NAME=apollo-files
+
+# App URL (used for Stripe checkout redirects and review share links)
+NEXT_PUBLIC_APP_URL=https://apollo.sciscribesolutions.com
+
+# === REQUIRED FOR PRODUCTION FEATURES ===
+
+# LaTeX
+LATEX_COMPILE_MODE=docker
+LATEX_CONTAINER_NAME=apollo-latex
+
+# R Plumber
+R_PLUMBER_URL=http://localhost:8787
+R_PLUMBER_SECRET=<same-as-docker-env-from-step-11c>
 
 # Upstash Redis
 UPSTASH_REDIS_REST_URL=https://...upstash.io
@@ -550,22 +576,14 @@ UPSTASH_REDIS_REST_TOKEN=...
 INNGEST_EVENT_KEY=...
 INNGEST_SIGNING_KEY=...
 
-# LaTeX
-LATEX_COMPILE_MODE=docker
-LATEX_CONTAINER_NAME=apollo-latex
-
-# R Plumber
-R_PLUMBER_URL=http://localhost:8787
-R_PLUMBER_SECRET=<same-as-docker-env>
-
-# Razorpay
+# Razorpay (INR payments)
 RAZORPAY_KEY_ID=rzp_live_...
 RAZORPAY_KEY_SECRET=...
 RAZORPAY_WEBHOOK_SECRET=...
 RAZORPAY_PLAN_ID_STUDENT_MONTHLY=plan_...
 RAZORPAY_PLAN_ID_ADDON=plan_...
 
-# Stripe
+# Stripe (USD payments)
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_ID_STUDENT_ONETIME=price_...
@@ -575,55 +593,145 @@ STRIPE_PRICE_ID_ADDON=price_...
 
 # === OPTIONAL ===
 
-# Sentry
+# Sentry error tracking
 # SENTRY_DSN=https://...@sentry.io/...
 # NEXT_PUBLIC_SENTRY_DSN=https://...@sentry.io/...
 
-# PostHog
+# PostHog analytics
 # NEXT_PUBLIC_POSTHOG_KEY=phc_...
 
-# CrossRef (recommended for faster lookups)
+# CrossRef (recommended for faster DOI lookups)
 # CROSSREF_MAILTO=admin@sciscribesolutions.com
 
 # PubMed (10 req/s instead of 3 req/s)
 # PUBMED_API_KEY=...
 ```
 
-### 12e. Deploy
+**Important**: Do NOT include `DEV_LICENCE_BYPASS=true` in production.
 
-1. Click **Deploy** in Coolify
-2. Watch the build logs (first build takes 3-5 minutes)
-3. Coolify auto-configures:
-   - SSL certificate via Let's Encrypt
-   - Reverse proxy (Traefik) from port 443 to 3000
-   - Auto-restart on crash
-   - Git push auto-deploy
+### 12d. Build
+
+`NEXT_PUBLIC_*` vars are baked in at build time. Server-side vars are read at runtime from `.env.local`. The build will fail fast if any required env vars are missing (validated by `lib/env.ts`).
+
+```bash
+cd /opt/apollo/apps/web
+pnpm build
+```
+
+### 12e. Create PM2 ecosystem config
+
+```bash
+cat > /opt/apollo/apps/web/ecosystem.config.js << 'EOF'
+module.exports = {
+  apps: [{
+    name: "apollo-web",
+    script: "node_modules/.bin/next",
+    args: "start -H 127.0.0.1 -p 3000",
+    cwd: "/opt/apollo/apps/web",
+    env: {
+      NODE_ENV: "production",
+    },
+  }],
+};
+EOF
+```
+
+**Why `next start` instead of standalone**: The standalone `server.js` calls `process.chdir(__dirname)`, which overrides the working directory to `.next/standalone/`. This breaks `compile.ts` which resolves template and Docker seccomp paths relative to `process.cwd()` (expects `apps/web/` so `../../templates` reaches the repo root). `next start` preserves the correct working directory.
+
+**Why `-H 127.0.0.1`**: Next.js only accepts connections from localhost. Caddy handles all external traffic and proxies to port 3000.
+
+### 12f. Start the app
+
+```bash
+cd /opt/apollo/apps/web
+pm2 start ecosystem.config.js
+
+# Save PM2 process list (auto-restart on reboot)
+pm2 save
+pm2 startup
+# Run the command PM2 outputs to enable boot startup
+```
+
+### 12g. Verify Next.js is running
+
+```bash
+# Direct test (from VPS)
+curl http://127.0.0.1:3000/api/health
+# Should return:
+# {"status":"ok","timestamp":"...","version":"0.1.0","checks":{"r_plumber":"ok","docker":"ok"}}
+
+# Check PM2 status
+pm2 status
+# Should show apollo-web as "online"
+```
 
 ---
 
-## Step 13: Post-Deployment Verification
+## Step 13: Configure Caddy (Reverse Proxy + SSL)
 
-### 13a. Basic health checks
+Caddy automatically obtains and renews Let's Encrypt SSL certificates.
+
+### 13a. Configure Caddyfile
 
 ```bash
-# App health
+cat > /etc/caddy/Caddyfile << 'EOF'
+apollo.sciscribesolutions.com {
+    reverse_proxy localhost:3000
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+}
+EOF
+```
+
+### 13b. Restart Caddy
+
+```bash
+sudo systemctl restart caddy
+sudo systemctl enable caddy
+
+# Verify SSL certificate was obtained
+curl -I https://apollo.sciscribesolutions.com
+# Should show HTTP/2 200 with security headers
+```
+
+Caddy automatically:
+- Obtains Let's Encrypt SSL certificate
+- Redirects HTTP to HTTPS
+- Renews certificates before expiry
+
+---
+
+## Step 14: Post-Deployment Verification
+
+### 14a. Basic health checks
+
+```bash
+# App health (via Caddy/SSL)
 curl https://apollo.sciscribesolutions.com/api/health
-# Should return {"status":"ok","dependencies":{"r_plumber":"ok","docker":"ok"}}
+# Should return:
+# {"status":"ok","timestamp":"...","version":"0.1.0","checks":{"r_plumber":"ok","docker":"ok"}}
 
 # SSL check
 curl -I https://apollo.sciscribesolutions.com
 # Should show HTTP/2 200 with security headers
 ```
 
-### 13b. Run deploy conformance script
+### 14b. Run deploy conformance script
 
 ```bash
 cd /opt/apollo
 APOLLO_DOMAIN=apollo.sciscribesolutions.com bash scripts/deploy-conformance.sh
-# All 12 checks should PASS (AppArmor may WARN on first run)
+# All checks should PASS (AppArmor may WARN on first run)
 ```
 
-### 13c. Test critical flows
+### 14c. Test critical flows
 
 1. **Sign up** --- go to `https://apollo.sciscribesolutions.com/sign-up`, create account
 2. **Create project** --- verify Supabase write works
@@ -633,7 +741,7 @@ APOLLO_DOMAIN=apollo.sciscribesolutions.com bash scripts/deploy-conformance.sh
 6. **Upload dataset** --- verify R2 storage works
 7. **Run analysis** --- verify R Plumber statistical analysis
 
-### 13d. Test webhooks
+### 14d. Test webhooks
 
 **Razorpay** (test mode first):
 ```bash
@@ -651,16 +759,22 @@ stripe listen --forward-to https://apollo.sciscribesolutions.com/api/webhooks/st
 - Create a test user in Clerk dashboard
 - Verify `user.created` webhook fires and user appears in Supabase
 
-### 13e. Register Inngest app
+### 14e. Register Inngest app
 
 1. Go to Inngest Dashboard > Apps
 2. Your app should auto-register when the first event is sent
 3. If not, manually add: `https://apollo.sciscribesolutions.com/api/inngest`
-4. Verify functions are discovered (should show: `thesis/section.generate`, `stale-cleanup`, `licence-expiry-cron`, `account-deletion-cron`, `analysis/run`)
+4. Verify all 6 functions are discovered:
+   - `thesis-phase-workflow`
+   - `ai-generate-section`
+   - `analysis-runner`
+   - `stale-cleanup`
+   - `licence-expiry-cron`
+   - `account-deletion-cron`
 
 ---
 
-## Step 14: Load Testing (Optional but Recommended)
+## Step 15: Load Testing (Optional but Recommended)
 
 ```bash
 # Install k6
@@ -669,7 +783,7 @@ brew install k6  # macOS
 
 # Run against production
 cd /opt/apollo
-APOLLO_BASE_URL=https://apollo.sciscribesolutions.com k6 run scripts/load-test.js
+BASE_URL=https://apollo.sciscribesolutions.com k6 run scripts/load-test.js
 ```
 
 Expected capacity (CX23):
@@ -679,18 +793,18 @@ Expected capacity (CX23):
 
 ---
 
-## Step 15: Beta Launch Checklist
+## Step 16: Beta Launch Checklist
 
 Before sharing with beta testers:
 
-- [ ] All health checks passing
+- [ ] All health checks passing (`/api/health` returns `"status":"ok"`)
 - [ ] SSL certificate valid (verify in browser)
 - [ ] Sign up flow works end-to-end
 - [ ] At least one complete thesis generation test (all 11 phases)
 - [ ] PDF compilation produces correct output
 - [ ] Payment flow works (test mode first, then live)
 - [ ] Webhook delivery confirmed for all 3 providers (Clerk, Razorpay, Stripe)
-- [ ] Inngest functions registered and running
+- [ ] Inngest functions registered and running (6 functions)
 - [ ] Error tracking configured (Sentry) or monitoring in place
 - [ ] Backup strategy: Supabase daily backups enabled (Dashboard > Settings > Database)
 - [ ] Razorpay KYC/verification complete (required for live payments in India)
@@ -704,11 +818,54 @@ Before sharing with beta testers:
 
 1. **Keeps main site running** --- `sciscribesolutions.com` continues serving its current website
 2. **Clear brand hierarchy** --- Apollo is a product under the SciScribe Solutions umbrella
-3. **Easy SSL** --- Coolify auto-generates Let's Encrypt certs for subdomains
+3. **Easy SSL** --- Caddy auto-generates Let's Encrypt certs for the subdomain
 4. **No migration risk** --- no need to touch existing DNS records for the main domain
 5. **Professional appearance** --- `apollo.sciscribesolutions.com` is clean and memorable
 
-If you later want `apollo.sciscribesolutions.com` to be the canonical URL, you can always add a redirect from a shorter domain.
+If you later want a shorter URL, you can always add a redirect from a custom domain.
+
+---
+
+## Auto-Deploy Script
+
+Create a deploy script for easy updates:
+
+```bash
+cat > /opt/apollo/deploy.sh << 'SCRIPT'
+#!/bin/bash
+set -euo pipefail
+echo "=== Apollo Deploy ==="
+
+cd /opt/apollo
+git pull origin main
+
+# Rebuild Next.js
+cd apps/web
+pnpm install --frozen-lockfile
+pnpm build
+
+# Restart app
+pm2 restart apollo-web
+
+# Rebuild Docker images only if Dockerfiles changed
+if git diff HEAD~1 --name-only | grep -q "docker/Dockerfile"; then
+    echo "Docker images changed, rebuilding..."
+    cd /opt/apollo
+    docker build -t apollo-latex -f docker/Dockerfile.latex .
+    docker build -t apollo-r-plumber -f docker/Dockerfile.r-plumber .
+    cd docker
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+fi
+
+echo "=== Deploy complete ==="
+pm2 status
+SCRIPT
+chmod +x /opt/apollo/deploy.sh
+```
+
+Usage: `ssh root@<vps-ip> /opt/apollo/deploy.sh`
+
+Or set up a git post-receive hook for automatic deploys on push.
 
 ---
 
@@ -716,7 +873,7 @@ If you later want `apollo.sciscribesolutions.com` to be the canonical URL, you c
 
 If something goes wrong during deployment:
 
-1. **Coolify**: Click "Rollback" to previous deployment in the application dashboard
+1. **App**: `cd /opt/apollo && git checkout <previous-commit> && cd apps/web && pnpm install --frozen-lockfile && pnpm build && pm2 restart apollo-web`
 2. **Database**: Supabase point-in-time recovery (Settings > Database > Backups)
 3. **Docker**: Containers are stateless --- rebuild from Dockerfiles
 4. **DNS**: Revert the A record if the subdomain needs to be taken offline
@@ -732,20 +889,18 @@ If something goes wrong during deployment:
 
 ### Updating the app
 ```bash
-# Push to main branch --- Coolify auto-deploys
-git push origin main
+# Simple deploy
+ssh root@<vps-ip> /opt/apollo/deploy.sh
 
-# If Docker images need rebuilding (after Dockerfile changes):
+# Or manually:
 ssh root@<vps-ip>
-cd /opt/apollo
-git pull
-docker build -t apollo-latex -f docker/Dockerfile.latex .
-docker build -t apollo-r-plumber -f docker/Dockerfile.r-plumber .
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
+cd /opt/apollo && git pull
+cd apps/web && pnpm install --frozen-lockfile && pnpm build
+pm2 restart apollo-web
 ```
 
 ### Monitoring
-- **Coolify dashboard**: Application logs, deployment status, resource usage
+- **PM2**: `pm2 monit` (CPU, memory, restart count, logs)
 - **Supabase dashboard**: Database size, API requests, auth events
 - **Inngest dashboard**: Background job success/failure rates
 - **Upstash dashboard**: Redis usage, rate limit hits
