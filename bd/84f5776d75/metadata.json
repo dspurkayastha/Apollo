@@ -318,6 +318,7 @@
     "docker/seccomp-r.json",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
+    "docs/DEPLOYMENT_IMPLEMENTATION.md",
     "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
@@ -573,10 +574,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108816,
-    "cache_creation_tokens": 7926665,
-    "cache_read_tokens": 275321574,
-    "output_tokens": 571657,
-    "api_call_count": 2855
+    "input_tokens": 108824,
+    "cache_creation_tokens": 7962561,
+    "cache_read_tokens": 275480913,
+    "output_tokens": 573723,
+    "api_call_count": 2861
   }
 }

@@ -3,31 +3,32 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "bf398ed3-5bdc-4f8c-bc81-7bcee5b7cc92",
   "strategy": "manual-commit",
-  "created_at": "2026-02-19T19:27:38.890638Z",
+  "created_at": "2026-02-19T19:33:52.503244Z",
   "branch": "main",
   "checkpoints_count": 1,
   "files_touched": [
-    "docker/apparmor-r-plumber"
+    "docker/apparmor-r-plumber",
+    "docs/DEPLOYMENT_IMPLEMENTATION.md"
   ],
   "agent": "Claude Code",
-  "transcript_identifier_at_start": "df7a8c47-1858-4bb6-8f6c-7594d91a71f8",
-  "checkpoint_transcript_start": 2171,
-  "transcript_lines_at_start": 2171,
+  "transcript_identifier_at_start": "d967dd9f-fe80-4545-b985-98baec635eef",
+  "checkpoint_transcript_start": 2190,
+  "transcript_lines_at_start": 2190,
   "token_usage": {
-    "input_tokens": 4,
-    "cache_creation_tokens": 1075,
-    "cache_read_tokens": 495524,
-    "output_tokens": 28,
-    "api_call_count": 3
+    "input_tokens": 12,
+    "cache_creation_tokens": 36971,
+    "cache_read_tokens": 654863,
+    "output_tokens": 2094,
+    "api_call_count": 9
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-19T19:27:36.194911Z",
-    "agent_lines": 0,
-    "human_added": 81,
-    "human_modified": 24,
+    "calculated_at": "2026-02-19T19:33:49.709683Z",
+    "agent_lines": 553,
+    "human_added": 95,
+    "human_modified": 60,
     "human_removed": 0,
-    "total_committed": 105,
-    "agent_percentage": 0
+    "total_committed": 708,
+    "agent_percentage": 78.10734463276836
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/bf398ed3-5bdc-4f8c-bc81-7bcee5b7cc92.jsonl"
 }
