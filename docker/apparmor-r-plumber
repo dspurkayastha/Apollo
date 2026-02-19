@@ -77,6 +77,7 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   @{PROC}/self/auxv r,
   @{PROC}/self/mountinfo r,
   @{PROC}/self/cgroup r,
+  @{PROC}/version_signature r,
   @{PROC}/sys/vm/overcommit_memory r,
 
   # ── /sys filesystem (R reads CPU topology) ──
