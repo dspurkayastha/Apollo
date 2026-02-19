@@ -3,9 +3,10 @@
 profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
 
-  # Allow R runtime
-  /usr/lib/R/** mr,
-  /usr/local/lib/R/** mr,
+  # Allow R runtime (R's /usr/bin/R is a bash script that calls
+  # /usr/lib/R/bin/R which calls /usr/lib/R/bin/exec/R — all need ix)
+  /usr/lib/R/** mrix,
+  /usr/local/lib/R/** mrix,
   /usr/share/R/** r,
   /usr/bin/R ix,
   /usr/bin/Rscript ix,
