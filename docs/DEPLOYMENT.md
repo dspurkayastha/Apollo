@@ -21,53 +21,34 @@ Step-by-step guide for deploying Apollo to production at `apollo.sciscribesoluti
 
 ---
 
-## Step 1: Domain and DNS Setup
+## Step 1: Reactivate Domain + Hetzner VPS (do in parallel)
 
-### 1a. Create subdomain for Apollo
+These two tasks have no dependency on each other --- start both simultaneously.
 
-Since `sciscribesolutions.com` is already running, use a subdomain. Go to your DNS provider (likely Cloudflare or your registrar):
+### 1a. Reactivate dormant domain (while VPS provisions)
 
-```
-Type: A
-Name: apollo
-Value: <your-hetzner-vps-ip>
-TTL: 300 (5 min during setup, increase to 3600 after)
-```
+If `sciscribesolutions.com` has been dormant for 6 months:
+1. **Log into your registrar** (GoDaddy, Namecheap, Cloudflare, etc.)
+2. **Check expiry date** --- renew immediately if within 90 days. Some registrars auto-delete after expiry + 30-day grace
+3. **Check domain status** --- look for "clientHold", "serverHold", or "parked". Contact registrar support if suspended
+4. **Verify nameservers** --- confirm they still point to your DNS provider (Cloudflare, Route53, etc.). If nameservers were reset, reconfigure them
+5. **Verify the main site** --- confirm `sciscribesolutions.com` resolves and loads your existing website. The `apollo` subdomain will NOT affect it
 
-This creates `apollo.sciscribesolutions.com` pointing to your VPS.
+### 1b. Provision Hetzner VPS
 
-### 1b. Verify DNS propagation
+1. Go to [Hetzner Cloud Console](https://console.hetzner.cloud)
+2. Create a new server:
+   - **Location**: Ashburn (US) or Falkenstein (EU) --- pick closest to your users
+   - **Image**: Ubuntu 22.04
+   - **Type**: CX23 (2 vCPU, 4 GB RAM, 40 GB SSD) --- ~€4.50/month
+   - **SSH key**: Add your public key (or use password)
+3. Click **Create & Buy Now**
+4. **Note the IP address** --- you need this for the next step
 
-```bash
-dig apollo.sciscribesolutions.com +short
-# Should return your Hetzner VPS IP
-```
-
-### 1c. (Optional) Add a www redirect
-
-```
-Type: CNAME
-Name: www.apollo
-Value: apollo.sciscribesolutions.com
-```
-
-### 1d. Reactivate dormant domain
-
-If the domain has been dormant for 6 months:
-1. **Check registrar expiry** --- renew if within 30 days of expiring
-2. **Check nameservers** --- verify they point to your DNS provider (Cloudflare, Route53, etc.)
-3. **Remove any "parked" page** --- update DNS records to point to your VPS
-4. **Verify email** --- some registrars suspend domains after prolonged inactivity; check registrar dashboard for any "domain on hold" notices
-5. The main `sciscribesolutions.com` website continues working on its current server; only the `apollo` subdomain points to Hetzner
-
----
-
-## Step 2: Hetzner VPS Setup
-
-### 2a. Initial server setup
+### 1c. Initial server setup
 
 ```bash
-# SSH into your VPS
+# SSH into your new VPS
 ssh root@<vps-ip>
 
 # Update system
@@ -85,9 +66,42 @@ docker --version    # Should be 24+
 docker compose version  # Should be v2+
 ```
 
-### 2b. Install Coolify
+---
+
+## Step 2: DNS + Coolify (depends on Step 1)
+
+Now that you have the VPS IP and the domain is active, wire them together.
+
+### 2a. Create subdomain DNS record
+
+Go to your DNS provider and add:
+
+```
+Type: A
+Name: apollo
+Value: <your-hetzner-vps-ip-from-step-1b>
+TTL: 300 (5 min during setup, increase to 3600 after stable)
+```
+
+This creates `apollo.sciscribesolutions.com` pointing to your VPS.
+Your main `sciscribesolutions.com` site is completely unaffected.
+
+### 2b. Verify DNS propagation (wait 2--10 minutes)
 
 ```bash
+dig apollo.sciscribesolutions.com +short
+# Should return your Hetzner VPS IP
+
+# If using Cloudflare DNS, propagation is nearly instant
+# Other providers may take up to 30 minutes
+```
+
+### 2c. Install Coolify on VPS
+
+```bash
+# SSH into VPS
+ssh root@<vps-ip>
+
 curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
 ```
 
@@ -96,12 +110,20 @@ After installation:
 2. Create your admin account
 3. Complete the initial setup wizard
 
-### 2c. Configure Coolify domain
+### 2d. Configure Coolify domain
 
 In Coolify dashboard:
 1. Go to **Settings** > **General**
-2. Set your instance FQDN to `coolify.sciscribesolutions.com` (or use IP)
-3. Configure SSL (Coolify auto-generates Let's Encrypt certs)
+2. Set your instance FQDN to `coolify.sciscribesolutions.com` (or just use `http://<vps-ip>:8000`)
+3. SSL is auto-configured when you add the app domain later in Step 12
+
+### 2e. (Optional) Add www redirect
+
+```
+Type: CNAME
+Name: www.apollo
+Value: apollo.sciscribesolutions.com
+```
 
 ---
 
