@@ -216,3 +216,36 @@ root@hetzner-sciscribe:/opt/apollo# docker build -t apollo-latex -f docker/Docke
 [+] Building 293.2s (7/14)                                                                                                                                                                      docker:default
  => [internal] load build definition from Dockerfile.latex                                                                                                                                             ...
 
+### Prompt 31
+
+[+] Building 50.5s (15/15) FINISHED                                                                                                                                                             docker:default
+ => [internal] load build definition from Dockerfile.latex                                                                                                                                                0.0s
+ => => transferring dockerfile: 1.68kB                                                ...
+
+### Prompt 32
+
+it built successfully, now what, how to do check?
+
+### Prompt 33
+
+root@hetzner-sciscribe:/opt/apollo#  docker images | grep apollo
+WARNING: This output is designed for human readability. For machine-readable output, please use --format.
+apollo-latex:latest       b68961602ee6       2.03GB          485MB        
+apollo-r-plumber:latest   6053946bcf56       2.67GB          749MB        
+root@hetzner-sciscribe:/opt/apollo# docker run --rm apollo-latex pdflatex --version
+=== Pass 1: pdflatex ===
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (prelo...
+
+### Prompt 34
+
+root@hetzner-sciscribe:/opt/apollo#  docker run --rm --entrypoint pdflatex apollo-latex --version
+pdfTeX 3.141592653-2.6-1.40.28 (TeX Live 2025)
+kpathsea version 6.4.1
+Copyright 2025 Han The Thanh (pdfTeX) et al.
+There is NO warranty.  Redistribution of this software is
+covered by the terms of both the pdfTeX copyright and
+the Lesser GNU General Public License.
+For more information about these matters, see the file
+named COPYING and the pdfTeX source.
+Primary author of pdfTeX: Han The Thanh (pdf...
+

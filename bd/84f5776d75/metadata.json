@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 206,
+  "checkpoints_count": 203,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -299,7 +299,6 @@
     "apps/web/supabase/migrations/029_analysis_plan_columns.sql",
     "apps/web/supabase/migrations/030_privacy_compliance.sql",
     "apps/web/supabase/migrations/031_database_audit_fixes.sql",
-    "apps/web/supabase/migrations/032_missing_rls_policies.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -307,7 +306,6 @@
     "apps/web/tests/pricing/config.test.ts",
     "apps/web/tests/pricing/velocity.test.ts",
     "apps/web/tests/security/licence-gates.test.ts",
-    "apps/web/tests/security/rls.test.ts",
     "apps/web/vancouver.bst",
     "docker/Dockerfile.latex",
     "docker/Dockerfile.r-plumber",
@@ -320,8 +318,6 @@
     "docker/seccomp-r.json",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
-    "docs/DEPLOYMENT.md",
-    "docs/DEPLOYMENT_IMPLEMENTATION.md",
     "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
     "docs/REVIEW.md",
@@ -577,10 +573,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108886,
-    "cache_creation_tokens": 8092356,
-    "cache_read_tokens": 280610866,
-    "output_tokens": 575249,
-    "api_call_count": 2911
+    "input_tokens": 108824,
+    "cache_creation_tokens": 8051515,
+    "cache_read_tokens": 275501951,
+    "output_tokens": 571661,
+    "api_call_count": 2858
   }
 }
