@@ -28,8 +28,6 @@ RUN tlmgr install \
     bookmark \
     xstring \
     babel-english \
-    subcaption \
-    mathrsfs \
     && rm -rf /tmp/*
 
 # Symlink all TeX Live binaries to /usr/local/bin (already on PATH, arch-agnostic)
