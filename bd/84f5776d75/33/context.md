@@ -270,3 +270,74 @@ root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber
 /bin/bash: /usr/bin/R: Permission denied
 root@hetzner-sciscribe:/opt/apollo/d...
 
+### Prompt 37
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 694 bytes | 347.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   17f8975..f034b13  main       -> origin/main
+Updating 17f8975.....
+
+### Prompt 38
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber && docker logs apollo-r-plumber 2>&1 | tail -20 
+93de77512af1   apollo-r-plumber   "R -e 'plumber::pr_r…"   About a minute ago   Exited (126) About a minute ago             apollo-r-plumber
+/bin/bash: /usr/bin/R: Permission denied
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+### Prompt 39
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber && docker logs apollo-r-plumber 2>&1 | tail -20 
+93de77512af1   apollo-r-plumber   "R -e 'plumber::pr_r…"   About a minute ago   Exited (126) About a minute ago             apollo-r-plumber
+/bin/bash: /usr/bin/R: Permission denied
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo/docker                                                                                                                                    ...
+
+### Prompt 40
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker run --rm -p 8787:8787 apollo-r-plumber
+
+R version 4.4.0 (2024-04-24) -- "Puppy Cup"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with ...
+
+### Prompt 41
+
+root@hetzner-sciscribe:/opt/apollo/docker#  docker run --rm -p 8787:8787 \                                                                                                                                                                               
+    --read-only --tmpfs /tmp:rw,size=256m \                                                                                                                                                                     
+    --memory=512m --pids-limit=256 \
+    ...
+
+### Prompt 42
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker run --rm -p 8787:8787 --read-only --tmpfs /tmp:rw,size=256m --memory=512m --pids-limit=256 --security-opt no-new-privileges:true --cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER               
+docker: 'docker run' requires at least 1 argument
+
+Usage:  docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+
+See 'docker run --help' for more information
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+### Prompt 43
+
+root@hetzner-sciscribe:/opt/apollo/docker#   docker run --rm -p 8787:8787 --read-only --tmpfs /tmp:rw,size=256m --memory=512m --pids-limit=256 --security-opt no-new-privileges:true --cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=NET_BIND_SERVICE apollo-r-plumber
+
+R version 4.4.0 (2024-04-24) -- "Puppy Cup"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redis...
+

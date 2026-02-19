@@ -2172,3 +2172,152 @@ root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber
 162b2f492433   apollo-r-plumber   "R -e 'plumber::pr_r…"   About a minute ago   Exited (126) About a minute ago             apollo-r-plumber
 /bin/bash: /usr/bin/R: Permission denied
 root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 694 bytes | 347.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   17f8975..f034b13  main       -> origin/main
+Updating 17f8975..f034b13
+Fast-forward
+ docker/apparmor-r-plumber | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+root@hetzner-sciscribe:/opt/apollo#  cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber
+root@hetzner-sciscribe:/opt/apollo# apparmor_parser -r /etc/apparmor.d/apollo-r-plumber
+root@hetzner-sciscribe:/opt/apollo# cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate
+[+] up 2/2
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.4s
+ ✔ Container apollo-r-plumber Recreated                                                                                                                                                                   0.2ss
+root@hetzner-sciscribe:/opt/apollo/docker# sleep 30 && docker ps && curl http://localhost:8787/health
+CONTAINER ID   IMAGE          COMMAND            CREATED          STATUS          PORTS     NAMES
+2d3a9985ea03   apollo-latex   "sleep infinity"   51 seconds ago   Up 40 seconds             apollo-latex
+curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refused
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber && docker logs apollo-r-plumber 2>&1 | tail -20 
+93de77512af1   apollo-r-plumber   "R -e 'plumber::pr_r…"   About a minute ago   Exited (126) About a minute ago             apollo-r-plumber
+/bin/bash: /usr/bin/R: Permission denied
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker ps -a | grep plumber && docker logs apollo-r-plumber 2>&1 | tail -20 
+93de77512af1   apollo-r-plumber   "R -e 'plumber::pr_r…"   About a minute ago   Exited (126) About a minute ago             apollo-r-plumber
+/bin/bash: /usr/bin/R: Permission denied
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo/docker                                                                                                                                                                                        
+  docker compose -f docker-compose.yml up -d --force-recreate                                                                                                                                                   
+  sleep 15 && docker ps && curl http://localhost:8787/health
+[+] up 2/2
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.6s
+ ✔ Container apollo-r-plumber Recreated                                                                                                                                                                   0.3ss
+CONTAINER ID   IMAGE          COMMAND            CREATED          STATUS          PORTS     NAMES
+d5baa3cd664a   apollo-latex   "sleep infinity"   26 seconds ago   Up 15 seconds             apollo-latex
+curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refused
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker run --rm -p 8787:8787 apollo-r-plumber
+
+R version 4.4.0 (2024-04-24) -- "Puppy Cup"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> plumber::pr_run(plumber::pr('/app/plumber.R'), host='0.0.0.0', port=8787)
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+Running plumber API at http://0.0.0.0:8787
+Running swagger Docs at http://127.0.0.1:8787/__docs__/
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker#  docker run --rm -p 8787:8787 \                                                                                                                                                                               
+    --read-only --tmpfs /tmp:rw,size=256m \                                                                                                                                                                     
+    --memory=512m --pids-limit=256 \
+    --security-opt no-new-privileges:true \
+    --cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=NET_BIND_SERVICE \
+    apollo-r-plumber
+docker: invalid reference format
+
+Run 'docker run --help' for more information
+--read-only: command not found
+--memory=512m: command not found
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker run --rm -p 8787:8787 --read-only --tmpfs /tmp:rw,size=256m --memory=512m --pids-limit=256 --security-opt no-new-privileges:true --cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER               
+docker: 'docker run' requires at least 1 argument
+
+Usage:  docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+
+See 'docker run --help' for more information
+root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker#   docker run --rm -p 8787:8787 --read-only --tmpfs /tmp:rw,size=256m --memory=512m --pids-limit=256 --security-opt no-new-privileges:true --cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=NET_BIND_SERVICE apollo-r-plumber
+
+R version 4.4.0 (2024-04-24) -- "Puppy Cup"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> plumber::pr_run(plumber::pr('/app/plumber.R'), host='0.0.0.0', port=8787)
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+Running plumber API at http://0.0.0.0:8787
+Running swagger Docs at http://127.0.0.1:8787/__docs__/
