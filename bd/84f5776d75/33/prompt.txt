@@ -1169,3 +1169,482 @@ complete all non breaking pending itmes (ie no CSP headers), Fix production bloc
 ---
 
 The point 1 and point 2 are chicken and egg situation> find a logical soultion
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Context**: This session was continued from a previous conversation that ran out of context. A detailed summary was provided covering Phase 11 implementation work, bug fixes (citation column names, escape detection), and a comprehensive audit of all 11 phases of the Mitigation Implementation.
+
+2. **User Message 1** (implicit from continuation): The user wanted me to continue the comprehensive audit report that was in progress when the previous session ran out of context.
+
+3. **My actions for the audit report**:
+   - Read all of Mitigation_implementation.md (lines 1-1141) across multiple reads
+   - Launched two parallel Task agents: one to find TODO/FIXME/placeholder comments in codebase, one to verify Docker/deployment readiness
+   - Checked git log, migrations list, and .env.example
+   - Compiled a comprehensive production-readiness audit report covering all 11 phases
+
+4. **Key findings from the audit report**:
+   - 3 production blockers identified: R2 upload placeholders in datasets/figures routes, DOCX export returning raw LaTeX, figure download for compilation
+   - 7 deferred items (most low priority)
+   - Operational setup required for payment providers, infrastructure services
+   - Domain recommendation for apollo.sciscribesolutions.com
+
+5. **User Message 2**: "complete all non breaking pending items (ie no CSP headers), Fix production blockers (DOCX export if possible with minimal change, should be enabled for licenced users, only after full completion of thesis.) Then give me a logical step by step including all steps (eg Hetzner coolify, razorpay, stripe,inngest, r2 check, migrating all from dev to prod in others like clerk) for a fully working production deployment which I can share for beta testing. I also own the domain sciscribesolutions.com, so i need instructions to properly revive it (dormant for 6 months) add apollo.sciscribesolutions.com as the url [is this a good plan for the domain? i already have a sciscribesolutions.com website running]"
+
+6. **My implementation work**:
+   - Read datasets/route.ts, figures/route.ts, r2/client.ts, compile.ts, export/docx/route.ts, export-menu.tsx
+   - Created 4 tasks for tracking
+
+   **Fix 1 - R2 Dataset Upload** (datasets/route.ts):
+   - Added `import { uploadToR2 } from "@/lib/r2/client"`
+   - Replaced placeholder `const fileUrl = \`datasets/${id}/${Date.now()}_${file.name}\`` with actual R2 upload
+   - R2 key: `projects/${id}/datasets/${timestamp}_{filename}`
+
+   **Fix 2 - R2 Figure Upload** (figures/route.ts):
+   - Added `import { uploadToR2 } from "@/lib/r2/client"`
+   - Replaced placeholder URL with actual R2 upload
+   - Had to carefully align the R2 key convention with how compile route resolves figures
+   - R2 key: `projects/{id}/figures/{timestamp}_{name}`, DB file_url: `figures/{id}/{timestamp}_{name}`
+   - The compile route strips `figures/{id}/` from file_url and prepends `projects/{id}/figures/` to get the R2 key
+
+   **Fix 3 - DOCX Export** (export/docx/route.ts):
+   - Full rewrite of the file
+   - Gated to completed theses only (returns 403 for non-completed)
+   - Calls pandoc via Docker with security hardening (network=none, read-only, memory cap, etc.)
+   - Falls back to local pandoc for dev
+   - Falls back to LaTeX source if pandoc unavailable
+
+   **Fix 4 - ExportMenu** (export-menu.tsx):
+   - Added DOCX option (`FileType2` icon, "Word (DOCX)" label)
+   - Only visible for completed projects
+   - Export tiers: Sandbox=PDF-only, Licensed=PDF/Source/Stats, Completed=all+DOCX
+
+7. **TypeScript error**: `Buffer` not assignable to `BodyInit` in NextResponse constructor. Fixed by wrapping with `new Uint8Array(docxBuffer)`.
+
+8. **Verification**: All 329 tests pass, 0 TS errors, 0 lint warnings.
+
+9. **Deployment guide**: Created comprehensive `docs/DEPLOYMENT.md` with 15 steps covering all services.
+
+10. **Commit and push**: Committed 6 files (4 modified + 1 new + docs update), pushed, all 4 CI jobs passed.
+
+11. **User Message 3**: "The point 1 and point 2 are chicken and egg situation> find a logical solution"
+
+The user pointed out that Step 1 (DNS setup needing VPS IP) and Step 2 (VPS setup) were in wrong order - you need the VPS IP before you can set DNS.
+
+12. **My fix**: Reorganized DEPLOYMENT.md:
+   - Step 1: Parallel - reactivate domain AND provision Hetzner VPS (get IP)
+   - Step 2: Sequential - create DNS A record (needs IP from 1b), wait for propagation, install Coolify, configure domain
+   - SSL auto-issues later in Step 12 when app domain is added
+
+13. **Committed and pushed** the ordering fix, push successful.
+
+Now let me verify I have all user messages, all files, and pending tasks.
+
+User messages:
+1. (Implicit continuation from previous session - generate audit report)
+2. "complete all non breaking pending items (ie no CSP headers), Fix production blockers (DOCX export if possible with minimal change, should be enabled for licenced users, only after full completion of thesis.) Then give me a logical step by step..."
+3. "The point 1 and point 2 are chicken and egg situation> find a logical solution"
+
+Current state: All tasks completed. The deployment guide is written and the ordering fix has been applied. CI is green. No explicitly pending tasks from the user.
+
+Summary:
+1. Primary Request and Intent:
+
+   The session continued from a previous conversation that ran out of context. Three sequential requests were made:
+
+   **Request 1** (continuation): Generate a comprehensive production-readiness audit report covering all 11 phases of the Apollo Mitigation Implementation — verifying completeness, identifying what's pending, and recommending production deployment next steps.
+
+   **Request 2**: "complete all non breaking pending items (ie no CSP headers), Fix production blockers (DOCX export if possible with minimal change, should be enabled for licenced users, only after full completion of thesis.) Then give me a logical step by step including all steps (eg Hetzner coolify, razorpay, stripe, inngest, r2 check, migrating all from dev to prod in others like clerk) for a fully working production deployment which I can share for beta testing. I also own the domain sciscribesolutions.com, so i need instructions to properly revive it (dormant for 6 months) add apollo.sciscribesolutions.com as the url [is this a good plan for the domain? i already have a sciscribesolutions.com website running]"
+
+   **Request 3**: "The point 1 and point 2 are chicken and egg situation> find a logical solution" — pointing out that the deployment guide had DNS setup (needing VPS IP) before VPS provisioning (which gives the IP).
+
+2. Key Technical Concepts:
+   - **R2 upload key conventions**: DB `file_url` = `figures/{projectId}/{filename}`, R2 key = `projects/{projectId}/figures/{filename}`. The compile route converts between them by stripping/prepending prefixes.
+   - **Pandoc via Docker**: DOCX export calls pandoc inside the `apollo-latex` Docker container with full security hardening (network=none, read-only, memory cap, cap-drop=ALL)
+   - **Export access tiers**: Sandbox=PDF-only, Licensed Phase 6b+=PDF/Source/Stats, Completed=all+DOCX
+   - **Deployment ordering**: VPS provisioning first (get IP) → DNS setup (needs IP) → Coolify install → SSL auto-issues when app domain added
+   - **Domain strategy**: `apollo.sciscribesolutions.com` subdomain keeps main site unaffected, clean brand hierarchy
+   - **Coolify**: Git-push auto-deploy platform, handles SSL via Let's Encrypt, reverse proxy via Traefik
+
+3. Files and Code Sections:
+
+   - **`apps/web/app/api/projects/[id]/datasets/route.ts`**
+     - Production blocker: was storing placeholder file URLs instead of uploading to R2
+     - Added `import { uploadToR2 } from "@/lib/r2/client"`
+     - Changed placeholder to actual R2 upload:
+     ```typescript
+     // Upload file to R2
+     const r2Key = `projects/${id}/datasets/${Date.now()}_${file.name}`;
+     await uploadToR2(r2Key, buffer, contentType || "application/octet-stream");
+     ```
+     - Changed DB insert to use `r2Key` as `file_url`
+
+   - **`apps/web/app/api/projects/[id]/figures/route.ts`**
+     - Production blocker: was storing placeholder file URLs instead of uploading to R2
+     - Added `import { uploadToR2 } from "@/lib/r2/client"`
+     - Carefully aligned R2 key convention with compile route's resolver:
+     ```typescript
+     // Upload file to R2
+     // Convention: DB file_url = "figures/{projectId}/{filename}"
+     //             R2 key     = "projects/{projectId}/figures/{filename}"
+     // Compile route converts: strips "figures/{projectId}/" then prepends "projects/{projectId}/figures/"
+     const fileBuffer = Buffer.from(await file.arrayBuffer());
+     const sanitisedName = file.name.replace(/[^\w.\-]/g, "_");
+     const fileName = `${Date.now()}_${sanitisedName}`;
+     const r2Key = `projects/${id}/figures/${fileName}`;
+     const fileUrl = `figures/${id}/${fileName}`;
+     await uploadToR2(r2Key, fileBuffer, file.type);
+     ```
+
+   - **`apps/web/app/api/projects/[id]/export/docx/route.ts`**
+     - Full rewrite for DOCX export via pandoc
+     - Gated to completed theses only:
+     ```typescript
+     if (gateResult.status !== "completed") {
+       return NextResponse.json(
+         { error: { code: "NOT_COMPLETED", message: "DOCX export is available only after thesis completion." } },
+         { status: 403 }
+       );
+     }
+     ```
+     - `convertToDocx()` function tries Docker pandoc first, then local pandoc, returns null for fallback:
+     ```typescript
+     async function convertToDocx(latexBody: string, bibContent: string, projectId: string): Promise<Buffer | null> {
+       // ... workDir setup, write tex + bib files ...
+       if (compileMode === "docker") {
+         try {
+           await execFileAsync("docker", [
+             "run", "--rm", "--network=none", "--read-only",
+             "--tmpfs", "/tmp:rw,size=256m", "--memory=512m",
+             "--pids-limit=128", "--security-opt", "no-new-privileges:true",
+             "--cap-drop=ALL", "-v", `${workDir}:/thesis:rw`,
+             containerName, "pandoc", "/thesis/thesis.tex",
+             "--bibliography=/thesis/references.bib", "-o", "/thesis/thesis.docx", "--wrap=auto",
+           ], { timeout: 60_000 });
+           return await readFile(outPath);
+         } catch (err) { console.warn("Docker pandoc failed:", ...); }
+       }
+       // Try local pandoc fallback...
+       return null;
+     }
+     ```
+     - Response uses `new Uint8Array(docxBuffer)` for NextResponse compatibility
+
+   - **`apps/web/components/project/export-menu.tsx`**
+     - Added DOCX export option for completed projects:
+     ```typescript
+     const DOCX_EXPORT = {
+       type: "docx" as ExportType,
+       label: "Word (DOCX)",
+       icon: FileType2,
+       description: "Microsoft Word format",
+     };
+     
+     function getAvailableExports(projectStatus: string) {
+       if (projectStatus === "sandbox") return BASE_EXPORTS.filter((e) => e.type === "pdf");
+       if (projectStatus === "completed") return [...BASE_EXPORTS, DOCX_EXPORT];
+       return BASE_EXPORTS;
+     }
+     ```
+     - Added `FileType2` to lucide-react imports
+     - Changed `ExportType` to include `"docx"`
+
+   - **`apps/web/lib/r2/client.ts`** — Read only. Has `uploadToR2()`, `downloadFromR2()`, `generateUploadUrl()`, `generateDownloadUrl()`, `deleteR2Prefix()` functions. The `uploadToR2` function takes key, body (Buffer|Uint8Array), contentType.
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** — Read only. Lines 148-174 show how compile route resolves figures from R2: strips `figures/{id}/` from `file_url`, prepends `projects/{id}/figures/` to form R2 key, downloads via `downloadFromR2()`, writes to tmpdir, passes to `compileTex()`.
+
+   - **`apps/web/lib/latex/compile.ts`** — Read only. `compileTex()` accepts `figureFiles?: Record<string, string>` option (relative path → absolute source path). Both `dockerCompile` and `localCompile` copy figure files into workDir before compilation.
+
+   - **`docs/Mitigation_implementation.md`** — Added Phase 12 section documenting the 4 production blocker fixes.
+
+   - **`docs/DEPLOYMENT.md`** — Created comprehensive 15-step production deployment guide. Then fixed Step 1/2 ordering issue (VPS before DNS).
+
+4. Errors and fixes:
+   - **TypeScript error**: `Buffer<ArrayBufferLike>` not assignable to `BodyInit | null | undefined` in `new NextResponse(docxBuffer, ...)`.
+     - Fix: Changed to `new NextResponse(new Uint8Array(docxBuffer), ...)` to convert Buffer to a type NextResponse accepts.
+   - **Deployment guide ordering**: Steps 1 (DNS) and 2 (VPS) were chicken-and-egg — DNS needs VPS IP, which doesn't exist until VPS is provisioned.
+     - Fix per user feedback: Reorganized so Step 1 provisions VPS (getting IP) and reactivates domain in parallel, then Step 2 creates DNS record using the IP, then installs Coolify.
+
+5. Problem Solving:
+   - **Audit report**: Read all 1141 lines of Mitigation_implementation.md across 11 phases. Used parallel Task agents to find TODOs/placeholders and verify Docker readiness. Identified 3 production blockers and 7 deferred items.
+   - **R2 key convention alignment**: The figure upload route had to produce `file_url` values that the compile route could resolve. Traced the compile route's resolution logic (`file_url.replace(\`figures/${id}/\`, "") → prepend \`projects/${id}/figures/\``) and ensured the figure upload used matching conventions.
+   - **DOCX export architecture**: Chose Docker pandoc over adding a new dependency. Pandoc already installed in `apollo-latex` Docker image (Dockerfile.latex line 41). Minimal code change — one new `convertToDocx()` function with graceful fallbacks.
+
+6. All user messages:
+   - (Implicit from continuation): Continue with the comprehensive audit report covering all 11 phases, checking completeness, identifying pending items, and recommending production deployment steps.
+   - "complete all non breaking pending items (ie no CSP headers), Fix production blockers (DOCX export if possible with minimal change, should be enabled for licenced users, only after full completion of thesis.) Then give me a logical step by step including all steps (eg Hetzner coolify, razorpay, stripe, inngest, r2 check, migrating all from dev to prod in others like clerk) for a fully working production deployment which I can share for beta testing. I also own the domain sciscribesolutions.com, so i need instructions to properly revive it (dormant for 6 months) add apollo.sciscribesolutions.com as the url [is this a good plan for the domain? i already have a sciscribesolutions.com website running]"
+   - "The point 1 and point 2 are chicken and egg situation> find a logical solution"
+
+7. Pending Tasks:
+   - No explicitly pending tasks. All 4 tracked tasks completed (R2 dataset upload, R2 figure upload, DOCX export, deployment guide). Deployment guide ordering fix also committed and pushed. CI green on all pushes.
+
+8. Current Work:
+   The last action was fixing the deployment guide ordering per the user's feedback. The DEPLOYMENT.md was updated to reorder Steps 1 and 2: VPS provisioning and domain reactivation happen in parallel (Step 1), then DNS record creation + Coolify setup happen sequentially (Step 2, depends on Step 1 for the IP). This was committed as `47e1086` ("Fix deployment guide ordering: VPS provisioning before DNS") and pushed to origin/main.
+
+   Two commits were made in this session:
+   - `12f1e64` — Production blockers: R2 uploads, DOCX export, and deployment guide (6 files, CI green)
+   - `47e1086` — Fix deployment guide ordering: VPS provisioning before DNS (1 file)
+
+9. Optional Next Step:
+   All explicitly requested work is complete. The user may want to begin following the deployment guide to set up production. No code changes remain pending.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+we have the DEPLOYMENT.md file now ready. audit it for any mistakes . its in /docs/
+
+---
+
+r2 bucket is ccalled apollo-files, i already own sciscribessolutions.com which is the parent legal entity, hence i chose apollo.sciscribesolutions.com, check my actual .env.local for env variables. then fix all issues
+
+---
+
+so you are sure that this deployment.md file now contains all guidelines to deploy a production version? none of the ports/ip addresses etc are local hosts? and followign this line by line will deploy a production version?
+
+---
+
+do a git diff
+
+---
+
+commit and push, watch CI
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This session was continued from a previous conversation that ran out of context. The summary provided covers extensive work on Phase 11 implementation, production blocker fixes (R2 uploads, DOCX export), and creation of DEPLOYMENT.md.
+
+2. **User Message 1**: "we have the DEPLOYMENT.md file now ready. audit it for any mistakes . its in /docs/"
+   - I read the full DEPLOYMENT.md (754 lines)
+   - Launched an Explore agent to verify claims against codebase
+   - Manually verified: load test env var names, Inngest function IDs, .env.example files, health endpoint, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY usage, NEXT_PUBLIC_APP_URL usage, Clerk after sign URLs
+   - Produced comprehensive audit with findings: 2 critical, 2 missing env vars, 3 factual errors, 5 minor issues
+
+3. **User Message 2**: "r2 bucket is ccalled apollo-files, i already own sciscribessolutions.com which is the parent legal entity, hence i chose apollo.sciscribesolutions.com, check my actual .env.local for env variables. then fix all issues"
+   - Read both .env.local files (root and apps/web)
+   - Verified NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY not used in code
+   - Verified RESEND_API_KEY not used in code
+   - Fixed docker-compose.yml: `expose: "8787"` → `ports: "127.0.0.1:8787:8787"`
+   - Fixed apps/web/.env.example: R2_BUCKET_NAME=apollo-uploads → apollo-files
+   - Rewrote DEPLOYMENT.md completely (replaced Coolify with PM2+Caddy)
+
+4. **User Message 3**: "so you are sure that this deployment.md file now contains all guidelines to deploy a production version? none of the ports/ip addresses etc are local hosts? and followign this line by line will deploy a production version?"
+   - This triggered deep investigation into the actual deployment architecture
+   - Checked: pnpm-workspace.yaml (doesn't exist - not a monorepo), package.json structure, next.config.ts (output: "standalone")
+   - Built the standalone output to inspect its structure
+   - **CRITICAL FINDING**: standalone server.js line 6 does `process.chdir(__dirname)`, which changes cwd to `.next/standalone/`, breaking compile.ts's `path.resolve(process.cwd(), "../../templates")` 
+   - **CRITICAL FINDING**: standalone doesn't include `public/` or `.next/static/` directories
+   - **CRITICAL FINDING**: Next.js should bind to 127.0.0.1, not 0.0.0.0
+   - Solution: Use `next start` via PM2 ecosystem config instead of standalone server.js
+   - Updated Step 12 with PM2 ecosystem config, proper `-H 127.0.0.1` binding
+   - Added UFW firewall setup, private repo auth note, next.config.ts production hostname update
+   - Cleaned up build flow (was confusing with two build steps)
+   - Did final systematic audit of all localhost references and production URLs
+
+5. **User Message 4**: "do a git diff"
+   - Showed full diff of 3 files
+
+6. **User Message 5**: "commit and push, watch CI"
+   - Committed 3 files with descriptive message
+   - Push was about to happen when summary was requested
+
+Key files modified:
+- `docker/docker-compose.yml` - R Plumber port fix
+- `apps/web/.env.example` - bucket name fix
+- `docs/DEPLOYMENT.md` - complete rewrite
+
+Critical technical discoveries:
+- Next.js standalone server.js calls `process.chdir(__dirname)` which breaks relative path resolution in compile.ts
+- Standalone doesn't copy public/ or .next/static/
+- Coolify Nixpacks deployment incompatible with `docker run` calls
+- R Plumber `expose` only works within Docker network, not host
+
+The commit was made but push hadn't happened yet when the summary was requested.
+
+Summary:
+1. Primary Request and Intent:
+   The user made 5 sequential requests in this session:
+   
+   **Request 1**: "we have the DEPLOYMENT.md file now ready. audit it for any mistakes . its in /docs/" — Audit the deployment guide for correctness.
+   
+   **Request 2**: "r2 bucket is ccalled apollo-files, i already own sciscribessolutions.com which is the parent legal entity, hence i chose apollo.sciscribesolutions.com, check my actual .env.local for env variables. then fix all issues" — Fix all 17 identified audit issues using actual env vars as reference.
+   
+   **Request 3**: "so you are sure that this deployment.md file now contains all guidelines to deploy a production version? none of the ports/ip addresses etc are local hosts? and followign this line by line will deploy a production version?" — Deep verification that following the guide line-by-line produces a working production deployment.
+   
+   **Request 4**: "do a git diff" — Show all changes.
+   
+   **Request 5**: "commit and push, watch CI" — Commit and push changes, monitor CI.
+
+2. Key Technical Concepts:
+   - **Next.js standalone mode pitfall**: `server.js` calls `process.chdir(__dirname)` (line 6), overriding `process.cwd()` to `.next/standalone/`. This breaks `compile.ts` which resolves `../../templates` and `../../docker/seccomp-latex.json` relative to cwd.
+   - **Next.js standalone missing assets**: Standalone output does NOT include `public/` or `.next/static/` directories — they must be manually copied.
+   - **Docker `expose` vs `ports`**: `expose: "8787"` only makes the port available within the Docker network. `ports: "127.0.0.1:8787:8787"` maps it to the host's localhost.
+   - **Coolify Nixpacks incompatibility**: The app calls `docker run` (compile.ts:216, docx/route.ts:137) for LaTeX compilation. Inside a Nixpacks container, there's no Docker CLI, no Docker socket, and localhost points to the container, not R Plumber.
+   - **PM2 ecosystem config**: Used to set `cwd`, `script`, `args` properly for `next start -H 127.0.0.1 -p 3000`.
+   - **Caddy reverse proxy**: Handles SSL (Let's Encrypt auto-cert) and proxies `apollo.sciscribesolutions.com` to `localhost:3000`.
+   - **UFW firewall**: Only allows ports 22 (SSH), 80 (HTTP), 443 (HTTPS).
+   - **`NEXT_PUBLIC_*` build-time baking**: These env vars are embedded at build time; server-side vars are read at runtime from `.env.local`.
+   - **`lib/env.ts` validation**: Required vars fail-fast at build time via Zod schema; optional vars log warnings.
+   - **`next.config.ts` `images.remotePatterns`**: Has hardcoded dev Supabase hostname that must be updated for production.
+
+3. Files and Code Sections:
+
+   - **`docker/docker-compose.yml`**
+     - R Plumber port was `expose: "8787"` (Docker-internal only), making it unreachable from host-native Next.js.
+     - Changed to `ports: "127.0.0.1:8787:8787"` so the host can reach R Plumber at localhost:8787.
+     ```yaml
+     ports:
+       - "127.0.0.1:8787:8787"
+     ```
+
+   - **`apps/web/.env.example`**
+     - R2 bucket name was `apollo-uploads` but actual bucket is `apollo-files`.
+     - Changed line 21: `R2_BUCKET_NAME=apollo-files`
+
+   - **`docs/DEPLOYMENT.md`** (complete rewrite — 906 lines)
+     - Replaced Coolify/Nixpacks with host-native Node.js + PM2 + Caddy architecture
+     - Key new sections:
+       - Step 2c: Install server dependencies (Node.js 20, pnpm, PM2, Caddy, UFW firewall)
+       - Step 12a: Update next.config.ts with production Supabase hostname
+       - Step 12e: PM2 ecosystem config:
+         ```javascript
+         module.exports = {
+           apps: [{
+             name: "apollo-web",
+             script: "node_modules/.bin/next",
+             args: "start -H 127.0.0.1 -p 3000",
+             cwd: "/opt/apollo/apps/web",
+             env: {
+               NODE_ENV: "production",
+             },
+           }],
+         };
+         ```
+       - Step 13: Caddy reverse proxy with security headers:
+         ```
+         apollo.sciscribesolutions.com {
+             reverse_proxy localhost:3000
+             header {
+                 X-Content-Type-Options "nosniff"
+                 X-Frame-Options "DENY"
+                 Referrer-Policy "strict-origin-when-cross-origin"
+                 Permissions-Policy "camera=(), microphone=(), geolocation=()"
+                 -Server
+             }
+         }
+         ```
+       - Auto-deploy script at `/opt/apollo/deploy.sh`
+     - Added missing env vars to Step 12c: `CLERK_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL=https://apollo.sciscribesolutions.com`
+     - Fixed Inngest function names to actual IDs: `thesis-phase-workflow`, `ai-generate-section`, `analysis-runner`, `stale-cleanup`, `licence-expiry-cron`, `account-deletion-cron`
+     - Fixed health response shape: `checks` not `dependencies`, includes `timestamp` and `version`
+     - Fixed load test env var: `BASE_URL` not `APOLLO_BASE_URL`
+     - R2 bucket name: `apollo-files` throughout
+
+   - **`apps/web/.next/standalone/server.js`** (read only — critical discovery)
+     - Line 6: `process.chdir(__dirname)` — this is why standalone breaks compile.ts
+     - Line 4: `hostname = process.env.HOSTNAME || '0.0.0.0'` — default binds to all interfaces
+     - Embedded config includes hardcoded `outputFileTracingRoot` and `remotePatterns` from build machine
+
+   - **`apps/web/lib/latex/compile.ts`** (read only — path resolution audit)
+     - Line 113: `path.resolve(process.cwd(), "../../templates")` — needs cwd = `apps/web/`
+     - Line 178: `path.resolve(process.cwd(), "../../docker/seccomp-latex.json")` — same
+     - Line 216: `execFileAsync("docker", args, ...)` — calls `docker run`, needs Docker CLI on host
+
+   - **`apps/web/lib/env.ts`** (read only — env var validation)
+     - 10 required vars validated via Zod at build time
+     - 15 optional vars logged as warnings when missing
+     - `CLERK_WEBHOOK_SECRET` is NOT in required/optional lists but IS used in webhook route
+
+   - **`apps/web/app/api/health/route.ts`** (read only — response shape verification)
+     - Returns `{ status, timestamp, version, checks: { r_plumber, docker } }` — NOT `dependencies`
+
+   - **`apps/web/next.config.ts`** (read only — production hostname issue)
+     - `output: "standalone"` enabled (line 23)
+     - `images.remotePatterns` has hardcoded dev hostname `ugkqdopvsmtzsqvnnmck.supabase.co`
+
+   - **`apps/web/.env.local`** (read only — actual env vars reference)
+     - Contains: `CLERK_WEBHOOK_SECRET=whsec_...` (was missing from deployment guide)
+     - `R2_BUCKET_NAME=apollo-files` (guide had wrong name)
+     - `DEV_LICENCE_BYPASS=true` (must NOT be in production)
+     - No `NEXT_PUBLIC_APP_URL` (needed for Stripe checkout redirects)
+
+   - **`apps/web/app/api/checkout/route.ts`** (read only — NEXT_PUBLIC_APP_URL usage)
+     - Line 68: `const origin = request.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"`
+     - Without NEXT_PUBLIC_APP_URL, Stripe redirects fall back to localhost
+
+   - **`scripts/load-test.js`** (read only — env var name verification)
+     - Line 20: `const BASE_URL = __ENV.BASE_URL || "http://localhost:3000"` — guide had wrong name `APOLLO_BASE_URL`
+
+4. Errors and fixes:
+   - **Coolify Nixpacks architecture mismatch**: The original guide recommended Coolify with Nixpacks, but the app calls `docker run` for LaTeX compilation which requires Docker CLI + socket on the host. Nixpacks containers don't have Docker.
+     - Fix: Replaced entire deployment strategy with host-native Node.js + PM2 + Caddy.
+   
+   - **Standalone `process.chdir()` breaks paths**: The standalone `server.js` changes cwd to `.next/standalone/`, making `../../templates` resolve to `apps/web/` instead of repo root.
+     - Fix: Use `next start` via PM2 ecosystem config instead of standalone server.js. `next start` preserves the correct working directory.
+   
+   - **Standalone missing static assets**: `.next/standalone/public/` does not exist after build.
+     - Fix: `next start` serves `public/` and `.next/static/` automatically, no copying needed.
+   
+   - **R Plumber port not exposed to host**: `expose: "8787"` in docker-compose.yml only makes port available within Docker network.
+     - Fix: Changed to `ports: "127.0.0.1:8787:8787"`.
+   
+   - **Missing CLERK_WEBHOOK_SECRET**: Not listed in deployment guide env vars. Clerk webhook route fails without it.
+     - Fix: Added to env vars list in Step 12c.
+   
+   - **Missing NEXT_PUBLIC_APP_URL**: Without it, Stripe checkout and review share URLs fall back to `http://localhost:3000`.
+     - Fix: Added `NEXT_PUBLIC_APP_URL=https://apollo.sciscribesolutions.com` to env vars list.
+   
+   - **Wrong load test env var name**: Guide said `APOLLO_BASE_URL`, actual script uses `BASE_URL`.
+     - Fix: Corrected to `BASE_URL`.
+   
+   - **Wrong Inngest function names**: Guide listed 5 wrong names like `thesis/section.generate`. Actual IDs are 6 functions with different names.
+     - Fix: Listed all 6 actual Inngest function IDs from codebase.
+   
+   - **Wrong health response shape**: Guide said `dependencies` key. Actual key is `checks`, plus includes `timestamp` and `version`.
+     - Fix: Corrected response shape in verification steps.
+   
+   - **User feedback on bucket name**: User explicitly stated "r2 bucket is called apollo-files". Guide and .env.example had `apollo-uploads`.
+     - Fix: Changed to `apollo-files` everywhere.
+   
+   - **Confusing dual build steps**: Steps 12b and 12d both had `pnpm build`. User flow was unclear.
+     - Fix: Separated into: 12b (install deps), 12c (set env vars), 12d (single build step).
+
+5. Problem Solving:
+   - **Deep architecture audit**: Discovered that the entire Coolify deployment strategy was fundamentally incompatible with the app's architecture (docker run calls from Node.js). This was the biggest finding — it would have caused total failure of PDF compilation, DOCX export, and health checks in production.
+   - **Standalone vs next start decision**: Investigated by actually building the standalone output, inspecting its structure, and reading the generated server.js. Found the `process.chdir()` call that would break path resolution. Decided `next start` is the correct approach for this VPS deployment.
+   - **Systematic localhost audit**: Verified every `localhost`/`127.0.0.1` reference in the final guide is for legitimate inter-service communication on the same VPS (R Plumber Docker port, Next.js binding, Caddy proxy).
+   - **Env var completeness**: Cross-referenced actual `.env.local`, `lib/env.ts` required/optional schemas, and all `process.env.*` usages in the codebase against the deployment guide's env var list.
+
+6. All user messages:
+   - "we have the DEPLOYMENT.md file now ready. audit it for any mistakes . its in /docs/"
+   - "r2 bucket is ccalled apollo-files, i already own sciscribessolutions.com which is the parent legal entity, hence i chose apollo.sciscribesolutions.com, check my actual .env.local for env variables. then fix all issues"
+   - "so you are sure that this deployment.md file now contains all guidelines to deploy a production version? none of the ports/ip addresses etc are local hosts? and followign this line by line will deploy a production version?"
+   - "do a git diff"
+   - "commit and push, watch CI"
+
+7. Pending Tasks:
+   - Push to remote and watch CI (commit `e297ef6` was created but `git push` was not executed before the summary request)
+
+8. Current Work:
+   The user asked to "commit and push, watch CI". The commit was successfully created:
+   ```
+   [main e297ef6] Deployment guide audit: fix 17 issues, replace Coolify with PM2+Caddy
+    3 files changed, 289 insertions(+), 134 deletions(-)
+   ```
+   
+   The push to remote has NOT yet been executed. The next action should be `git push origin main` followed by monitoring CI.
+
+9. Optional Next Step:
+   Push the commit to remote and monitor CI status. The user explicitly said "commit and push, watch CI" — the commit is done but the push is pending.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.

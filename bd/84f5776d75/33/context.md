@@ -91,3 +91,43 @@ complete all non breaking pending itmes (ie no CSP headers), Fix production bloc
 
 The point 1 and point 2 are chicken and egg situation> find a logical soultion
 
+### Prompt 12
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Context**: This session was continued from a previous conversation that ran out of context. A detailed summary was provided covering Phase 11 implementation work, bug fixes (citation column names, escape detection), and a comprehensive audit of all 11 phases of the Mitigati...
+
+### Prompt 13
+
+we have the DEPLOYMENT.md file now ready. audit it for any mistakes . its in /docs/
+
+### Prompt 14
+
+r2 bucket is ccalled apollo-files, i already own sciscribessolutions.com which is the parent legal entity, hence i chose apollo.sciscribesolutions.com, check my actual .env.local for env variables. then fix all issues
+
+### Prompt 15
+
+so you are sure that this deployment.md file now contains all guidelines to deploy a production version? none of the ports/ip addresses etc are local hosts? and followign this line by line will deploy a production version?
+
+### Prompt 16
+
+do a git diff
+
+### Prompt 17
+
+commit and push, watch CI
+
+### Prompt 18
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This session was continued from a previous conversation that ran out of context. The summary provided covers extensive work on Phase 11 implementation, production blocker fixes (R2 uploads, DOCX export), and creation of DEPLOYMENT.md.
+
+2. **User Message 1**: "we ha...
+
