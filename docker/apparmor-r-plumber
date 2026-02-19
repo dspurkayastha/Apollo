@@ -17,10 +17,13 @@ profile apollo-r-plumber flags=(attach_disconnected,mediate_deleted) {
   # Temp directory (mapped via tmpfs)
   /tmp/** rwk,
 
+  # Allow shell execution (R's /usr/bin/R is a bash wrapper script)
+  /bin/sh rix,
+  /bin/bash rix,
+  /bin/dash rix,
+  /usr/bin/env rix,
+
   # Deny dangerous executables
-  deny /bin/sh x,
-  deny /bin/bash x,
-  deny /bin/dash x,
   deny /usr/bin/python* x,
   deny /usr/bin/perl x,
   deny /usr/bin/wget x,
