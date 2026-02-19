@@ -350,3 +350,19 @@ remote: Compressing objects: 100% (1/1), done.
 remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
 Unpacking objects: 100% (4/4), 710 bytes | 355.00 KiB...
 
+### Prompt 45
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 867 bytes | 289.00 KiB/...
+
+### Prompt 46
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker compose -f docker-compose.yml up -d --force-recreate && sleep 15 && docker ps && curl http://localhost:8787/health 
+[+] up 2/2
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.5s
+ ✔ Container apollo-r-plumber Recreated                                                                        ...
+

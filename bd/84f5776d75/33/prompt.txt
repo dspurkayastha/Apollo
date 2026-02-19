@@ -2344,3 +2344,39 @@ CONTAINER ID   IMAGE          COMMAND            CREATED          STATUS        
 e89d064bef01   apollo-latex   "sleep infinity"   40 seconds ago   Up 30 seconds             apollo-latex
 curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refused
 root@hetzner-sciscribe:/opt/apollo/docker#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 867 bytes | 289.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   65592cb..a594e68  main       -> origin/main
+Updating 65592cb..a594e68
+Fast-forward
+ docker/docker-compose.yml | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+[+] up 2/2
+ ✔ Container apollo-r-plumber Recreated                                                                                                                                                                   0.2ss
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.4s
+CONTAINER ID   IMAGE          COMMAND            CREATED          STATUS          PORTS     NAMES
+ab84fc17e5cf   apollo-latex   "sleep infinity"   41 seconds ago   Up 30 seconds             apollo-latex
+curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refused
+root@hetzner-sciscribe:/opt/apollo/docker# 
+   root@hetzner-sciscribe:/opt/apollo/docker# docker logs apollo-r-plumber 2>&1 | tail -5
+/bin/bash: /usr/bin/R: Permission denied
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/docker# docker compose -f docker-compose.yml up -d --force-recreate && sleep 15 && docker ps && curl http://localhost:8787/health 
+[+] up 2/2
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.5s
+ ✔ Container apollo-r-plumber Recreated                                                                                                                                                                   0.3ss
+CONTAINER ID   IMAGE              COMMAND                  CREATED          STATUS                    PORTS                      NAMES
+5852678d058e   apollo-latex       "sleep infinity"         26 seconds ago   Up 15 seconds                                        apollo-latex
+059760b0b030   apollo-r-plumber   "R -e 'plumber::pr_r…"   26 seconds ago   Up 15 seconds (healthy)   127.0.0.1:8787->8787/tcp   apollo-r-plumber
+{"status":["ok"],"service":["apollo-r-plumber"],"r_version":["4.4.0"],"timestamp":["2026-02-19 19:12:16"],"packages":{"survival":[true],"pROC":[true],"meta":[true]}}root@hetzner-sciscribe:/opt/apollo/docker#
