@@ -10,6 +10,7 @@ import {
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { datasetColumnsSchema } from "@/lib/validation/dataset-schemas";
 import { parseCSV, parseExcel } from "@/lib/datasets/parse";
+import { uploadToR2 } from "@/lib/r2/client";
 import type { Dataset } from "@/lib/types/database";
 
 // ── GET /api/projects/:id/datasets — List datasets ──────────────────────────
@@ -144,15 +145,15 @@ export async function POST(
       }
     }
 
-    // Upload to R2 (or store URL reference)
-    // For now store a data URI placeholder — real R2 upload in production
-    const fileUrl = `datasets/${id}/${Date.now()}_${file.name}`;
+    // Upload file to R2
+    const r2Key = `projects/${id}/datasets/${Date.now()}_${file.name}`;
+    await uploadToR2(r2Key, buffer, contentType || "application/octet-stream");
 
     const { data: dataset, error } = await supabase
       .from("datasets")
       .insert({
         project_id: id,
-        file_url: fileUrl,
+        file_url: r2Key,
         row_count: parsed.rowCount,
         columns_json: columnsJson,
         rows_json: parsed.rows,

@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/errors";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { figureUploadSchema } from "@/lib/validation/figure-schemas";
+import { uploadToR2 } from "@/lib/r2/client";
 import type { Figure } from "@/lib/types/database";
 
 // ── GET /api/projects/:id/figures — List figures ────────────────────────────
@@ -126,8 +127,16 @@ export async function POST(
     };
     const format = formatMap[file.type] ?? "png";
 
-    // Upload to R2 (placeholder URL for now)
-    const fileUrl = `figures/${id}/${Date.now()}_${file.name}`;
+    // Upload file to R2
+    // Convention: DB file_url = "figures/{projectId}/{filename}"
+    //             R2 key     = "projects/{projectId}/figures/{filename}"
+    // Compile route converts: strips "figures/{projectId}/" then prepends "projects/{projectId}/figures/"
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const sanitisedName = file.name.replace(/[^\w.\-]/g, "_");
+    const fileName = `${Date.now()}_${sanitisedName}`;
+    const r2Key = `projects/${id}/figures/${fileName}`;
+    const fileUrl = `figures/${id}/${fileName}`;
+    await uploadToR2(r2Key, fileBuffer, file.type);
 
     const { data: figure, error } = await supabase
       .from("figures")

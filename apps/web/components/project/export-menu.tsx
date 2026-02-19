@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   FileArchive,
+  FileType2,
   BarChart3,
   Loader2,
   ChevronDown,
@@ -16,27 +17,37 @@ interface ExportMenuProps {
   projectStatus: string;
 }
 
-type ExportType = "pdf" | "source" | "stats";
+type ExportType = "pdf" | "docx" | "source" | "stats";
 
-const ALL_EXPORTS: { type: ExportType; label: string; icon: typeof FileText; description: string }[] = [
+const BASE_EXPORTS: { type: ExportType; label: string; icon: typeof FileText; description: string }[] = [
   { type: "pdf", label: "PDF", icon: FileText, description: "Compiled PDF" },
   { type: "source", label: "LaTeX Source", icon: FileArchive, description: "main.tex + chapters + .bib" },
   { type: "stats", label: "Statistics", icon: BarChart3, description: "R scripts + data + results" },
 ];
 
+const DOCX_EXPORT = {
+  type: "docx" as ExportType,
+  label: "Word (DOCX)",
+  icon: FileType2,
+  description: "Microsoft Word format",
+};
+
 /**
  * Export access tiers per DECISIONS.md 8.4:
  *   Sandbox          → PDF download only
  *   Licensed <6b     → no ExportMenu (gated by workspace)
- *   Licensed >=6b    → full export (PDF/Source/Stats)
- *   Completed        → full export (clean)
+ *   Licensed >=6b    → PDF/Source/Stats
+ *   Completed        → PDF/Source/Stats + DOCX
  */
 function getAvailableExports(projectStatus: string) {
   if (projectStatus === "sandbox") {
-    return ALL_EXPORTS.filter((e) => e.type === "pdf");
+    return BASE_EXPORTS.filter((e) => e.type === "pdf");
   }
-  // Licensed Phase 6b+ or Completed — full export
-  return ALL_EXPORTS;
+  if (projectStatus === "completed") {
+    return [...BASE_EXPORTS, DOCX_EXPORT];
+  }
+  // Licensed Phase 6b+ — full export minus DOCX
+  return BASE_EXPORTS;
 }
 
 export function ExportMenu({ projectId, projectStatus }: ExportMenuProps) {

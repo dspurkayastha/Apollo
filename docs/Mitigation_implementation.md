@@ -1138,3 +1138,29 @@ Maps each Review ID mentioned above to its REVIEW.md finding for traceability.
 - **Tests**: 329 passing across 32 files (5 new brace-checking tests), 23/23 validate.ts tests pass after `#`/`&` fix
 - **Security advisors**: Supabase security lint clean (0 issues)
 - **Dead code**: grep confirmed 0 references to deleted files
+
+---
+
+## Phase 12: Production Blockers and Final Fixes
+
+**Status**: COMPLETE
+**Duration**: ~1 session
+**Tests**: 329 passing, 0 TypeScript errors, 0 lint warnings
+
+### Items Implemented
+
+| Item | Description | Implementation |
+|------|-------------|----------------|
+| 12.1 | R2 dataset upload (production blocker) | `datasets/route.ts`: replaced placeholder `fileUrl` with actual `uploadToR2()` call. R2 key: `projects/{id}/datasets/{timestamp}_{filename}`. |
+| 12.2 | R2 figure upload (production blocker) | `figures/route.ts`: replaced placeholder `fileUrl` with actual `uploadToR2()` call. R2 key: `projects/{id}/figures/{timestamp}_{name}`. DB `file_url` follows `figures/{id}/{name}` convention matching compile route's resolver. |
+| 12.3 | DOCX export for completed theses | `export/docx/route.ts`: full rewrite. Calls pandoc via Docker container (production) or local pandoc (dev). Gated to `status === "completed"` only. Falls back to LaTeX source if pandoc unavailable. Security-hardened Docker args match compile pipeline. |
+| 12.4 | ExportMenu DOCX option | `export-menu.tsx`: added "Word (DOCX)" option visible only for completed projects. Sandbox=PDF-only, Licensed=PDF/Source/Stats, Completed=PDF/Source/Stats/DOCX. |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `app/api/projects/[id]/datasets/route.ts` | Added `uploadToR2` import, R2 upload replacing placeholder |
+| `app/api/projects/[id]/figures/route.ts` | Added `uploadToR2` import, R2 upload with correct key convention |
+| `app/api/projects/[id]/export/docx/route.ts` | Full rewrite: pandoc via Docker, completed-only gate, fallback |
+| `components/project/export-menu.tsx` | Added DOCX option for completed projects |
