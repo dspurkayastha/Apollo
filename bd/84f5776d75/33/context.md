@@ -374,3 +374,7 @@ remote: Counting objects: 100% (7/7), done.
 remote: Compressing objects: 100% (1/1), done.
 remo...
 
+### Prompt 48
+
+I DO NOT want stop gap 'pragmatic' measures. Diagnose properly, and do production grade fixes
+

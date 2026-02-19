@@ -2402,3 +2402,7 @@ Fast-forward
 CONTAINER ID   IMAGE          COMMAND            CREATED          STATUS          PORTS     NAMES
 44789c293c4c   apollo-latex   "sleep infinity"   40 seconds ago   Up 30 seconds             apollo-latex
 curl: (7) Failed to connect to localhost port 8787 after 0 ms: Connection refused
+
+---
+
+I DO NOT want stop gap 'pragmatic' measures. Diagnose properly, and do production grade fixes
