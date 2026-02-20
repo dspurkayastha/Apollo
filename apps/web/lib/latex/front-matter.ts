@@ -43,6 +43,12 @@ export function generateFrontMatterLatex(project: Project): string {
     lines.push("\\supervisordesignation{Professor}");
   }
 
+  // Co-guide
+  if (meta.co_guide_name) {
+    lines.push(`\\cosupervisorname{${escapeLatexArg(meta.co_guide_name)}}`);
+    lines.push("\\cosupervisordesignation{Associate Professor}");
+  }
+
   // HOD
   if (meta.hod_name) {
     lines.push(`\\hodname{${escapeLatexArg(meta.hod_name)}}`);
@@ -52,6 +58,11 @@ export function generateFrontMatterLatex(project: Project): string {
   // Department
   if (meta.department) {
     lines.push(`\\departmentname{${escapeLatexArg(meta.department)}}`);
+  }
+
+  // Institute
+  if (meta.institute_name) {
+    lines.push(`\\institutename{${escapeLatexArg(meta.institute_name)}}`);
   }
 
   // Degree
@@ -80,6 +91,12 @@ export function generateAcknowledgements(meta: ProjectMetadata): string {
   if (meta.guide_name) {
     parts.push(
       `I express my sincere gratitude to my guide, ${escapeLatexArg(meta.guide_name)}, for their invaluable guidance, constant encouragement, and meticulous supervision throughout this study.`
+    );
+  }
+
+  if (meta.co_guide_name) {
+    parts.push(
+      `I am sincerely thankful to my co-guide, ${escapeLatexArg(meta.co_guide_name)}, for their expert advice, constructive suggestions, and continuous support during this work.`
     );
   }
 

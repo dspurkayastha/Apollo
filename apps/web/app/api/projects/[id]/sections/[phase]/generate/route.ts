@@ -348,17 +348,28 @@ async function handleSectionGenerate(
     : 6000;                                      // Aims, Conclusion, others
 
   // Enqueue Inngest background job for AI generation
-  await inngest.send({
-    name: "thesis/section.generate",
-    data: {
-      projectId: project.id,
-      phaseNumber,
-      systemPrompt,
-      userMessage,
-      model,
-      maxTokens,
-    },
-  });
+  try {
+    await inngest.send({
+      name: "thesis/section.generate",
+      data: {
+        projectId: project.id,
+        phaseNumber,
+        systemPrompt,
+        userMessage,
+        model,
+        maxTokens,
+      },
+    });
+  } catch (err) {
+    console.error("[generate] Failed to enqueue Inngest job:", err);
+    // Roll back section status so user can retry
+    await supabase
+      .from("sections")
+      .update({ status: "draft", updated_at: new Date().toISOString() })
+      .eq("project_id", project.id)
+      .eq("phase_number", phaseNumber);
+    return internalError("Failed to start generation. Please try again.");
+  }
 
   // Return immediately --- generation continues in background
   return NextResponse.json({

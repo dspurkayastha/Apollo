@@ -103,6 +103,16 @@ export function SetupWizard({ project }: SetupWizardProps) {
             title: parsedData.title ?? project.title,
             study_type: parsedData.study_type ?? undefined,
           });
+
+          // Auto-fill metadata from parsed synopsis (only fill empty fields)
+          const seeded = { ...metadata };
+          if (!seeded.candidate_name && parsedData.candidate_name) seeded.candidate_name = parsedData.candidate_name;
+          if (!seeded.registration_no && parsedData.registration_no) seeded.registration_no = parsedData.registration_no;
+          if (!seeded.guide_name && parsedData.guide_name) seeded.guide_name = parsedData.guide_name;
+          if (!seeded.co_guide_name && parsedData.co_guide_name) seeded.co_guide_name = parsedData.co_guide_name;
+          if (!seeded.department && parsedData.department) seeded.department = parsedData.department;
+          if (!seeded.institute_name && parsedData.institute_name) seeded.institute_name = parsedData.institute_name;
+          setMetadata(seeded);
         }
       }
 
@@ -257,7 +267,7 @@ export function SetupWizard({ project }: SetupWizardProps) {
           Back
         </button>
 
-        {currentStep < 5 ? (
+        {currentStep < 5 && (
           <button
             type="button"
             onClick={handleNext}
@@ -268,8 +278,6 @@ export function SetupWizard({ project }: SetupWizardProps) {
           >
             {saving ? "Saving..." : "Next"}
           </button>
-        ) : (
-          <div>{/* No next button on the final step */}</div>
         )}
       </div>
     </div>

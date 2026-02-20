@@ -36,6 +36,12 @@ Given a synopsis text, extract the following fields as JSON:
 - inclusion_criteria: An array of inclusion criteria (string[])
 - exclusion_criteria: An array of exclusion criteria (string[])
 - keywords: An array of 3--7 keywords (string[])
+- candidate_name: The name of the candidate/student submitting the thesis (string or null)
+- registration_no: The candidate's registration or enrolment number (string or null)
+- guide_name: The name of the thesis guide/supervisor (string or null)
+- co_guide_name: The name of the co-guide/co-supervisor, if any (string or null)
+- institute_name: The name of the institute, hospital, or medical college (string or null)
+- university_name: The name of the university the thesis is submitted to (string or null)
 
 Rules:
 1. Extract ONLY what is explicitly stated in the synopsis. Do NOT invent or assume information.
@@ -684,4 +690,10 @@ export interface SynopsisParseResult {
   inclusion_criteria: string[];
   exclusion_criteria: string[];
   keywords: string[] | null;
+  candidate_name: string | null;
+  registration_no: string | null;
+  guide_name: string | null;
+  co_guide_name: string | null;
+  institute_name: string | null;
+  university_name: string | null;
 }

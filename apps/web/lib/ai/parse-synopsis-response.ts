@@ -50,6 +50,12 @@ export function parseSynopsisResponse(raw: string): SynopsisParseResult | null {
       keywords: Array.isArray(parsed.keywords)
         ? parsed.keywords.filter((k): k is string => typeof k === "string")
         : null,
+      candidate_name: typeof parsed.candidate_name === "string" ? parsed.candidate_name : null,
+      registration_no: typeof parsed.registration_no === "string" ? parsed.registration_no : null,
+      guide_name: typeof parsed.guide_name === "string" ? parsed.guide_name : null,
+      co_guide_name: typeof parsed.co_guide_name === "string" ? parsed.co_guide_name : null,
+      institute_name: typeof parsed.institute_name === "string" ? parsed.institute_name : null,
+      university_name: typeof parsed.university_name === "string" ? parsed.university_name : null,
     };
   } catch {
     return null;

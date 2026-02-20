@@ -340,7 +340,7 @@ function ScatterSphere({
 }
 
 // ── Axes with tick marks and arrowheads ──────────────────────────────────────
-const AXIS_COLOR = "#C0C0C0";
+const AXIS_COLOR = "#2A2A2A";
 const AXIS_LENGTH = 2.2;
 const TICK_SIZE = 0.025;
 const TICK_INTERVAL = 0.5;

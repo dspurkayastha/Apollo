@@ -58,8 +58,10 @@ export type UniversityType = "wbuhs" | "ssuhs" | "generic";
 export interface ProjectMetadata {
   candidate_name?: string;
   guide_name?: string;
+  co_guide_name?: string;
   hod_name?: string;
   department?: string;
+  institute_name?: string;
   degree?: string;
   speciality?: string;
   registration_no?: string;

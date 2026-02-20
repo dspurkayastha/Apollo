@@ -8,6 +8,16 @@ export interface ParsedSynopsis {
   inclusion_criteria: string[];
   exclusion_criteria: string[];
   methodology_summary: string | null;
+  department: string | null;
+  duration: string | null;
+  setting: string | null;
+  keywords: string[] | null;
+  candidate_name: string | null;
+  registration_no: string | null;
+  guide_name: string | null;
+  co_guide_name: string | null;
+  institute_name: string | null;
+  university_name: string | null;
 }
 
 const STUDY_TYPE_PATTERNS: [RegExp, string][] = [
@@ -41,6 +51,16 @@ export function parseSynopsis(text: string): ParsedSynopsis {
     inclusion_criteria: [],
     exclusion_criteria: [],
     methodology_summary: null,
+    department: null,
+    duration: null,
+    setting: null,
+    keywords: null,
+    candidate_name: null,
+    registration_no: null,
+    guide_name: null,
+    co_guide_name: null,
+    institute_name: null,
+    university_name: null,
   };
 
   // Extract title — usually the first substantial line or after "TITLE:" header

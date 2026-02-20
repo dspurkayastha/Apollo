@@ -87,7 +87,7 @@ export const PLANS: Record<string, PlanConfig> = {
     modelTier: "sonnet",
     sandboxPhases: SANDBOX_PHASES,
     visible: true,
-    comingSoon: false,
+    comingSoon: true,
     label: "Student Monthly",
   },
 
@@ -148,7 +148,7 @@ export const PLANS: Record<string, PlanConfig> = {
     modelTier: "sonnet",
     sandboxPhases: SANDBOX_PHASES,
     visible: true,
-    comingSoon: false,
+    comingSoon: true,
     label: "Add-on Thesis",
   },
 };

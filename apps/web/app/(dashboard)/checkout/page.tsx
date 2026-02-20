@@ -51,6 +51,7 @@ const PLANS: PlanCard[] = [
       "PDF + DOCX export",
       "Max 4 phases per month",
     ],
+    comingSoon: true,
   },
   {
     plan_type: "professional_onetime",
@@ -90,6 +91,7 @@ const PLANS: PlanCard[] = [
       "No new AI generation",
       "30-day access",
     ],
+    comingSoon: true,
   },
 ];
 

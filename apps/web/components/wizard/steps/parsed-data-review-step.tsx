@@ -192,6 +192,101 @@ export function ParsedDataReviewStep({
           />
         </div>
 
+        {/* Personnel & Institutional fields */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="parsed-candidate-name" className="mb-1.5 block text-sm font-medium">
+              Candidate Name
+            </label>
+            <input
+              id="parsed-candidate-name"
+              type="text"
+              value={parsedData.candidate_name ?? ""}
+              onChange={(e) => updateField("candidate_name", e.target.value || null)}
+              className={inputClass}
+              placeholder="Dr. Full Name"
+            />
+          </div>
+          <div>
+            <label htmlFor="parsed-registration-no" className="mb-1.5 block text-sm font-medium">
+              Registration No.
+            </label>
+            <input
+              id="parsed-registration-no"
+              type="text"
+              value={parsedData.registration_no ?? ""}
+              onChange={(e) => updateField("registration_no", e.target.value || null)}
+              className={inputClass}
+              placeholder="e.g. MD/MS/2024/001"
+            />
+          </div>
+          <div>
+            <label htmlFor="parsed-guide-name" className="mb-1.5 block text-sm font-medium">
+              Guide Name
+            </label>
+            <input
+              id="parsed-guide-name"
+              type="text"
+              value={parsedData.guide_name ?? ""}
+              onChange={(e) => updateField("guide_name", e.target.value || null)}
+              className={inputClass}
+              placeholder="Prof. Full Name"
+            />
+          </div>
+          <div>
+            <label htmlFor="parsed-co-guide-name" className="mb-1.5 block text-sm font-medium">
+              Co-Guide Name
+            </label>
+            <input
+              id="parsed-co-guide-name"
+              type="text"
+              value={parsedData.co_guide_name ?? ""}
+              onChange={(e) => updateField("co_guide_name", e.target.value || null)}
+              className={inputClass}
+              placeholder="If applicable"
+            />
+          </div>
+          <div>
+            <label htmlFor="parsed-department" className="mb-1.5 block text-sm font-medium">
+              Department
+            </label>
+            <input
+              id="parsed-department"
+              type="text"
+              value={parsedData.department ?? ""}
+              onChange={(e) => updateField("department", e.target.value || null)}
+              className={inputClass}
+              placeholder="e.g. General Surgery"
+            />
+          </div>
+          <div>
+            <label htmlFor="parsed-institute-name" className="mb-1.5 block text-sm font-medium">
+              Institute Name
+            </label>
+            <input
+              id="parsed-institute-name"
+              type="text"
+              value={parsedData.institute_name ?? ""}
+              onChange={(e) => updateField("institute_name", e.target.value || null)}
+              className={inputClass}
+              placeholder="e.g. IPGME&amp;R and SSKM Hospital"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="parsed-university-name" className="mb-1.5 block text-sm font-medium">
+              University Name
+            </label>
+            <input
+              id="parsed-university-name"
+              type="text"
+              value={parsedData.university_name ?? ""}
+              onChange={(e) => updateField("university_name", e.target.value || null)}
+              className={inputClass}
+              placeholder="Cross-check with Step 1 selection"
+            />
+          </div>
+        </div>
+
         {/* Aims */}
         <div>
           <label

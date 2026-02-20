@@ -16,7 +16,7 @@ const UNIVERSITY_OPTIONS: UniversityOption[] = [
   },
   {
     value: "ssuhs",
-    name: "Sri Siddhartha University of Health Sciences",
+    name: "Srimanta Sankaradeva University of Health Sciences",
     description: "SSUHS thesis format",
   },
   {

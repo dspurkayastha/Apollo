@@ -18,7 +18,7 @@ export function LicenceBanner({
   // Hide when licence is attached, or in dev bypass mode
   if (projectStatus === "licensed" || projectStatus === "completed") return null;
   if (devLicenceBypass) return null;
-  if (currentPhase < 1) return null;
+  if (currentPhase < 2) return null;
 
   return (
     <div className="rounded-2xl border border-[#D4A373]/30 bg-[#D4A373]/10 p-4">
@@ -28,8 +28,8 @@ export function LicenceBanner({
             Licence required
           </h3>
           <p className="mt-1 text-sm text-[#D4A373]/80">
-            Attach a thesis licence to continue beyond Phase 1. Your work in
-            Phase 0 and Phase 1 is preserved.
+            Attach a thesis licence to continue beyond Introduction (Phase 2).
+            Your work in Phases 0--2 is preserved.
           </p>
         </div>
         <Link

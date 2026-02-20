@@ -92,6 +92,22 @@ export function MetadataFormStep({ metadata, onChange }: MetadataFormStepProps) 
             </div>
             <div>
               <label
+                htmlFor="meta-co-guide-name"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
+              >
+                Co-Guide Name
+              </label>
+              <input
+                id="meta-co-guide-name"
+                type="text"
+                value={metadata.co_guide_name ?? ""}
+                onChange={(e) => updateField("co_guide_name", e.target.value)}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="If applicable"
+              />
+            </div>
+            <div>
+              <label
                 htmlFor="meta-hod-name"
                 className="mb-1.5 block text-sm font-medium text-gray-700"
               >
@@ -129,6 +145,22 @@ export function MetadataFormStep({ metadata, onChange }: MetadataFormStepProps) 
                 onChange={(e) => updateField("department", e.target.value)}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="e.g. General Surgery"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="meta-institute-name"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
+              >
+                Institute Name
+              </label>
+              <input
+                id="meta-institute-name"
+                type="text"
+                value={metadata.institute_name ?? ""}
+                onChange={(e) => updateField("institute_name", e.target.value)}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="e.g. IPGME&R and SSKM Hospital"
               />
             </div>
             <div>
@@ -175,16 +207,20 @@ export function MetadataFormStep({ metadata, onChange }: MetadataFormStepProps) 
                 type="text"
                 value={metadata.session ?? ""}
                 onChange={(e) => updateField("session", e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                pattern="\d{4}-\d{4}"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 invalid:border-red-400 invalid:ring-red-400"
                 placeholder="e.g. 2023-2026"
               />
+              <p className="mt-1 text-xs text-gray-400">
+                Format: YYYY-YYYY
+              </p>
             </div>
             <div>
               <label
                 htmlFor="meta-year"
                 className="mb-1.5 block text-sm font-medium text-gray-700"
               >
-                Year
+                Submission Month &amp; Year
               </label>
               <input
                 id="meta-year"
@@ -192,7 +228,7 @@ export function MetadataFormStep({ metadata, onChange }: MetadataFormStepProps) 
                 value={metadata.year ?? ""}
                 onChange={(e) => updateField("year", e.target.value)}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="e.g. 2026"
+                placeholder="e.g. March 2026"
               />
             </div>
           </div>

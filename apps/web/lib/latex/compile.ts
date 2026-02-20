@@ -196,7 +196,7 @@ async function dockerCompile(
       "--cap-drop=ALL",
       "--cap-add=DAC_OVERRIDE",
       "--cap-add=FOWNER",
-      "-v", `${workDir}:/thesis`,
+      "-v", `${workDir}:/thesis:rw`,
       containerName,
     ];
 

@@ -10,14 +10,14 @@ export function generateTitlePageHtml(
     universityType === "wbuhs"
       ? "The West Bengal University of Health Sciences"
       : universityType === "ssuhs"
-        ? "Sri Siddhartha University of Health Sciences"
+        ? "Srimanta Sankaradeva University of Health Sciences"
         : "University";
 
   const universityLocation =
     universityType === "wbuhs"
       ? "Kolkata, West Bengal"
       : universityType === "ssuhs"
-        ? "Tumkur, Karnataka"
+        ? "Guwahati, Assam"
         : "";
 
   const sandboxOverlay = isSandbox
@@ -28,9 +28,11 @@ export function generateTitlePageHtml(
     ? `Postgraduate Trainee, ${escapeHtml(metadata.speciality)}`
     : "Postgraduate Trainee";
 
-  const instituteName = metadata.department
-    ? escapeHtml(metadata.department)
-    : "Department";
+  const instituteName = metadata.institute_name
+    ? escapeHtml(metadata.institute_name)
+    : metadata.department
+      ? escapeHtml(metadata.department)
+      : "Department";
 
   return `
 <div style="position:relative;width:100%;max-width:595px;min-height:842px;margin:0 auto;padding:72px 64px;font-family:'Times New Roman','Noto Serif',Georgia,serif;border:1px solid hsl(240 4% 22%);background:hsl(240 6% 6%);color:hsl(0 0% 95%);box-sizing:border-box;line-height:1.5;">
@@ -91,6 +93,10 @@ export function generateTitlePageHtml(
         <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;color:hsl(24 95% 53%);">Guide</p>
         <p style="font-size:14px;font-weight:700;margin:0 0 2px;">${escapeHtml(metadata.guide_name || "Guide Name")}</p>
         <p style="font-size:11px;margin:0 0 2px;color:hsl(0 0% 70%);">${escapeHtml(instituteName)}</p>
+        ${metadata.co_guide_name ? `
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;color:hsl(24 95% 53%);">Co-Guide</p>
+        <p style="font-size:14px;font-weight:700;margin:0;">${escapeHtml(metadata.co_guide_name)}</p>
+        ` : ""}
         ${metadata.hod_name ? `
         <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;color:hsl(24 95% 53%);">Head of Department</p>
         <p style="font-size:14px;font-weight:700;margin:0;">${escapeHtml(metadata.hod_name)}</p>
