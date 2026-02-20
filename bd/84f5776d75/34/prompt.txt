@@ -589,3 +589,363 @@ fix the draft footer issue as well
 ---
 
 commit and push, watch ci
+
+---
+
+now what do i do on the vps?
+
+---
+
+Check
+
+---
+
+[Image source: REDACTED 2026-02-21 at 3.29.32 AM.png]
+
+[Image source: REDACTED 2026-02-21 at 3.29.51 AM.png]
+
+[Image source: REDACTED 2026-02-21 at 3.30.00 AM.png]
+
+---
+
+screenshots were after this .....root@hetzner-sciscribe:~# cd /opt/apollo && git pull origin main
+remote: Enumerating objects: 45, done.
+remote: Counting objects: 100% (45/45), done.
+remote: Compressing objects: 100% (4/4), done.
+remote: Total 23 (delta 16), reused 23 (delta 16), pack-reused 0 (from 0)
+Unpacking objects: 100% (23/23), 2.58 KiB | 138.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   018dbd7..932b6f6  main       -> origin/main
+Updating 018dbd7..932b6f6
+Fast-forward
+ apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts |  5 ++++-
+ apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts   |  6 ++++--
+ apps/web/components/project/ai-generate-button.tsx                |  4 ----
+ apps/web/components/project/compile-button.tsx                    | 14 +-------------
+ apps/web/lib/latex/compile.ts                                     | 12 +++---------
+ docker/watermark.sh                                               | 10 ++++------
+ 6 files changed, 16 insertions(+), 35 deletions(-)
+root@hetzner-sciscribe:/opt/apollo# cd docker
+  docker compose build latex
+[+] Building 2.8s (17/17) FINISHED                                                                                                                                                                             
+ => [internal] load local bake definitions                                                                                                                                                                0.0s
+ => => reading from stdin 481B                                                                                                                                                                            0.0s
+ => [internal] load build definition from Dockerfile.latex                                                                                                                                                0.0s
+ => => transferring dockerfile: 1.68kB                                                                                                                                                                    0.0s
+ => [internal] load metadata for docker.io/texlive/texlive:latest-minimal                                                                                                                                 0.9s
+ => [internal] load .dockerignore                                                                                                                                                                         0.0s
+ => => transferring context: 2B                                                                                                                                                                           0.0s
+ => [ 1/10] FROM docker.io/texlive/texlive:latest-minimal@sha256:f0356bdc020544626117c378ed336bc63500e0c5029b2284b80098704cf9d2e8                                                                         0.1s
+ => => resolve docker.io/texlive/texlive:latest-minimal@sha256:f0356bdc020544626117c378ed336bc63500e0c5029b2284b80098704cf9d2e8                                                                           0.1s
+ => [internal] load build context                                                                                                                                                                         0.0s
+ => => transferring context: 962B                                                                                                                                                                         0.0s
+ => CACHED [ 2/10] RUN tlmgr install scheme-small && rm -rf /tmp/*                                                                                                                                        0.0s
+ => CACHED [ 3/10] RUN tlmgr install     natbib     titlesec     tocloft     enumitem     doi     draftwatermark     needspace     lastpage     hyphenat     datetime     fmtcount     emptypage     let  0.0s
+ => CACHED [ 4/10] RUN for f in /usr/local/texlive/2025/bin/*/*; do ln -sf "$f" /usr/local/bin/; done                                                                                                     0.0s
+ => CACHED [ 5/10] RUN apt-get update && apt-get install -y --no-install-recommends     ghostscript     pandoc     && rm -rf /var/lib/apt/lists/*                                                         0.0s
+ => CACHED [ 6/10] COPY docker/compile.sh /usr/local/bin/compile.sh                                                                                                                                       0.0s
+ => CACHED [ 7/10] RUN chmod +x /usr/local/bin/compile.sh                                                                                                                                                 0.0s
+ => [ 8/10] COPY docker/watermark.sh /usr/local/bin/watermark.sh                                                                                                                                          0.0s
+ => [ 9/10] RUN chmod +x /usr/local/bin/watermark.sh                                                                                                                                                      0.7s
+ => [10/10] WORKDIR /thesis                                                                                                                                                                               0.0s
+ => exporting to image                                                                                                                                                                                    0.4s
+ => => exporting layers                                                                                                                                                                                   0.2s
+ => => exporting manifest sha256:5769f1f9edcf1f65eb0024e06260b9c7bbef149106eebc83ed30f200e46e7734                                                                                                         0.0s
+ => => exporting config sha256:440cf1ec558fa39d67920847cd1d31245dce316911954820f6ce1085f784cc4a                                                                                                           0.0s
+ => => exporting attestation manifest sha256:e90d858767a1e7156c4ec1dc1393dbc4b3699610d81a73eb73eb61a85604213e                                                                                             0.0s
+ => => exporting manifest list sha256:9bcb1a7a85022add466e79285c9e4c7b911cb09f3c9c7c2eb2bca3f7265535d8                                                                                                    0.0s
+ => => naming to docker.io/library/apollo-latex:latest                                                                                                                                                    0.0s
+ => => unpacking to docker.io/library/apollo-latex:latest                                                                                                                                                 0.1s
+ => resolving provenance for metadata file                                                                                                                                                                0.0s
+[+] build 1/1
+ ✔ Image apollo-latex Built                                                                                                                                                                                3.0s
+root@hetzner-sciscribe:/opt/apollo/docker# cd ../apps/web
+  pnpm install --frozen-lockfile
+  pnpm build
+
+Scope: all 2 workspace projects
+../..                                    |    +1267 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.30.0 → 10.30.1.   │
+   │   Changelog: https://pnpm.io/v/10.30.1   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+Downloading mermaid@11.12.3: 14.85 MB/14.85 MB, done
+Downloading @napi-rs/canvas-linux-x64-gnu@0.1.94: 13.94 MB/13.94 MB, done
+Downloading @napi-rs/canvas-linux-x64-musl@0.1.94: 13.33 MB/13.33 MB, done
+Downloading posthog-js@1.352.0: 8.10 MB/8.10 MB, done
+../..                                    | Progress: resolved 1267, reused 1092, downloaded 175, added 1267, done
+../../node_modules/.pnpm/@clerk+shared@3.46.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@clerk/shared: Running postinstall script, done in 112ms
+
+dependencies:
++ @anthropic-ai/sdk 0.74.0
++ @aws-sdk/client-s3 3.994.0
++ @aws-sdk/s3-request-presigner 3.994.0
++ @clerk/nextjs 6.38.0
++ @codemirror/language 6.12.1
++ @codemirror/legacy-modes 6.5.2
++ @codemirror/state 6.5.4
++ @codemirror/view 6.39.15
++ @hookform/resolvers 3.10.0
++ @radix-ui/react-accordion 1.2.12
++ @radix-ui/react-alert-dialog 1.1.15
++ @radix-ui/react-avatar 1.1.11
++ @radix-ui/react-checkbox 1.3.3
++ @radix-ui/react-dialog 1.1.15
++ @radix-ui/react-dropdown-menu 2.1.16
++ @radix-ui/react-label 2.1.8
++ @radix-ui/react-navigation-menu 1.2.14
++ @radix-ui/react-progress 1.1.8
++ @radix-ui/react-select 2.2.6
++ @radix-ui/react-separator 1.1.8
++ @radix-ui/react-slot 1.2.4
++ @radix-ui/react-tabs 1.1.13
++ @radix-ui/react-tooltip 1.2.8
++ @react-three/drei 10.7.7
++ @react-three/fiber 9.5.0
++ @sentry/nextjs 10.39.0
++ @supabase/supabase-js 2.97.0
++ @uiw/react-codemirror 4.25.4
++ @upstash/redis 1.36.2
++ class-variance-authority 0.7.1
++ clsx 2.1.1
++ dompurify 3.3.1
++ embla-carousel-react 8.6.0
++ inngest 3.52.2
++ katex 0.16.28
++ lucide-react 0.468.0
++ mammoth 1.11.0
++ mermaid 11.12.3
++ motion 12.34.3
++ next 15.5.12
++ next-themes 0.4.6
++ papaparse 5.5.3
++ pdfjs-dist 5.4.624
++ posthog-js 1.352.0
++ react 19.2.4
++ react-dom 19.2.4
++ react-hook-form 7.71.1
++ react-pdf 10.3.0
++ react-resizable-panels 4.6.4
++ sonner 1.7.4
++ stripe 20.3.1
++ svix 1.85.0
++ tailwind-merge 2.6.1
++ tailwindcss-animate 1.0.7
++ three 0.182.0
++ xlsx 0.18.5
++ zod 3.25.76
+
+devDependencies:
++ @eslint/eslintrc 3.3.3
++ @playwright/test 1.58.2
++ @testing-library/jest-dom 6.9.1
++ @testing-library/react 16.3.2
++ @types/katex 0.16.8
++ @types/node 22.19.11
++ @types/papaparse 5.5.2
++ @types/react 19.2.14
++ @types/react-dom 19.2.3
++ @types/three 0.182.0
++ @vitejs/plugin-react 4.7.0
++ @vitest/coverage-v8 2.1.9
++ autoprefixer 10.4.24
++ eslint 9.39.3
++ eslint-config-next 15.5.12
++ jsdom 25.0.1
++ postcss 8.5.6
++ tailwindcss 3.4.19
++ typescript 5.9.3
++ vitest 2.1.9
+
+╭ Warning ───────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                    │
+│   Ignored build scripts: @sentry/cli@2.58.4, core-js@3.48.0, protobufjs@7.5.4, protobufjs@8.0.0.   │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.           │
+│                                                                                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+Done in 25.8s using pnpm v10.30.0
+
+> apollo-web@0.1.0 build /opt/apollo/apps/web
+> next build
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+   ▲ Next.js 15.5.12
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+ ⚠ Compiled with warnings in 89s
+
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.207.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.207.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.207.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.207.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.207.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@prisma+instrumentation@7.2.0_@opentelemetry+api@1.9.0/node_modules/@prisma/instrumentation/dist/index.js
+../../node_modules/.pnpm/@sentry+node@10.39.0/node_modules/@sentry/node/build/cjs/integrations/tracing/prisma.js
+../../node_modules/.pnpm/@sentry+node@10.39.0/node_modules/@sentry/node/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@10.39.0_@opentelemetry+context-async-hooks@2.5.1_@opentelemetry+api@1.9._aeae88baf482348c54e7c67c74cacd90/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/api/projects/[id]/compile/route.ts
+
+../../node_modules/.pnpm/require-in-the-middle@8.0.1/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+../../node_modules/.pnpm/require-in-the-middle@8.0.1/node_modules/require-in-the-middle/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+../../node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+../../node_modules/.pnpm/@sentry+node@10.39.0/node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+../../node_modules/.pnpm/@sentry+node@10.39.0/node_modules/@sentry/node/build/cjs/index.js
+../../node_modules/.pnpm/@sentry+nextjs@10.39.0_@opentelemetry+context-async-hooks@2.5.1_@opentelemetry+api@1.9._aeae88baf482348c54e7c67c74cacd90/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/api/projects/[id]/compile/route.ts
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (187kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+
+warn - The class `duration-[400ms]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `duration-&lsqb;400ms&rsqb;` to silence this warning.
+
+warn - The class `ease-[cubic-bezier(0.16,1,0.3,1)]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `ease-&lsqb;cubic-bezier(0.16,1,0.3,1)&rsqb;` to silence this warning.
+ ✓ Compiled successfully in 2.5min
+ ✓ Linting and checking validity of types    
+ ✓ Collecting page data    
+ ✓ Generating static pages (24/24)
+ ✓ Collecting build traces    
+ ✓ Finalizing page optimization    
+
+Route (app)                                                  Size  First Load JS    
+┌ ○ /                                                     42.5 kB         240 kB
+├ ○ /_not-found                                           1.01 kB         105 kB
+├ ƒ /api/account/delete                                     270 B         104 kB
+├ ƒ /api/account/preferences                                270 B         104 kB
+├ ƒ /api/checkout                                           270 B         104 kB
+├ ƒ /api/citations/search                                   270 B         104 kB
+├ ƒ /api/health                                             270 B         104 kB
+├ ƒ /api/inngest                                            270 B         104 kB
+├ ƒ /api/licenses                                           270 B         104 kB
+├ ƒ /api/licenses/[lid]/attach/[pid]                        270 B         104 kB
+├ ƒ /api/licenses/[lid]/transfer                            270 B         104 kB
+├ ƒ /api/projects                                           270 B         104 kB
+├ ƒ /api/projects/[id]                                      270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations                        270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations/[abbrevId]             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses                             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/[analysisId]                270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/auto-detect                 270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan                        270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan/approve                270 B         104 kB
+├ ƒ /api/projects/[id]/citations                            270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]               270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]/re-resolve    270 B         104 kB
+├ ƒ /api/projects/[id]/citations/audit                      270 B         104 kB
+├ ƒ /api/projects/[id]/compilations                         270 B         104 kB
+├ ƒ /api/projects/[id]/compile                              270 B         104 kB
+├ ƒ /api/projects/[id]/compliance                           270 B         104 kB
+├ ƒ /api/projects/[id]/datasets                             270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]                 270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]/download        270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/generate                    270 B         104 kB
+├ ƒ /api/projects/[id]/export/docx                          270 B         104 kB
+├ ƒ /api/projects/[id]/export/pdf                           270 B         104 kB
+├ ƒ /api/projects/[id]/export/source                        270 B         104 kB
+├ ƒ /api/projects/[id]/export/stats                         270 B         104 kB
+├ ƒ /api/projects/[id]/figures                              270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]                   270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]/download          270 B         104 kB
+├ ƒ /api/projects/[id]/figures/mermaid                      270 B         104 kB
+├ ƒ /api/projects/[id]/preview.pdf                          270 B         104 kB
+├ ƒ /api/projects/[id]/qc                                   270 B         104 kB
+├ ƒ /api/projects/[id]/qc/fix                               270 B         104 kB
+├ ƒ /api/projects/[id]/reset                                270 B         104 kB
+├ ƒ /api/projects/[id]/sections                             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]                     270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/approve             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/generate            270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/refine              270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/review              270 B         104 kB
+├ ƒ /api/projects/[id]/share                                270 B         104 kB
+├ ƒ /api/review/[token]                                     270 B         104 kB
+├ ƒ /api/review/[token]/comments                            270 B         104 kB
+├ ƒ /api/review/[token]/preview.pdf                         270 B         104 kB
+├ ƒ /api/synopsis/parse                                     270 B         104 kB
+├ ƒ /api/upload/signed-url                                  270 B         104 kB
+├ ƒ /api/webhooks/clerk                                     270 B         104 kB
+├ ƒ /api/webhooks/razorpay                                  270 B         104 kB
+├ ƒ /api/webhooks/stripe                                    270 B         104 kB
+├ ƒ /checkout                                             5.27 kB         128 kB
+├ ƒ /dashboard                                              175 B         107 kB
+├ ○ /icon.svg                                                 0 B            0 B
+├ ƒ /licences                                               175 B         107 kB
+├ ○ /privacy                                                270 B         104 kB
+├ ƒ /projects                                             3.54 kB         110 kB
+├ ƒ /projects/[id]                                        92.9 kB         301 kB
+├ ƒ /projects/[id]/setup                                  12.4 kB         139 kB
+├ ƒ /projects/new                                         1.35 kB         105 kB
+├ ○ /refund                                                 270 B         104 kB
+├ ƒ /review/[token]                                        5.2 kB         116 kB
+├ ƒ /settings                                              6.2 kB         225 kB
+├ ƒ /sign-in/[[...sign-in]]                               2.67 kB         135 kB
+├ ƒ /sign-up/[[...sign-up]]                               2.67 kB         135 kB
+└ ○ /terms                                                  175 B         107 kB
++ First Load JS shared by all                              104 kB
+  ├ chunks/9393-2903e00ae73634a1.js                       45.7 kB
+  ├ chunks/dde990a4-88ea85c9d188572d.js                   54.2 kB
+  └ other shared chunks (total)                           3.59 kB
+
+
+ƒ Middleware                                                86 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 restart apollo-web
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 152669   │ 0s     │ 8    │ online    │ 0%       │ 12.0mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@hetzner-sciscribe:/opt/apollo/apps/web#

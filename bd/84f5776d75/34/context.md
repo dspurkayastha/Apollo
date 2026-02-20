@@ -64,3 +64,31 @@ fix the draft footer issue as well
 
 commit and push, watch ci
 
+### Prompt 10
+
+now what do i do on the vps?
+
+### Prompt 11
+
+Check
+
+### Prompt 12
+
+[Image source: REDACTED 2026-02-21 at 3.29.32 AM.png]
+
+[Image source: REDACTED 2026-02-21 at 3.29.51 AM.png]
+
+[Image source: REDACTED 2026-02-21 at 3.30.00 AM.png]
+
+### Prompt 13
+
+screenshots were after this .....root@hetzner-sciscribe:~# cd /opt/apollo && git pull origin main
+remote: Enumerating objects: 45, done.
+remote: Counting objects: 100% (45/45), done.
+remote: Compressing objects: 100% (4/4), done.
+remote: Total 23 (delta 16), reused 23 (delta 16), pack-reused 0 (from 0)
+Unpacking objects: 100% (23/23), 2.58 KiB | 138.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   018dbd7..932b6f6  main       -> origin...
+
