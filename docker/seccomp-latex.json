@@ -91,6 +91,13 @@
         "close_range"
       ],
       "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "comment": "Capabilities — required by container runtime (runc) during init",
+      "names": [
+        "capget", "capset"
+      ],
+      "action": "SCMP_ACT_ALLOW"
     }
   ]
 }
