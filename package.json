@@ -1,0 +1,12 @@
+{
+  "name": "apollo",
+  "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@clerk/shared",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

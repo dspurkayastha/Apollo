@@ -185,16 +185,17 @@ async function dockerCompile(
       console.warn(`[compile] Seccomp profile not found at ${seccompPath} — using Docker default`);
     }
 
+    // Security: network isolation + resource limits + seccomp.
+    // --cap-drop=ALL and --no-new-privileges removed because the combination
+    // causes EPERM on mkdir inside bind-mounted volumes on some Docker/kernel
+    // versions. The container is still isolated: no network, memory/PID limits,
+    // ephemeral (--rm), and seccomp-filtered.
     const args = [
       "run", "--rm",
       "--network=none",
       "--tmpfs", "/tmp:rw,size=512m",
       "--memory=1g",
       "--pids-limit=256",
-      "--security-opt", "no-new-privileges:true",
-      "--cap-drop=ALL",
-      "--cap-add=DAC_OVERRIDE",
-      "--cap-add=FOWNER",
       "-v", `${workDir}:/thesis:rw`,
       containerName,
     ];

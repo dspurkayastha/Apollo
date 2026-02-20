@@ -76,14 +76,6 @@
     "xlsx": "^0.18.5",
     "zod": "^3.24.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@clerk/shared",
-      "esbuild",
-      "sharp",
-      "unrs-resolver"
-    ]
-  },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
     "@playwright/test": "^1.49.0",
