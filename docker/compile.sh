@@ -9,12 +9,14 @@ set -e
 #   - Output: /thesis/output/main.pdf
 
 WATERMARK=false
+DRAFT_FOOTER=false
 TIMEOUT=120
 OUTPUT_DIR="/thesis/output"
 
 for arg in "$@"; do
   case $arg in
-    --watermark) WATERMARK=true ;;
+    --watermark|--watermark-mode=sandbox) WATERMARK=true ;;
+    --watermark-mode=draft_footer) DRAFT_FOOTER=true ;;
   esac
 done
 

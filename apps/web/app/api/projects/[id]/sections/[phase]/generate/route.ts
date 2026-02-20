@@ -19,9 +19,13 @@ import {
 } from "@/lib/ai/prompts";
 import { parseSynopsisResponse } from "@/lib/ai/parse-synopsis-response";
 import { preSeedReferences, formatReferencesForPrompt } from "@/lib/citations/pre-seed";
-import { checkTokenBudget } from "@/lib/ai/token-budget";
+import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
 import { checkLicenceForPhase, type LicenceGateResult } from "@/lib/api/licence-phase-gate";
 import { inngest } from "@/lib/inngest/client";
+import { extractCiteKeys } from "@/lib/citations/extract-keys";
+import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
+import { checkBibtexIntegrity, requestMissingBibtexEntries } from "@/lib/ai/bibtex-completion";
+import { splitBibtex } from "@/lib/latex/assemble";
 import type { Project } from "@/lib/types/database";
 import type { PlannedAnalysis } from "@/lib/validation/analysis-plan-schemas";
 
@@ -347,34 +351,185 @@ async function handleSectionGenerate(
     : [2, 5].includes(phaseNumber) ? 10000       // Intro/M&M: ~3K body + ~2.5K BibTeX
     : 6000;                                      // Aims, Conclusion, others
 
-  // Enqueue Inngest background job for AI generation
+  // Try Inngest first (durable background job), fall back to inline generation
+  const useInngest = !!process.env.INNGEST_EVENT_KEY;
+
+  if (useInngest) {
+    try {
+      await inngest.send({
+        name: "thesis/section.generate",
+        data: {
+          projectId: project.id,
+          phaseNumber,
+          systemPrompt,
+          userMessage,
+          model,
+          maxTokens,
+        },
+      });
+
+      return NextResponse.json({
+        data: { status: "generating", message: "Generation started" },
+      });
+    } catch (err) {
+      console.error("[generate] Inngest send failed, falling back to inline:", err);
+      // Fall through to inline generation
+    }
+  }
+
+  // Inline generation: fire-and-forget async, return immediately
+  void runInlineGeneration(supabase, {
+    projectId: project.id,
+    phaseNumber,
+    systemPrompt,
+    userMessage,
+    model,
+    maxTokens,
+  });
+
+  return NextResponse.json({
+    data: { status: "generating", message: "Generation started" },
+  });
+}
+
+/**
+ * Inline generation fallback when Inngest is not configured.
+ * Runs in the background (fire-and-forget) — less durable than Inngest
+ * but functional without external infrastructure.
+ */
+async function runInlineGeneration(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  params: {
+    projectId: string;
+    phaseNumber: number;
+    systemPrompt: string;
+    userMessage: string;
+    model: string;
+    maxTokens: number;
+  }
+): Promise<void> {
+  const { projectId, phaseNumber, systemPrompt, userMessage, model, maxTokens } = params;
+
   try {
-    await inngest.send({
-      name: "thesis/section.generate",
-      data: {
-        projectId: project.id,
-        phaseNumber,
-        systemPrompt,
-        userMessage,
-        model,
-        maxTokens,
-      },
+    // Step 1: Stream AI response
+    const client = getAnthropicClient();
+    let fullResponse = "";
+
+    const messageStream = client.messages.stream({
+      model,
+      max_tokens: maxTokens,
+      system: [
+        {
+          type: "text" as const,
+          text: systemPrompt,
+          cache_control: { type: "ephemeral" as const },
+        },
+      ],
+      messages: [{ role: "user", content: userMessage }],
     });
+
+    let lastFlushed = 0;
+    const FLUSH_INTERVAL = 500;
+
+    messageStream.on("text", (text) => {
+      fullResponse += text;
+      if (fullResponse.length - lastFlushed >= FLUSH_INTERVAL) {
+        void supabase
+          .from("sections")
+          .update({ streaming_content: fullResponse })
+          .eq("project_id", projectId)
+          .eq("phase_number", phaseNumber)
+          .then(() => {});
+        lastFlushed = fullResponse.length;
+      }
+    });
+
+    const finalMessage = await messageStream.finalMessage();
+    const inputTokens = finalMessage.usage?.input_tokens ?? 0;
+    const outputTokens = finalMessage.usage?.output_tokens ?? 0;
+
+    // Step 2: BibTeX integrity check
+    let response = fullResponse;
+    const integrity = checkBibtexIntegrity(response);
+
+    if (!integrity.complete && integrity.missingKeys.length > 0) {
+      console.warn(
+        `[inline-gen] BibTeX trailer incomplete: ${integrity.missingKeys.length} missing entries`
+      );
+      try {
+        const missingBibtex = await requestMissingBibtexEntries(
+          integrity.missingKeys,
+          splitBibtex(response).body,
+          model,
+        );
+        if (missingBibtex.trim()) {
+          const { body, bib } = splitBibtex(response);
+          response = bib.trim()
+            ? `${body}\n\n---BIBTEX---\n${bib}\n\n${missingBibtex}`
+            : `${body}\n\n---BIBTEX---\n${missingBibtex}`;
+        }
+      } catch (err) {
+        console.error("[inline-gen] Failed to request missing BibTeX entries:", err);
+      }
+    }
+
+    // Step 3: Save final content
+    const citationKeys = extractCiteKeys(response);
+    const plainText = response
+      .replace(/\\[a-zA-Z]+\{[^}]*\}/g, " ")
+      .replace(/\\[a-zA-Z]+/g, " ")
+      .replace(/[{}\\]/g, " ");
+    const wordCount = plainText.split(/\s+/).filter(Boolean).length;
+
+    await supabase
+      .from("sections")
+      .update({
+        latex_content: response,
+        ai_generated_latex: response,
+        rich_content_json: null,
+        streaming_content: "",
+        word_count: wordCount,
+        citation_keys: citationKeys,
+        status: "review",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("project_id", projectId)
+      .eq("phase_number", phaseNumber);
+
+    // Step 4: Record token usage
+    await recordTokenUsage(
+      projectId,
+      phaseNumber,
+      inputTokens,
+      outputTokens,
+      model,
+      [
+        { role: "user", content: userMessage.slice(0, 50000) },
+        { role: "assistant", content: response.slice(0, 50000) },
+      ],
+    );
+
+    // Step 5: Resolve citations (non-blocking)
+    const timeoutMs = phaseNumber === 4 ? 45_000 : 15_000;
+    try {
+      await Promise.race([
+        resolveSectionCitations(projectId, response),
+        new Promise<null>((r) => setTimeout(() => r(null), timeoutMs)),
+      ]);
+    } catch (err) {
+      console.error("[inline-gen] Citation resolution failed:", err);
+    }
+
+    console.log(`[inline-gen] Phase ${phaseNumber} generation complete for project ${projectId}`);
   } catch (err) {
-    console.error("[generate] Failed to enqueue Inngest job:", err);
+    console.error(`[inline-gen] Phase ${phaseNumber} generation FAILED:`, err);
     // Roll back section status so user can retry
     await supabase
       .from("sections")
       .update({ status: "draft", updated_at: new Date().toISOString() })
-      .eq("project_id", project.id)
+      .eq("project_id", projectId)
       .eq("phase_number", phaseNumber);
-    return internalError("Failed to start generation. Please try again.");
   }
-
-  // Return immediately --- generation continues in background
-  return NextResponse.json({
-    data: { status: "generating", message: "Generation started" },
-  });
 }
 
 /**

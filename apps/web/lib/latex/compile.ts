@@ -188,7 +188,6 @@ async function dockerCompile(
     const args = [
       "run", "--rm",
       "--network=none",
-      "--read-only",
       "--tmpfs", "/tmp:rw,size=512m",
       "--memory=1g",
       "--pids-limit=256",

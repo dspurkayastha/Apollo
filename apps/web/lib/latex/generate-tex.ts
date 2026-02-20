@@ -107,18 +107,5 @@ export function generateTex(
     tex = tex.replace(/^%\\institutename\{[^}]*\}/m, `\\institutename{${escaped}}`);
   }
 
-  // Uncomment and set co-guide if provided
-  if (metadata.co_guide_name) {
-    const escaped = escapeLatexArg(metadata.co_guide_name);
-    tex = tex.replace(/^%\\cosupervisorname\{[^}]*\}/m, `\\cosupervisorname{${escaped}}`);
-    tex = tex.replace(/^%\\cosupervisordesignation\{[^}]*\}/m, "\\cosupervisordesignation{Associate Professor}");
-  }
-
-  // Uncomment and set institute if provided
-  if (metadata.institute_name) {
-    const escaped = escapeLatexArg(metadata.institute_name);
-    tex = tex.replace(/^%\\institutename\{[^}]*\}/m, `\\institutename{${escaped}}`);
-  }
-
   return { tex, warnings };
 }
