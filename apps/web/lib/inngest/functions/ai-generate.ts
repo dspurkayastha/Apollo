@@ -13,6 +13,7 @@ import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
 import { recordTokenUsage } from "@/lib/ai/token-budget";
 import { checkBibtexIntegrity, requestMissingBibtexEntries } from "@/lib/ai/bibtex-completion";
 import { splitBibtex } from "@/lib/latex/assemble";
+import { sanitiseLatexOutput } from "@/lib/ai/sanitise-latex";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export const aiGenerateFn = inngest.createFunction(
@@ -111,6 +112,9 @@ export const aiGenerateFn = inngest.createFunction(
           console.error("Failed to request missing BibTeX entries:", err);
         }
       }
+
+      // Sanitise markdown artefacts (# headings, **bold**, bare #)
+      response = sanitiseLatexOutput(response);
 
       return response;
     });

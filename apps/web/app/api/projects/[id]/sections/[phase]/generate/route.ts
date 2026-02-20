@@ -26,6 +26,7 @@ import { extractCiteKeys } from "@/lib/citations/extract-keys";
 import { resolveSectionCitations } from "@/lib/citations/auto-resolve";
 import { checkBibtexIntegrity, requestMissingBibtexEntries } from "@/lib/ai/bibtex-completion";
 import { splitBibtex } from "@/lib/latex/assemble";
+import { sanitiseLatexOutput } from "@/lib/ai/sanitise-latex";
 import type { Project } from "@/lib/types/database";
 import type { PlannedAnalysis } from "@/lib/validation/analysis-plan-schemas";
 
@@ -472,6 +473,9 @@ async function runInlineGeneration(
         console.error("[inline-gen] Failed to request missing BibTeX entries:", err);
       }
     }
+
+    // Sanitise markdown artefacts (# headings, **bold**, bare #)
+    response = sanitiseLatexOutput(response);
 
     // Step 3: Save final content
     const citationKeys = extractCiteKeys(response);
