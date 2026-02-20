@@ -12,19 +12,17 @@ if [ -z "$INPUT" ] || [ -z "$OUTPUT" ]; then
   exit 1
 fi
 
-# Create PostScript watermark stamp
+# Create PostScript watermark stamp — elegant centred "Apollo" branding
 STAMP="/tmp/watermark-stamp.ps"
 cat > "$STAMP" << 'WATERMARK_PS'
 <<
   /EndPage {
     2 eq { pop false } {
       gsave
-      0.85 setgray
-      /Helvetica-Bold findfont 72 scalefont setfont
+      0.92 setgray
+      /Palatino-Italic findfont 120 scalefont setfont
       306 396 translate
-      45 rotate
-      -200 0 moveto
-      (DRAFT - SANDBOX) show
+      (Apollo) dup stringwidth pop 2 div neg 0 moveto show
       grestore
       true
     } ifelse

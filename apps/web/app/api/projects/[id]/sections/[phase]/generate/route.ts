@@ -479,7 +479,10 @@ async function runInlineGeneration(
 
     // Step 3: Save final content
     const citationKeys = extractCiteKeys(response);
-    const plainText = response
+    // Only count body words — exclude BibTeX trailer
+    const bibSepIdx = response.indexOf("---BIBTEX---");
+    const bodyForCount = bibSepIdx >= 0 ? response.slice(0, bibSepIdx) : response;
+    const plainText = bodyForCount
       .replace(/\\[a-zA-Z]+\{[^}]*\}/g, " ")
       .replace(/\\[a-zA-Z]+/g, " ")
       .replace(/[{}\\]/g, " ");

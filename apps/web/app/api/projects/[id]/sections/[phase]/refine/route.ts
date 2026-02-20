@@ -122,8 +122,10 @@ export async function POST(
           // Extract citation keys directly from LaTeX (no round-trip)
           const citationKeys = extractCiteKeys(fullResponse);
 
-          // Word count
-          const plainText = fullResponse
+          // Word count — exclude BibTeX trailer
+          const bibSepIdx = fullResponse.indexOf("---BIBTEX---");
+          const bodyForCount = bibSepIdx >= 0 ? fullResponse.slice(0, bibSepIdx) : fullResponse;
+          const plainText = bodyForCount
             .replace(/\\[a-zA-Z]+\{[^}]*\}/g, " ")
             .replace(/\\[a-zA-Z]+/g, " ")
             .replace(/[{}\\]/g, " ");

@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile, writeFile, mkdir, rm, copyFile, access } from "fs/promises";
+import { readFile, writeFile, mkdir, rm, copyFile } from "fs/promises";
 import path from "path";
 import os from "os";
 import { parseLatexLog } from "./parse-log";
@@ -106,8 +106,8 @@ async function dockerCompile(
   try {
     await mkdir(workDir, { recursive: true });
 
-    // Write tex content
-    await writeFile(path.join(workDir, "main.tex"), texContent);
+    // Write tex content — inject watermark/draft footer via LaTeX package
+    await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, options));
 
     // Copy CLS and BST files from templates
     const templatesDir = path.resolve(process.cwd(), "../../templates");
@@ -187,12 +187,6 @@ async function dockerCompile(
       "-v", `${workDir}:/thesis:rw`,
       containerName,
     ];
-
-    if (options.watermark) {
-      args.push("--watermark-mode=sandbox");
-    } else if (options.draftFooter) {
-      args.push("--watermark-mode=draft_footer");
-    }
 
     const { stdout, stderr } = await execFileAsync("docker", args, {
       timeout: 120_000,

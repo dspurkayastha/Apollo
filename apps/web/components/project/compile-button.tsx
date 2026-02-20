@@ -21,8 +21,6 @@ interface CompileResult {
 
 export function CompileButton({ projectId, disabled, onCompileSuccess, onResult, onError }: CompileButtonProps) {
   const [isCompiling, setIsCompiling] = useState(false);
-  const [result, setResult] = useState<CompileResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [estimatedWait, setEstimatedWait] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -56,14 +54,12 @@ export function CompileButton({ projectId, disabled, onCompileSuccess, onResult,
             warnings: Array.isArray(body.data.warnings) ? body.data.warnings : [],
             compile_time_ms: body.data.compile_time_ms ?? 0,
           };
-          setResult(r);
           onResult?.(r);
           setQueuePosition(null);
           setEstimatedWait(null);
           setIsCompiling(false);
           onCompileSuccess?.();
         } else if (body.error) {
-          setError(body.error.message);
           onError?.(body.error.message);
           setQueuePosition(null);
           setIsCompiling(false);
@@ -76,12 +72,10 @@ export function CompileButton({ projectId, disabled, onCompileSuccess, onResult,
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [queuePosition, projectId, onCompileSuccess]);
+  }, [queuePosition, projectId, onCompileSuccess, onResult, onError]);
 
   async function handleCompile() {
     setIsCompiling(true);
-    setResult(null);
-    setError(null);
     onResult?.(null);
     onError?.(null);
     setQueuePosition(null);
@@ -111,7 +105,6 @@ export function CompileButton({ projectId, disabled, onCompileSuccess, onResult,
           warnings: Array.isArray(data.warnings) ? data.warnings : [],
           compile_time_ms: data.compile_time_ms ?? 0,
         };
-        setResult(r);
         onResult?.(r);
         onCompileSuccess?.();
       } else if (data?.status === "validation_failed") {
@@ -120,7 +113,6 @@ export function CompileButton({ projectId, disabled, onCompileSuccess, onResult,
         const msg = issues.length > 0
           ? `Validation failed: ${issues.map((i: { chapter: string; message: string }) => `${i.chapter} — ${i.message}`).join("; ")}`
           : "Validation failed — fix issues in the editor and retry";
-        setError(msg);
         onError?.(msg);
       } else if (data?.status === "failed") {
         // Compile failed — show errors
@@ -128,18 +120,14 @@ export function CompileButton({ projectId, disabled, onCompileSuccess, onResult,
         const msg = errors.length > 0
           ? `Compilation failed: ${errors.join("; ")}`
           : "Compilation failed — check the LaTeX source for errors";
-        setError(msg);
         onError?.(msg);
       } else if (body.error?.message) {
-        setError(body.error.message);
         onError?.(body.error.message);
       } else {
-        setError("Unexpected response from server");
         onError?.("Unexpected response from server");
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Compilation failed";
-      setError(msg);
       onError?.(msg);
     } finally {
       if (queuePosition === null) {

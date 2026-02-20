@@ -40,7 +40,6 @@ export function AIGenerateButton({
 }: AIGenerateButtonProps) {
   const [citationSummary, setCitationSummary] = useState<CitationSummary | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [bgError, setBgError] = useState<string | null>(null);
   // Defer showing the Refine button to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -56,7 +55,6 @@ export function AIGenerateButton({
 
   async function handleBackgroundGenerate() {
     setCitationSummary(null);
-    setBgError(null);
     onErrorCallback?.(null);
     setIsSubmitting(true);
     try {
@@ -73,7 +71,6 @@ export function AIGenerateButton({
         const msg =
           (errorBody as Record<string, Record<string, string>>)?.error?.message ??
           `Request failed with status ${res.status}`;
-        setBgError(msg);
         onErrorCallback?.(msg);
         return;
       }
@@ -82,7 +79,6 @@ export function AIGenerateButton({
       onComplete?.({ type: "complete" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to start generation";
-      setBgError(msg);
       onErrorCallback?.(msg);
     } finally {
       setIsSubmitting(false);
