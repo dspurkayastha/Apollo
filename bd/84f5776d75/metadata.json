@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 204,
+  "checkpoints_count": 203,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -336,6 +336,8 @@
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
     "docs/governance/security-tests.md",
     "docs/mitigation_implementation.md",
+    "package.json",
+    "pnpm-workspace.yaml",
     "scripts/backfill-latex-content.ts",
     "scripts/deploy-conformance.sh",
     "scripts/load-test.js",
@@ -585,10 +587,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108847,
-    "cache_creation_tokens": 7958737,
-    "cache_read_tokens": 277958007,
-    "output_tokens": 574104,
-    "api_call_count": 2880
+    "input_tokens": 108832,
+    "cache_creation_tokens": 7949265,
+    "cache_read_tokens": 277028580,
+    "output_tokens": 577591,
+    "api_call_count": 2867
   }
 }

@@ -920,3 +920,18 @@ Before pulling to vps, now on refresh the Phase 2 Introduction section is genera
 
 continue
 
+### Prompt 134
+
+root@hetzner-sciscribe:/opt/apollo# pnpm --filter web build
+apps/web                                 |  WARN  The field "pnpm.onlyBuiltDependencies" was found in /opt/apollo/apps/web/package.json. This will not take effect. You should configure "pnpm.onlyBuiltDependencies" at the root of the workspace instead.
+No projects matched the filters in "/opt/apollo"
+root@hetzner-sciscribe:/opt/apollo#
+
+### Prompt 135
+
+Still same error. Find the root cause for this. Search on the web , find resources, but diagnose this issue properly. think of alternate options to fix this. then tell me then apln
+
+### Prompt 136
+
+[Image source: REDACTED 2026-02-20 at 7.25.19 PM.png]
+
