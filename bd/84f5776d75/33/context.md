@@ -908,3 +908,15 @@ Let me chronologically analyze the conversation:
    - Hero 3D scene axes darkening
    - Setup wizard form improvements (co-guide, institute, ...
 
+### Prompt 131
+
+Before pulling to vps, now on refresh the Phase 2 Introduction section is generated, but the pdf doesnt compile due to # (which seems to be a remnant from the Rich text editor days. Also, I want to show you my inngest logs, so you can better diagnose the generating issue. How to do that? The UI is not smooth (lke physically it is smooth, but there are so many hiccups here and there). Also the citations, so any unverified citations! why? why not be truthfull and honest and give proper citation" i...
+
+### Prompt 132
+
+[Image source: REDACTED 2026-02-20 at 6.00.45 PM.png]
+
+### Prompt 133
+
+continue
+
