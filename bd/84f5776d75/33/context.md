@@ -425,3 +425,435 @@ Let me chronologically analyze the conversation:
 
 2. **User: "Now check the Deployment.md file..."*...
 
+### Prompt 55
+
+did you do this to defqult branch or main? ⏺ Now commit the AppArmor profile fix and implementation log update:
+
+⏺ Bash(git diff --stat)                                                                                                                                                                                        
+  ⎿   docker/apparmor-r-plumber | 1 +
+      1 file changed, 1 insertion(+)                                                                                                  ...
+
+### Prompt 56
+
+but then why does this happeb?   root@hetzner-sciscribe:/opt/apollo#  cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing obje...
+
+### Prompt 57
+
+yes push
+
+### Prompt 58
+
+root@hetzner-sciscribe:/opt/apollo# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart r-plumber
+remote: Enumerating objects: 10, done.
+remote: Counting objects: 100% (10/10), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 6 (delta 4), reused 6 (delta 4), pack-reused 0 (from 0)
+Unpac...
+
+### Prompt 59
+
+why do i need a new supabase project?
+
+### Prompt 60
+
+i would wipe that db, reuse creds for now, apply ALL migrations clean afresh via mcp sequentially, and i would use this for beta testing with real users. if i ever need a dev sandbox ever i will create a dev db again.
+
+### Prompt 61
+
+for Clerk, I have created the Production deployment, got the API keys for production, still pending on the webhook, added DNS records and verified them , SSL is done. Need help with the webhooks part
+
+### Prompt 62
+
+[Image source: REDACTED 2026-02-20 at 1.55.45 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 1.56.09 AM.png]
+
+### Prompt 63
+
+Done, will click create, Do i need to do anything for inngest from here?
+
+### Prompt 64
+
+[Image source: REDACTED 2026-02-20 at 1.58.45 AM.png]
+
+### Prompt 65
+
+ok, done for clerk, now next
+
+### Prompt 66
+
+in R2, i updated the CORS, doea that change the existing  R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (reuse existing API token) ?
+
+### Prompt 67
+
+Step 6 done (using my personal api token on max plan for beta testing
+
+### Prompt 68
+
+check, I need to set the pp url now
+
+### Prompt 69
+
+[Image source: REDACTED 2026-02-20 at 2.08.12 AM.png]
+
+### Prompt 70
+
+ok done, got the keys, next
+
+### Prompt 71
+
+give me the template, i'll fill it in on the VPS, but guide me on that
+
+### Prompt 72
+
+the inngest event key is not evt_xxx its TPKsL_xx.... no issues? also i want to finish atleast rqazorpay
+
+### Prompt 73
+
+Do i need to add apollo.sciscribesolutions.com here?
+
+### Prompt 74
+
+[Image source: REDACTED 2026-02-20 at 2.25.09 AM.png]
+
+### Prompt 75
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me analyze the conversation chronologically:
+
+1. **Session Start**: This is a continuation from a previous conversation about deploying Apollo to production. The previous session covered:
+   - Auditing DEPLOYMENT.md
+   - Creating DEPLOYMENT_IMPLEMENTATION.md
+   - VPS provisioning (Hetzner CX23, 37.27.211.131, Helsinki)
+   - DNS set...
+
+### Prompt 76
+
+should be website yes?
+
+### Prompt 77
+
+[Image source: REDACTED 2026-02-20 at 2.28.28 AM.png]
+
+### Prompt 78
+
+Ok, but you hallucinated the plan amounts
+
+### Prompt 79
+
+razorpay wants testuser access, can i use this clerk setting to do this? and how do i communicate this to razorpay?
+
+### Prompt 80
+
+[Image source: REDACTED 2026-02-20 at 2.32.08 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 2.32.24 AM.png]
+
+### Prompt 81
+
+give me the plan name, description, etc for razorpay subscription plans, prof monthly i will kepp as 14,999 per month (only rzp plan for now, will update codebase later.
+
+### Prompt 82
+
+create the razorpay block for me, i will fill the api keys
+
+### Prompt 83
+
+[Image source: REDACTED 2026-02-20 at 2.52.31 AM.png]
+
+### Prompt 84
+
+done with .env.local on vps (stripe pendong) lets move to next step
+
+### Prompt 85
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Packages: +1245
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Downloading next@15.5.12: 30.64 MB/30.64 MB, done
+Downloading @img/sharp-libvips-linuxmusl-x64@1.2.4: 7.65 MB/7.65 MB, done
+Downloading @img/sharp-libv...
+
+### Prompt 86
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pnpm build
+
+> apollo-web@0.1.0 build /opt/apollo/apps/web
+> next build
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optiona...
+
+### Prompt 87
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# cat > /opt/apollo/apps/web/ecosystem.config.js << 'EOF'                                                                                                                                                      
+  module.exports = {                                                        
+    apps: [{
+      name: "apollo-web",
+      script: "node_modules/.bin/next",
+      args: "start -H 127.0.0.1 -p 3000",
+      cwd: "/opt/apollo/apps/web",
+      env: {
+   ...
+
+### Prompt 88
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# curl http://127.0.0.1:3000/api/health 
+curl: (7) Failed to connect to 127.0.0.1 port 3000 after 0 ms: Connection refused
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+### Prompt 89
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --lines 30
+[TAILING] Tailing last 30 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-out.log last 30 lines:
+/root/.pm2/logs/apollo-web-error.log last 30 lines:
+0|apollo-w | /opt/apollo/apps/web/node_modules/.bin/next:2
+0|apollo-w | basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+0|apollo-w |           ^^^^^^^
+0|apollo-w | 
+0|apollo-w | SyntaxError: missing ) after argument list...
+
+### Prompt 90
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 stop apollo-web && pm2 delete apollo-web
+[PM2] Applying action stopProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────�...
+
+### Prompt 91
+
+Internal Server Errorroot@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --lines 50
+[TAILING] Tailing last 50 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-out.log last 50 lines:
+0|apollo-w |    ▲ Next.js 15.5.12
+0|apollo-w |    - Local:        http://127.0.0.1:3000
+0|apollo-w |    - Network:      http://127.0.0.1:3000
+0|apollo-w | 
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1594ms
+0|apollo-w |    ▲ Next.js 15.5.12...
+
+### Prompt 92
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# sed -i 's/  output: "standalone",//' /opt/apollo/apps/web/next.config.ts
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 stop apollo-web && cd /opt/apollo/apps/web && pnpm build && pm2 start ecosystem.config.js && pm2 save
+[PM2] Applying action stopProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────�...
+
+### Prompt 93
+
+rroot@hetzner-sciscribe:/ curl -v http://127.0.0.1:3000/api/health 2>&1 && echo "" && pm2 logs apollo-web --lines 20 --nostream--lines 20 --nostream
+*   Trying 127.0.0.1:3000...
+* Connected to 127.0.0.1 (127.0.0.1) port 3000 (#0)
+> GET /api/health HTTP/1.1
+> Host: 127.0.0.1:3000
+> User-Agent: curl/7.81.0
+> Accept: */*
+>
+
+### Prompt 94
+
+rroot@hetzner-sciscribe:/ curl -v http://127.0.0.1:3000/api/health 2>&1 && echo "" && pm2 logs apollo-web --lines 20 --nostream--lines 20 --nostream
+*   Trying 127.0.0.1:3000...
+* Connected to 127.0.0.1 (127.0.0.1) port 3000 (#0)
+> GET /api/health HTTP/1.1
+> Host: 127.0.0.1:3000
+> User-Agent: curl/7.81.0
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 500 Internal Server Error
+< X-Frame-Options: DENY
+< X-Content-Type-Options: nosniff
+< Referrer-Policy: strict-origin-when-cro...
+
+### Prompt 95
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# grep -n "standalone" /opt/apollo/apps/web/next.config.ts
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+### Prompt 96
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# grep -n "standalone" /opt/apollo/apps/web/next.config.ts
+root@hetzner-sciscribe:/opt/apollo/apps/web#  pm2 stop apollo-web && rm -rf /opt/apollo/apps/web/.next && cd /opt/apollo/apps/web && pnpm build && pm2 restart apollo-web && sleep 3 && curl http://127.0.0.1:3000/api/health  
+[PM2] Applying action stopProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬────�...
+
+### Prompt 97
+
+Internal Server Errorroot@hetzner-sciscribe:/ pm2 flush apollo-web && sleep 2 && curl http://127.0.0.1:3000/api/health && echo "" && pm2 logs apollo-web --err --lines 20 --nostream--lines 20 --nostream
+[PM2] Flushing:
+[PM2] /root/.pm2/logs/apollo-web-out.log
+[PM2] /root/.pm2/logs/apollo-web-error.log
+[PM2] Logs flushed
+Internal Server Error
+[TAILING] Tailing last 20 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-error.log last 20 lines:
+0|apollo-...
+
+### Prompt 98
+
+On this Ubuntu system, localhost likely tries IPv6 ::1 first, fails, and the proxy crashes. You say likely!! be sure
+
+### Prompt 99
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# getent hosts localhost
+::1             localhost ip6-localhost ip6-loopback
+
+### Prompt 100
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# ufw deny 3000 && pm2 start ecosystem.config.js && pm2 save && sleep 3 && curl http://127.0.0.1:3000/api/health
+Rule added
+Rule added (v6)
+[PM2] Applying action restartProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬──────�...
+
+### Prompt 101
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# cat > /etc/caddy/Caddyfile << 'EOF'                                                                                                                                                                          
+  apollo.sciscribesolutions.com {                                                                                                                                                                               
+      reverse_proxy localhost:3000      ...
+
+### Prompt 102
+
+its live, opening in browser now, inngest synced
+
+### Prompt 103
+
+[Image source: REDACTED 2026-02-20 at 4.10.02 AM.png]
+
+### Prompt 104
+
+update the deployment implementation file properly, do not miss anything. create a section for pending git commits (will push at one go after initial testing
+
+### Prompt 105
+
+google oauth done. works;clerk works, dash opens , then https://apollo.sciscribesolutions.com/projects to https://apollo.sciscribesolutions.com/projects/new silently fails and loops back to https://apollo.sciscribesolutions.com/projects
+
+### Prompt 106
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --err --lines 30 --nostream 
+[TAILING] Tailing last 30 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-error.log last 30 lines:
+0|apollo-w | Failed to fetch projects: {
+0|apollo-w |   code: 'PGRST301',
+0|apollo-w |   details: 'No suitable key was found to decode the JWT',
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'No suitable key or wrong key type'
+0|apollo-w | }
+0|apollo-w ...
+
+### Prompt 107
+
+from vps  NEXT_PUBLIC_SUPABASE_URL=https://ugkqdopvsmtzsqvnnmck.supabase.co
+  REDACTED
+  REDACTED.REDACTED...
+
+### Prompt 108
+
+[Image source: REDACTED 2026-02-20 at 4.31.01 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 4.31.20 AM.png]
+
+### Prompt 109
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --err --lines 10 --nostream
+[TAILING] Tailing last 10 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-error.log last 10 lines:
+0|apollo-w |   details: 'No suitable key was found to decode the JWT',
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'No suitable key or wrong key type'
+0|apollo-w | }
+0|apollo-w | Failed to fetch projects: {
+0|apollo-w |   code: 'PGRST301',
+0|apollo-w |...
+
+### Prompt 110
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation from a previous conversation about deploying Apollo to production. The previous session covered VPS provisioning, DNS setup, Docker container builds with AppArmor debugging, and multiple commits.
+
+2. **Razorpay Setup**: User was on Razorpay s...
+
+### Prompt 111
+
+Project creation works. but if you go through the codebase ypou will find that the non licensed user  has been allowed generation upto Introducion cahpter and pdf download with watermark post that (initially this was limited to title page only, no download). The Ui and frontend flow havent yet been updated to do so yet. Also the post synopsis ingestion form fill up with details needs some corrections, and so dpoes some landing page UI elements (eg in Hero 3d element, graph axes from light grey t...
+
+### Prompt 112
+
+[Request interrupted by user]
+
+### Prompt 113
+
+show the plan approved just now
+
+### Prompt 114
+
+[Request interrupted by user]
+
+### Prompt 115
+
+show the plan again
+
+### Prompt 116
+
+No. there i changes i need, create a post deploy audit mitigation .md file in /docs and put this plan in there
+
+### Prompt 117
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation from a previous conversation about deploying Apollo to production. The previous session covered VPS provisioning, DNS setup, Docker builds, PM2 setup, Caddy reverse proxy, and diagnosing a Supabase PGRST301 JWT error with Clerk integration.
+
+...
+
+### Prompt 118
+
+check the post deploy audit.md in /docs Read the plan written there. it requires some chnages and some more additions (there is some weird edge case behaviour which isnt intended. eg. 1. During University selection, WBUHS, and SSUHS and Other University are shown but the full form of SSUHS is wrong. 2. Although currently there is no way to proceed beyond step 5 in that flow ( It generates upto title page only) from there , there is no frontend to proceed to main pipeline step 1 ie orientation wh...
+
+### Prompt 119
+
+[Image source: REDACTED 2026-02-20 at 10.18.37 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 10.19.58 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 10.21.59 AM.png]
+
+[Image source: /var/folders/xm/fywrf9w968...
+
+### Prompt 120
+
+review/modify the audit document
+  first
+
+### Prompt 121
+
+Lets implement these, and then do a push and pull on the vps. But we need to verify every fix has worked properly.
+
+### Prompt 122
+
+continue
+

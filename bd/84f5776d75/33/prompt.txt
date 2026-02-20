@@ -2759,3 +2759,2041 @@ Summary:
 
 If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
 Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+did you do this to defqult branch or main? ⏺ Now commit the AppArmor profile fix and implementation log update:
+
+⏺ Bash(git diff --stat)                                                                                                                                                                                        
+  ⎿   docker/apparmor-r-plumber | 1 +
+      1 file changed, 1 insertion(+)                                                                                                                                                                           
+                                                                            
+⏺ Bash(git add docker/apparmor-r-plumber docs/DEPLOYMENT_IMPLEMENTATION.md && git commit -m "AppArmor: add /proc/version_signature read + update deployment log…)                                              
+  ⎿  [main 683840d] AppArmor: add /proc/version_signature read + update deployment log                                                                                                                         
+      2 files changed, 603 insertions(+)                                                                                                                                                                       
+      create mode 100644 docs/DEPLOYMENT_IMPLEMENTATION.md
+
+---
+
+but then why does this happeb?   root@hetzner-sciscribe:/opt/apollo#  cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate && sleep 30 && docker ps && curl http://localhost:8787/health
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 512 bytes | 128.00 KiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   2cc8856..ed4948a  main       -> origin/main
+Updating 2cc8856..ed4948a
+Fast-forward
+ docker/apparmor-r-plumber | 1 -
+ 1 file changed, 1 deletion(-)
+[+] up 2/2
+ ✔ Container apollo-r-plumber Recreated                                                                                                                                                                   10.6s
+ ✔ Container apollo-latex     Recreated                                                                                                                                                                   10.4s
+CONTAINER ID   IMAGE              COMMAND                  CREATED          STATUS                    PORTS                      NAMES
+ac2757469570   apollo-latex       "sleep infinity"         41 seconds ago   Up 30 seconds                                        apollo-latex
+c4ceef6bc9f3   apollo-r-plumber   "R -e 'plumber::pr_r…"   41 seconds ago   Up 30 seconds (healthy)   127.0.0.1:8787->8787/tcp   apollo-r-plumber
+{"status":["ok"],"service":["apollo-r-plumber"],"r_version":["4.4.0"],"timestamp":["2026-02-19 19:29:00"],"packages":{"survival":[true],"pROC":[true],"meta":[true]}}root@hetzner-sciscribe:/opt/apollo/docker# ^C
+root@hetzner-sciscribe:/opt/apollo/docker# dmesg | grep apparmor | grep DENIED | grep apollo-r-plumber 
+[22960.097416] audit: type=1400 audit(1771527218.716:37): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/dev/tty" pid=53368 comm="R" requested_mask="wr" denied_mask="wr" fsuid=0 ouid=0
+[22960.098311] audit: type=1400 audit(1771527218.720:38): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/nsswitch.conf" pid=53368 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[22960.098319] audit: type=1400 audit(1771527218.720:39): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/passwd" pid=53368 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[22960.098633] audit: type=1400 audit(1771527218.720:40): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/usr/bin/R" pid=53368 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23197.413213] audit: type=1400 audit(1771527456.039:43): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/dev/tty" pid=53668 comm="R" requested_mask="wr" denied_mask="wr" fsuid=0 ouid=0
+[23197.413895] audit: type=1400 audit(1771527456.039:44): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/nsswitch.conf" pid=53668 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23197.413923] audit: type=1400 audit(1771527456.039:45): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/passwd" pid=53668 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23197.414316] audit: type=1400 audit(1771527456.039:46): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/usr/bin/R" pid=53668 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23757.262326] audit: type=1400 audit(1771528015.907:47): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/dev/tty" pid=54590 comm="R" requested_mask="wr" denied_mask="wr" fsuid=0 ouid=0
+[23757.262793] audit: type=1400 audit(1771528015.907:48): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/nsswitch.conf" pid=54590 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23757.262836] audit: type=1400 audit(1771528015.907:49): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/passwd" pid=54590 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23757.263076] audit: type=1400 audit(1771528015.907:50): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/usr/bin/R" pid=54590 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23894.723500] audit: type=1400 audit(1771528153.370:51): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/dev/tty" pid=54855 comm="R" requested_mask="wr" denied_mask="wr" fsuid=0 ouid=0
+[23894.724243] audit: type=1400 audit(1771528153.374:52): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/nsswitch.conf" pid=54855 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23894.724289] audit: type=1400 audit(1771528153.374:53): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/passwd" pid=54855 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[23894.724536] audit: type=1400 audit(1771528153.374:54): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/usr/bin/R" pid=54855 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24283.225026] audit: type=1400 audit(1771528541.881:57): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/dev/tty" pid=55611 comm="R" requested_mask="wr" denied_mask="wr" fsuid=0 ouid=0
+[24283.226013] audit: type=1400 audit(1771528541.885:58): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/nsswitch.conf" pid=55611 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24283.226221] audit: type=1400 audit(1771528541.885:59): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/etc/passwd" pid=55611 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[24283.227739] audit: type=1400 audit(1771528541.885:60): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/usr/bin/R" pid=55611 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+[25054.891830] audit: type=1400 audit(1771529313.570:82): apparmor="DENIED" operation="open" profile="apollo-r-plumber" name="/proc/version_signature" pid=56587 comm="R" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+root@hetzner-sciscribe:/opt/apollo/docker# cd /opt/apollo && git pull origin main
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+root@hetzner-sciscribe:/opt/apollo#
+
+---
+
+yes push
+
+---
+
+root@hetzner-sciscribe:/opt/apollo# cd /opt/apollo && git pull origin main && cp docker/apparmor-r-plumber /etc/apparmor.d/apollo-r-plumber && apparmor_parser -r /etc/apparmor.d/apollo-r-plumber && cd docker && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart r-plumber
+remote: Enumerating objects: 10, done.
+remote: Counting objects: 100% (10/10), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 6 (delta 4), reused 6 (delta 4), pack-reused 0 (from 0)
+Unpacking objects: 100% (6/6), 9.35 KiB | 1.56 MiB/s, done.
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   ed4948a..683840d  main       -> origin/main
+Updating ed4948a..683840d
+Fast-forward
+ docker/apparmor-r-plumber         |   1 +
+ docs/DEPLOYMENT_IMPLEMENTATION.md | 602 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 603 insertions(+)
+ create mode 100644 docs/DEPLOYMENT_IMPLEMENTATION.md
+[+] restart 0/1
+ ⠧ Container apollo-r-plumber Restarting                                                                                                                                                                  10.7s
+root@hetzner-sciscribe:/opt/apollo/docker# dmesg --clear && sleep 35 && dmesg | grep apparmor | grep DENIED
+root@hetzner-sciscribe:/opt/apollo/docker# dmesg | grep apparmor | grep DENIED | grep apollo-r-plumber
+
+---
+
+why do i need a new supabase project?
+
+---
+
+i would wipe that db, reuse creds for now, apply ALL migrations clean afresh via mcp sequentially, and i would use this for beta testing with real users. if i ever need a dev sandbox ever i will create a dev db again.
+
+---
+
+for Clerk, I have created the Production deployment, got the API keys for production, still pending on the webhook, added DNS records and verified them , SSL is done. Need help with the webhooks part
+
+---
+
+[Image source: REDACTED 2026-02-20 at 1.55.45 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 1.56.09 AM.png]
+
+---
+
+Done, will click create, Do i need to do anything for inngest from here?
+
+---
+
+[Image source: REDACTED 2026-02-20 at 1.58.45 AM.png]
+
+---
+
+ok, done for clerk, now next
+
+---
+
+in R2, i updated the CORS, doea that change the existing  R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (reuse existing API token) ?
+
+---
+
+Step 6 done (using my personal api token on max plan for beta testing
+
+---
+
+check, I need to set the pp url now
+
+---
+
+[Image source: REDACTED 2026-02-20 at 2.08.12 AM.png]
+
+---
+
+ok done, got the keys, next
+
+---
+
+give me the template, i'll fill it in on the VPS, but guide me on that
+
+---
+
+the inngest event key is not evt_xxx its TPKsL_xx.... no issues? also i want to finish atleast rqazorpay
+
+---
+
+Do i need to add apollo.sciscribesolutions.com here?
+
+---
+
+[Image source: REDACTED 2026-02-20 at 2.25.09 AM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me analyze the conversation chronologically:
+
+1. **Session Start**: This is a continuation from a previous conversation about deploying Apollo to production. The previous session covered:
+   - Auditing DEPLOYMENT.md
+   - Creating DEPLOYMENT_IMPLEMENTATION.md
+   - VPS provisioning (Hetzner CX23, 37.27.211.131, Helsinki)
+   - DNS setup (apollo.sciscribesolutions.com)
+   - Docker container builds with extensive AppArmor debugging
+   - Multiple commits fixing TL2025 packages, Docker Compose v5 compatibility, AppArmor profiles
+
+2. **AppArmor Final Fix**: Added `/proc/version_signature` to AppArmor profile for zero denials. Committed but NOT pushed initially.
+
+3. **Push Issue**: User noticed the commit wasn't on VPS because it wasn't pushed. Fixed by `git push origin main`.
+
+4. **VPS Update**: User pulled, reloaded AppArmor, restarted containers. Zero denials confirmed with `dmesg`.
+
+5. **Supabase Database Wipe and Migration**: User decided to reuse existing Supabase project (not create new), wipe all data, and apply all 32 migrations fresh.
+   - Dropped public schema with CASCADE
+   - Cleared migration tracking table
+   - Hit circular dependency: migration 001 (organisations) references users table in RLS policy, but users doesn't exist yet
+   - Fixed by creating organisations table without policy in 001, then adding the policy in 002
+   - Applied all 32 migrations sequentially via MCP
+   - Verified: 17 tables, 32 migrations tracked, 0 security lints
+   - Fixed duplicate index on citations table (both constraint and unique index)
+   - Performance advisors showed auth_rls_initplan warnings (non-blocking optimization) and unused indexes (expected for empty DB)
+
+6. **Clerk Setup**: User completed DNS verification, SSL, API keys. Needed help with webhooks.
+   - Checked webhook handler: processes `user.created` and `user.deleted` events
+   - Guided user to configure webhook endpoint URL, events, and collect signing secret
+   - User asked about Inngest integration in Clerk - confirmed it's not needed (separate from Apollo's Inngest setup)
+
+7. **R2, Anthropic, Inngest**: 
+   - R2: User updated CORS, confirmed credentials unchanged
+   - Anthropic: User using personal API token on max plan for beta
+   - Inngest: User created app, got keys. Event key format is `TPKsL_xxx` not `evt_xxx` - confirmed this is fine (Inngest changed prefixes)
+
+8. **Environment Template**: Created comprehensive `.env.local` template with all variables. Retrieved Upstash Redis credentials via MCP. Included build/deploy steps.
+
+9. **Razorpay Setup**: Provided instructions for API keys, subscription plans, and webhooks.
+
+10. **Current**: User is on Razorpay settings page asking if they need to add apollo.sciscribesolutions.com as a website.
+
+Key files modified this session:
+- `docker/apparmor-r-plumber` - Added `/proc/version_signature r`
+- `docs/DEPLOYMENT_IMPLEMENTATION.md` - Updated Step 11 as COMPLETE with detailed lessons
+
+Key decisions:
+- Reuse existing Supabase project (wiped and rebuilt)
+- Reuse existing Upstash Redis DB
+- Defer Stripe setup
+- Use personal Anthropic API key for beta
+- Razorpay being set up now
+
+Errors:
+- Commit not pushed to remote (fixed with git push)
+- Migration 001 circular dependency with users table (fixed by deferring policy)
+- Duplicate index on citations table (fixed by dropping redundant index)
+
+Summary:
+1. Primary Request and Intent:
+   The user is deploying Apollo (AI-powered thesis generation platform) to production following `docs/DEPLOYMENT.md` step by step. The session continues from a previous conversation where Steps 1-2 (VPS, DNS) and Step 11 (Docker containers) were completed with extensive AppArmor debugging. This session focused on:
+   - Finalizing AppArmor profile (zero denials)
+   - Pushing commits to remote (was missed)
+   - Wiping and rebuilding Supabase database with all 32 migrations applied cleanly via MCP
+   - Completing service credential collection (Clerk, R2, Anthropic, Inngest, Razorpay)
+   - Preparing `.env.local` template for VPS deployment
+   - Getting ready for Step 12 (Next.js deployment)
+
+2. Key Technical Concepts:
+   - Supabase MCP for migration application (sequential, with dependency ordering)
+   - Circular dependency in RLS policies (organisations references users before users exists)
+   - AppArmor enforce mode with zero denials
+   - Docker Compose v5 strict YAML validation
+   - Clerk webhook configuration (user.created, user.deleted events)
+   - Inngest key format change (no longer `evt_` prefix)
+   - PM2 + Caddy + Next.js deployment architecture
+   - `NEXT_PUBLIC_*` vars baked at build time
+   - Upstash Redis credential retrieval via MCP
+   - Razorpay subscription plans and webhook setup
+
+3. Files and Code Sections:
+   - **`docker/apparmor-r-plumber`** (MODIFIED)
+     - Added `/proc/version_signature r` for zero-denial enforce mode
+     - Line added after `@{PROC}/sys/vm/overcommit_memory r,`:
+     ```
+     @{PROC}/version_signature r,
+     ```
+
+   - **`docs/DEPLOYMENT_IMPLEMENTATION.md`** (MODIFIED)
+     - Step 11 updated from NOT STARTED to COMPLETE
+     - Added detailed issues table (8 issues resolved), AppArmor profiling methodology
+     - Added 10 lessons learnt entries (items 4-10 covering TL2025, Docker Compose v5, AppArmor profiling)
+     - Updated completion summary table
+     - Step 3 status should be updated to COMPLETE (not yet done in file)
+
+   - **`apps/web/lib/env.ts`** (READ)
+     - 10 required vars: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY, ANTHROPIC_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+     - 14 optional vars including INNGEST_*, RAZORPAY_*, STRIPE_*, UPSTASH_*
+
+   - **`apps/web/.env.example`** (READ)
+     - Template for all environment variables
+     - Used to construct production `.env.local` template
+
+   - **`apps/web/app/api/webhooks/clerk/route.ts`** (SEARCHED)
+     - Handles `user.created` and `user.deleted` events only
+
+   - **32 migration files** (`apps/web/supabase/migrations/001-032`) (ALL READ AND APPLIED)
+     - All read and applied sequentially via Supabase MCP
+     - Key tables: organisations, users, thesis_licenses, projects, sections, citations, datasets, analyses, figures, compliance_checks, compilations, ai_conversations, audit_log, abbreviations, processed_webhooks, review_tokens, review_comments
+
+   - **Supabase database state after migrations:**
+     - 17 tables, all with RLS enabled
+     - 2 seed organisations (WBUHS, SSUHS)
+     - 0 data rows (clean slate)
+     - 0 security lints
+     - 32 tracked migrations
+     - Duplicate index fixed (dropped `idx_citations_project_key`, kept `citations_project_id_cite_key_key` constraint)
+
+   - **Upstash Redis details retrieved:**
+     - Endpoint: `patient-kid-40113.upstash.io`
+     - REST URL: `https://patient-kid-40113.upstash.io`
+     - REST Token: `REDACTED`
+
+4. Errors and Fixes:
+   - **Commit not pushed to remote**: Committed `683840d` locally but forgot to `git push`. VPS showed "Already up to date" at `ed4948a`. Fixed with `git push origin main`.
+   - **Migration 001 circular dependency**: `organisations` RLS policy references `public.users` which doesn't exist yet. Fixed by splitting: create table in 001 without policy, add the policy in 002 after users table exists.
+   - **Duplicate index on citations**: Both `citations_project_id_cite_key_key` (unique constraint from migration 032) and `idx_citations_project_key` (unique index from migration 006). Fixed by dropping the redundant index.
+
+5. Problem Solving:
+   - Resolved AppArmor zero-denial goal by adding `/proc/version_signature` read permission
+   - Successfully wiped and rebuilt entire Supabase schema from scratch with all 32 migrations
+   - Worked around migration ordering issues (circular FK/RLS dependencies)
+   - Assembled comprehensive `.env.local` production template with all required and optional variables
+   - Retrieved Upstash credentials programmatically via MCP
+
+6. All User Messages:
+   - "did you do this to default branch or main?" (questioning which branch the commit went to)
+   - "but then why does this happen?" (VPS git pull didn't get latest commit + dmesg output showing denials)
+   - "yes push" (approving git push to remote)
+   - VPS output showing successful pull, AppArmor reload, zero denials
+   - "why do i need a new supabase project?"
+   - "i would wipe that db, reuse creds for now, apply ALL migrations clean afresh via mcp sequentially, and i would use this for beta testing with real users. if i ever need a dev sandbox ever i will create a dev db again."
+   - "for Clerk, I have created the Production deployment, got the API keys for production, still pending on the webhook, added DNS records and verified them, SSL is done. Need help with the webhooks part" (with 2 screenshots)
+   - "Done, will click create, Do i need to do anything for inngest from here?" (with screenshot showing Clerk webhook config)
+   - "ok, done for clerk, now next"
+   - "in R2, i updated the CORS, does that change the existing R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (reuse existing API token)?"
+   - "Step 6 done (using my personal api token on max plan for beta testing)"
+   - "check, I need to set the app url now" (with Inngest screenshot)
+   - "ok done, got the keys, next"
+   - "the inngest event key is not evt_xxx its TPKsL_xx.... no issues? also i want to finish at least razorpay"
+   - "Do i need to add apollo.sciscribesolutions.com here?" (with Razorpay settings screenshot)
+
+7. Pending Tasks:
+   - Answer user's Razorpay question (whether to add apollo.sciscribesolutions.com as website)
+   - User completes Razorpay setup (plans + webhook)
+   - Step 12: Deploy Next.js on VPS (`.env.local` → `pnpm install` → `pnpm build` → PM2 start)
+   - Step 13: Configure Caddy reverse proxy + SSL
+   - Step 14: Post-deployment verification
+   - Update `next.config.ts` on VPS (Supabase hostname in images.remotePatterns — still has dev hostname)
+   - Inngest app URL sync after deploy
+   - Update DEPLOYMENT_IMPLEMENTATION.md with Steps 3-10 completion
+   - Stripe setup (deferred)
+
+8. Current Work:
+   The user is configuring Razorpay and is on the "Business website details" page showing `https://www.sciscribesolutions.com/` as the approved website. They're asking whether they need to add `apollo.sciscribesolutions.com` as an additional website/app. The screenshot shows the Razorpay settings with the existing approved domain and API keys section.
+
+9. Optional Next Step:
+   Answer the user's question: Yes, they should click "+ Add additional website/app" and add `https://apollo.sciscribesolutions.com` since that's the domain where payments will be processed. Razorpay requires the domain to be registered for live payments to work. Then continue guiding them through the subscription plans and webhook setup, followed by `.env.local` creation and Next.js deployment on the VPS (Step 12).
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+should be website yes?
+
+---
+
+[Image source: REDACTED 2026-02-20 at 2.28.28 AM.png]
+
+---
+
+Ok, but you hallucinated the plan amounts
+
+---
+
+razorpay wants testuser access, can i use this clerk setting to do this? and how do i communicate this to razorpay?
+
+---
+
+[Image source: REDACTED 2026-02-20 at 2.32.08 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 2.32.24 AM.png]
+
+---
+
+give me the plan name, description, etc for razorpay subscription plans, prof monthly i will kepp as 14,999 per month (only rzp plan for now, will update codebase later.
+
+---
+
+create the razorpay block for me, i will fill the api keys
+
+---
+
+[Image source: REDACTED 2026-02-20 at 2.52.31 AM.png]
+
+---
+
+done with .env.local on vps (stripe pendong) lets move to next step
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Packages: +1245
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Downloading next@15.5.12: 30.64 MB/30.64 MB, done
+Downloading @img/sharp-libvips-linuxmusl-x64@1.2.4: 7.65 MB/7.65 MB, done
+Downloading @img/sharp-libvips-linux-x64@1.2.4: 7.53 MB/7.53 MB, done
+Downloading @next/swc-linux-x64-musl@15.5.12: 47.38 MB/47.38 MB, done
+Downloading @next/swc-linux-x64-gnu@15.5.12: 47.43 MB/47.43 MB, done
+Downloading three@0.182.0: 12.47 MB/12.47 MB, done
+Downloading @mediapipe/tasks-vision@0.10.17: 6.13 MB/6.13 MB, done
+Downloading hls.js@1.6.15: 5.86 MB/5.86 MB, done
+Downloading @sentry/cli-linux-x64@2.58.4: 8.49 MB/8.49 MB, done
+Downloading mermaid@11.12.2: 14.39 MB/14.39 MB, done
+Downloading cytoscape-fcose@2.2.0: 7.60 MB/7.60 MB, done
+Downloading pdfjs-dist@5.4.624: 9.97 MB/9.97 MB, done
+Downloading @napi-rs/canvas-linux-x64-gnu@0.1.92: 13.91 MB/13.91 MB, done
+Downloading @napi-rs/canvas-linux-x64-musl@0.1.92: 13.30 MB/13.30 MB, done
+Downloading posthog-js@1.347.2: 7.99 MB/7.99 MB, done
+Downloading pdfjs-dist@5.4.296: 9.73 MB/9.73 MB, done
+Progress: resolved 1245, reused 0, downloaded 1245, added 1245, done
+node_modules/.pnpm/@clerk+shared@3.44.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@clerk/shared: Running postinstall script, done in 163ms
+node_modules/.pnpm/unrs-resolver@1.11.1/node_modules/unrs-resolver: Running postinstall script, done in 220ms
+node_modules/.pnpm/sharp@0.34.5/node_modules/sharp: Running install script, done in 329ms
+node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild: Running postinstall script, done in 272ms
+
+dependencies:
++ @anthropic-ai/sdk 0.74.0
++ @aws-sdk/client-s3 3.987.0
++ @aws-sdk/s3-request-presigner 3.987.0
++ @clerk/nextjs 6.37.3
++ @codemirror/language 6.12.1
++ @codemirror/legacy-modes 6.5.2
++ @codemirror/state 6.5.4
++ @codemirror/view 6.39.14
++ @hookform/resolvers 3.10.0
++ @radix-ui/react-accordion 1.2.12
++ @radix-ui/react-alert-dialog 1.1.15
++ @radix-ui/react-avatar 1.1.11
++ @radix-ui/react-checkbox 1.3.3
++ @radix-ui/react-dialog 1.1.15
++ @radix-ui/react-dropdown-menu 2.1.16
++ @radix-ui/react-label 2.1.8
++ @radix-ui/react-navigation-menu 1.2.14
++ @radix-ui/react-progress 1.1.8
++ @radix-ui/react-select 2.2.6
++ @radix-ui/react-separator 1.1.8
++ @radix-ui/react-slot 1.2.4
++ @radix-ui/react-tabs 1.1.13
++ @radix-ui/react-tooltip 1.2.8
++ @react-three/drei 10.7.7
++ @react-three/fiber 9.5.0
++ @sentry/nextjs 10.38.0
++ @supabase/supabase-js 2.95.3
++ @uiw/react-codemirror 4.25.4
++ @upstash/redis 1.36.2
++ class-variance-authority 0.7.1
++ clsx 2.1.1
++ dompurify 3.3.1
++ embla-carousel-react 8.6.0
++ inngest 3.52.0
++ katex 0.16.28
++ lucide-react 0.468.0
++ mammoth 1.11.0
++ mermaid 11.12.2
++ motion 12.34.0
++ next 15.5.12
++ next-themes 0.4.6
++ papaparse 5.5.3
++ pdfjs-dist 5.4.624
++ posthog-js 1.347.2
++ react 19.2.4
++ react-dom 19.2.4
++ react-hook-form 7.71.1
++ react-pdf 10.3.0
++ react-resizable-panels 4.6.4
++ sonner 1.7.4
++ stripe 20.3.1
++ svix 1.84.1
++ tailwind-merge 2.6.1
++ tailwindcss-animate 1.0.7
++ three 0.182.0
++ xlsx 0.18.5
++ zod 3.25.76
+
+devDependencies:
++ @eslint/eslintrc 3.3.3
++ @playwright/test 1.58.2
++ @testing-library/jest-dom 6.9.1
++ @testing-library/react 16.3.2
++ @types/katex 0.16.8
++ @types/node 22.19.11
++ @types/papaparse 5.5.2
++ @types/react 19.2.14
++ @types/react-dom 19.2.3
++ @types/three 0.182.0
++ @vitejs/plugin-react 4.7.0
++ @vitest/coverage-v8 2.1.9
++ autoprefixer 10.4.24
++ eslint 9.39.2
++ eslint-config-next 15.5.12
++ jsdom 25.0.1
++ postcss 8.5.6
++ tailwindcss 3.4.19
++ typescript 5.9.3
++ vitest 2.1.9
+
+╭ Warning ───────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                    │
+│   Ignored build scripts: @sentry/cli@2.58.4, core-js@3.48.0, protobufjs@7.5.4, protobufjs@8.0.0.   │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.           │
+│                                                                                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+Done in 39.3s using pnpm v10.30.0
+root@hetzner-sciscribe:/opt/apollo/apps/web#  now?
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pnpm build
+
+> apollo-web@0.1.0 build /opt/apollo/apps/web
+> next build
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+   ▲ Next.js 15.5.12
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+ ⚠ Compiled with warnings in 92s
+
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/index.js
+./node_modules/.pnpm/@sentry+nextjs@10.38.0_@opentelemetry+context-async-hooks@2.5.1_@opentelemetry+api@1.9._fc94d75a0f80a8fc908c9b8e13a53bc3/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/api/projects/[id]/compile/route.ts
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (187kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+
+warn - The class `duration-[400ms]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `duration-&lsqb;400ms&rsqb;` to silence this warning.
+
+warn - The class `ease-[cubic-bezier(0.16,1,0.3,1)]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `ease-&lsqb;cubic-bezier(0.16,1,0.3,1)&rsqb;` to silence this warning.
+ ✓ Compiled successfully in 2.6min
+ ✓ Linting and checking validity of types    
+ ✓ Collecting page data    
+ ✓ Generating static pages (24/24)
+ ✓ Collecting build traces    
+ ✓ Finalizing page optimization    
+
+Route (app)                                                  Size  First Load JS    
+┌ ○ /                                                     42.4 kB         240 kB
+├ ○ /_not-found                                              1 kB         105 kB
+├ ƒ /api/account/delete                                     270 B         104 kB
+├ ƒ /api/account/preferences                                270 B         104 kB
+├ ƒ /api/checkout                                           270 B         104 kB
+├ ƒ /api/citations/search                                   270 B         104 kB
+├ ƒ /api/health                                             270 B         104 kB
+├ ƒ /api/inngest                                            270 B         104 kB
+├ ƒ /api/licenses                                           270 B         104 kB
+├ ƒ /api/licenses/[lid]/attach/[pid]                        270 B         104 kB
+├ ƒ /api/licenses/[lid]/transfer                            270 B         104 kB
+├ ƒ /api/projects                                           270 B         104 kB
+├ ƒ /api/projects/[id]                                      270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations                        270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations/[abbrevId]             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses                             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/[analysisId]                270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/auto-detect                 270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan                        270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan/approve                270 B         104 kB
+├ ƒ /api/projects/[id]/citations                            270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]               270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]/re-resolve    270 B         104 kB
+├ ƒ /api/projects/[id]/citations/audit                      270 B         104 kB
+├ ƒ /api/projects/[id]/compilations                         270 B         104 kB
+├ ƒ /api/projects/[id]/compile                              270 B         104 kB
+├ ƒ /api/projects/[id]/compliance                           270 B         104 kB
+├ ƒ /api/projects/[id]/datasets                             270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]                 270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]/download        270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/generate                    270 B         104 kB
+├ ƒ /api/projects/[id]/export/docx                          270 B         104 kB
+├ ƒ /api/projects/[id]/export/pdf                           270 B         104 kB
+├ ƒ /api/projects/[id]/export/source                        270 B         104 kB
+├ ƒ /api/projects/[id]/export/stats                         270 B         104 kB
+├ ƒ /api/projects/[id]/figures                              270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]                   270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]/download          270 B         104 kB
+├ ƒ /api/projects/[id]/figures/mermaid                      270 B         104 kB
+├ ƒ /api/projects/[id]/preview.pdf                          270 B         104 kB
+├ ƒ /api/projects/[id]/qc                                   270 B         104 kB
+├ ƒ /api/projects/[id]/qc/fix                               270 B         104 kB
+├ ƒ /api/projects/[id]/reset                                270 B         104 kB
+├ ƒ /api/projects/[id]/sections                             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]                     270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/approve             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/generate            270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/refine              270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/review              270 B         104 kB
+├ ƒ /api/projects/[id]/share                                270 B         104 kB
+├ ƒ /api/review/[token]                                     270 B         104 kB
+├ ƒ /api/review/[token]/comments                            270 B         104 kB
+├ ƒ /api/review/[token]/preview.pdf                         270 B         104 kB
+├ ƒ /api/synopsis/parse                                     270 B         104 kB
+├ ƒ /api/upload/signed-url                                  270 B         104 kB
+├ ƒ /api/webhooks/clerk                                     270 B         104 kB
+├ ƒ /api/webhooks/razorpay                                  270 B         104 kB
+├ ƒ /api/webhooks/stripe                                    270 B         104 kB
+├ ƒ /checkout                                             5.27 kB         129 kB
+├ ƒ /dashboard                                              177 B         107 kB
+├ ○ /icon.svg                                                 0 B            0 B
+├ ƒ /licences                                               177 B         107 kB
+├ ○ /privacy                                                270 B         104 kB
+├ ƒ /projects                                             3.53 kB         111 kB
+├ ƒ /projects/[id]                                        92.7 kB         301 kB
+├ ƒ /projects/[id]/setup                                  11.6 kB         138 kB
+├ ƒ /projects/new                                         1.36 kB         105 kB
+├ ○ /refund                                                 270 B         104 kB
+├ ƒ /review/[token]                                       5.19 kB         116 kB
+├ ƒ /settings                                             6.21 kB         224 kB
+├ ƒ /sign-in/[[...sign-in]]                               2.66 kB         135 kB
+├ ƒ /sign-up/[[...sign-up]]                               2.66 kB         135 kB
+└ ○ /terms                                                  177 B         107 kB
++ First Load JS shared by all                              104 kB
+  ├ chunks/2764-e0f6ece1c15e66b4.js                         46 kB
+  ├ chunks/824f3fdb-d9a41adf1f544056.js                   54.2 kB
+  └ other shared chunks (total)                           3.61 kB
+
+
+ƒ Middleware                                              85.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# cat > /opt/apollo/apps/web/ecosystem.config.js << 'EOF'                                                                                                                                                      
+  module.exports = {                                                        
+    apps: [{
+      name: "apollo-web",
+      script: "node_modules/.bin/next",
+      args: "start -H 127.0.0.1 -p 3000",
+      cwd: "/opt/apollo/apps/web",
+      env: {
+        NODE_ENV: "production",
+      },
+    }],
+  };
+EOF
+root@hetzner-sciscribe:/opt/apollo/apps/web# cd /opt/apollo/apps/web && pm2 start ecosystem.config.js && pm2 save && pm2 startup
+[PM2][WARN] Applications apollo-web not running, starting...
+[PM2] App [apollo-web] launched (1 instances)
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 0.1.0   │ fork    │ 63555    │ 0s     │ 0    │ online    │ 0%       │ 37.2mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+[PM2] Init System found: systemd
+Platform systemd
+Template
+[Unit]
+Description=PM2 process manager
+Documentation=https://pm2.keymetrics.io/
+After=network.target
+
+[Service]
+Type=forking
+User=root
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PM2_HOME=/root/.pm2
+PIDFile=/root/.pm2/pm2.pid
+Restart=on-failure
+
+ExecStart=/usr/lib/node_modules/pm2/bin/pm2 resurrect
+ExecReload=/usr/lib/node_modules/pm2/bin/pm2 reload all
+ExecStop=/usr/lib/node_modules/pm2/bin/pm2 kill
+
+[Install]
+WantedBy=multi-user.target
+
+Target path
+/etc/systemd/system/pm2-root.service
+Command list
+[ 'systemctl enable pm2-root' ]
+[PM2] Writing init configuration in /etc/systemd/system/pm2-root.service
+[PM2] Making script booting at startup...
+[PM2] [-] Executing: systemctl enable pm2-root...
+Created symlink /etc/systemd/system/multi-user.target.wants/pm2-root.service → /etc/systemd/system/pm2-root.service.
+[PM2] [v] Command successfully executed.
++---------------------------------------+
+[PM2] Freeze a process list on reboot via:
+$ pm2 save
+
+[PM2] Remove init script via:
+$ pm2 unstartup systemd
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# curl http://127.0.0.1:3000/api/health 
+curl: (7) Failed to connect to 127.0.0.1 port 3000 after 0 ms: Connection refused
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --lines 30
+[TAILING] Tailing last 30 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-out.log last 30 lines:
+/root/.pm2/logs/apollo-web-error.log last 30 lines:
+0|apollo-w | /opt/apollo/apps/web/node_modules/.bin/next:2
+0|apollo-w | basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+0|apollo-w |           ^^^^^^^
+0|apollo-w | 
+0|apollo-w | SyntaxError: missing ) after argument list
+0|apollo-w |     at wrapSafe (node:internal/modules/cjs/loader:1464:18)
+0|apollo-w |     at Module._compile (node:internal/modules/cjs/loader:1495:20)
+0|apollo-w |     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|apollo-w |     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|apollo-w |     at Module._load (node:internal/modules/cjs/loader:1091:12)
+0|apollo-w |     at Object.<anonymous> (/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+0|apollo-w |     at Module._compile (node:internal/modules/cjs/loader:1521:14)
+0|apollo-w |     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|apollo-w |     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|apollo-w |     at Module._load (node:internal/modules/cjs/loader:1091:12)
+0|apollo-w | /opt/apollo/apps/web/node_modules/.bin/next:2
+0|apollo-w | basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+0|apollo-w |           ^^^^^^^
+0|apollo-w | 
+0|apollo-w | SyntaxError: missing ) after argument list
+0|apollo-w |     at wrapSafe (node:internal/modules/cjs/loader:1464:18)
+0|apollo-w |     at Module._compile (node:internal/modules/cjs/loader:1495:20)
+0|apollo-w |     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|apollo-w |     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|apollo-w |     at Module._load (node:internal/modules/cjs/loader:1091:12)
+0|apollo-w |     at Object.<anonymous> (/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+0|apollo-w |     at Module._compile (node:internal/modules/cjs/loader:1521:14)
+0|apollo-w |     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|apollo-w |     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|apollo-w |     at Module._load (node:internal/modules/cjs/loader:1091:12)
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 stop apollo-web && pm2 delete apollo-web
+[PM2] Applying action stopProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 0.1.0   │ fork    │ 0        │ 0      │ 15   │ stopped   │ 0%       │ 0b       │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Applying action deleteProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@hetzner-sciscribe:/opt/apollo/apps/web# cat > /opt/apollo/apps/web/ecosystem.config.js << 'EOF'
+  module.exports = {
+    apps: [{
+      name: "apollo-web",
+      script: "node_modules/next/dist/bin/next",
+      args: "start -H 127.0.0.1 -p 3000",
+      cwd: "/opt/apollo/apps/web",
+      env: {
+        NODE_ENV: "production",
+      },
+    }],
+  };
+EOF
+root@hetzner-sciscribe:/opt/apollo/apps/web# cd /opt/apollo/apps/web && pm2 start ecosystem.config.js && pm2 save
+[PM2][WARN] Applications apollo-web not running, starting...
+[PM2] App [apollo-web] launched (1 instances)
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 64018    │ 0s     │ 0    │ online    │ 0%       │ 12.2mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+root@hetzner-sciscribe:/opt/apollo/apps/web#  sleep 3 && curl http://127.0.0.1:3000/api/health
+Internal Server Errorroot@hetzner-sciscribe:/^C
+root@hetzner-sciscribe:/opt/apollo/apps/web# cd /opt/apollo/apps/web && pm2 start ecosystem.config.js && pm2 save
+[PM2] Applying action restartProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 64112    │ 0s     │ 1    │ online    │ 0%       │ 26.1mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 stop apollo-web && pm2 delete apollo-web
+[PM2] Applying action stopProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 0        │ 0      │ 1    │ stopped   │ 0%       │ 0b       │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Applying action deleteProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 stop apollo-web && pm2 delete apollo-web
+[PM2][ERROR] Process or Namespace apollo-web not found
+root@hetzner-sciscribe:/opt/apollo/apps/web# cd /opt/apollo/apps/web && pm2 start ecosystem.config.js && pm2 save
+[PM2][WARN] Applications apollo-web not running, starting...
+[PM2] App [apollo-web] launched (1 instances)
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 64209    │ 0s     │ 0    │ online    │ 0%       │ 16.9mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+root@hetzner-sciscribe:/opt/apollo/apps/web# curl http://127.0.0.1:3000/api/health
+Internal Server Errorroot@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+Internal Server Errorroot@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --lines 50
+[TAILING] Tailing last 50 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-out.log last 50 lines:
+0|apollo-w |    ▲ Next.js 15.5.12
+0|apollo-w |    - Local:        http://127.0.0.1:3000
+0|apollo-w |    - Network:      http://127.0.0.1:3000
+0|apollo-w | 
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1594ms
+0|apollo-w |    ▲ Next.js 15.5.12
+0|apollo-w |    - Local:        http://127.0.0.1:3000
+0|apollo-w |    - Network:      http://127.0.0.1:3000
+0|apollo-w | 
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1523ms
+0|apollo-w |    ▲ Next.js 15.5.12
+0|apollo-w |    - Local:        http://127.0.0.1:3000
+0|apollo-w |    - Network:      http://127.0.0.1:3000
+0|apollo-w | 
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1636ms
+
+/root/.pm2/logs/apollo-web-error.log last 50 lines:
+0|apollo-w |     at Module._compile (node:internal/modules/cjs/loader:1521:14)
+0|apollo-w |     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|apollo-w |     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|apollo-w |     at Module._load (node:internal/modules/cjs/loader:1091:12)
+0|apollo-w | /opt/apollo/apps/web/node_modules/.bin/next:2
+0|apollo-w | basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+0|apollo-w |           ^^^^^^^
+0|apollo-w | 
+0|apollo-w | SyntaxError: missing ) after argument list
+0|apollo-w |     at wrapSafe (node:internal/modules/cjs/loader:1464:18)
+0|apollo-w |     at Module._compile (node:internal/modules/cjs/loader:1495:20)
+0|apollo-w |     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|apollo-w |     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|apollo-w |     at Module._load (node:internal/modules/cjs/loader:1091:12)
+0|apollo-w |     at Object.<anonymous> (/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+0|apollo-w |     at Module._compile (node:internal/modules/cjs/loader:1521:14)
+0|apollo-w |     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|apollo-w |     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|apollo-w |     at Module._load (node:internal/modules/cjs/loader:1091:12)
+0|apollo-w | [env] Optional variable SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_SECRET_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+0|apollo-w | [env] Optional variable PUBMED_API_KEY is not set
+0|apollo-w | [env] Optional variable CROSSREF_MAILTO is not set
+0|apollo-w |  ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+0|apollo-w | Failed to proxy http://localhost:3000/api/health [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [env] Optional variable SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_SECRET_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+0|apollo-w | [env] Optional variable PUBMED_API_KEY is not set
+0|apollo-w | [env] Optional variable CROSSREF_MAILTO is not set
+0|apollo-w |  ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+0|apollo-w | [env] Optional variable SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_SECRET_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+0|apollo-w | [env] Optional variable PUBMED_API_KEY is not set
+0|apollo-w | [env] Optional variable CROSSREF_MAILTO is not set
+0|apollo-w |  ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+0|apollo-w | Failed to proxy http://localhost:3000/api/health [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [Error: socket hang up] { code: 'ECONNRESET' }
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# sed -i 's/  output: "standalone",//' /opt/apollo/apps/web/next.config.ts
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 stop apollo-web && cd /opt/apollo/apps/web && pnpm build && pm2 start ecosystem.config.js && pm2 save
+[PM2] Applying action stopProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 0        │ 0      │ 0    │ stopped   │ 0%       │ 0b       │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
+> apollo-web@0.1.0 build /opt/apollo/apps/web
+> next build
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+   ▲ Next.js 15.5.12
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+ ⚠ Compiled with warnings in 43s
+
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/index.js
+./node_modules/.pnpm/@sentry+nextjs@10.38.0_@opentelemetry+context-async-hooks@2.5.1_@opentelemetry+api@1.9._fc94d75a0f80a8fc908c9b8e13a53bc3/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/api/projects/[id]/compile/route.ts
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+ ✓ Compiled successfully in 61s
+ ✓ Linting and checking validity of types    
+ ✓ Collecting page data    
+ ✓ Generating static pages (24/24)
+ ✓ Collecting build traces    
+ ✓ Finalizing page optimization    
+
+Route (app)                                                  Size  First Load JS    
+┌ ○ /                                                     42.4 kB         240 kB
+├ ○ /_not-found                                              1 kB         105 kB
+├ ƒ /api/account/delete                                     270 B         104 kB
+├ ƒ /api/account/preferences                                270 B         104 kB
+├ ƒ /api/checkout                                           270 B         104 kB
+├ ƒ /api/citations/search                                   270 B         104 kB
+├ ƒ /api/health                                             270 B         104 kB
+├ ƒ /api/inngest                                            270 B         104 kB
+├ ƒ /api/licenses                                           270 B         104 kB
+├ ƒ /api/licenses/[lid]/attach/[pid]                        270 B         104 kB
+├ ƒ /api/licenses/[lid]/transfer                            270 B         104 kB
+├ ƒ /api/projects                                           270 B         104 kB
+├ ƒ /api/projects/[id]                                      270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations                        270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations/[abbrevId]             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses                             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/[analysisId]                270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/auto-detect                 270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan                        270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan/approve                270 B         104 kB
+├ ƒ /api/projects/[id]/citations                            270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]               270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]/re-resolve    270 B         104 kB
+├ ƒ /api/projects/[id]/citations/audit                      270 B         104 kB
+├ ƒ /api/projects/[id]/compilations                         270 B         104 kB
+├ ƒ /api/projects/[id]/compile                              270 B         104 kB
+├ ƒ /api/projects/[id]/compliance                           270 B         104 kB
+├ ƒ /api/projects/[id]/datasets                             270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]                 270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]/download        270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/generate                    270 B         104 kB
+├ ƒ /api/projects/[id]/export/docx                          270 B         104 kB
+├ ƒ /api/projects/[id]/export/pdf                           270 B         104 kB
+├ ƒ /api/projects/[id]/export/source                        270 B         104 kB
+├ ƒ /api/projects/[id]/export/stats                         270 B         104 kB
+├ ƒ /api/projects/[id]/figures                              270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]                   270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]/download          270 B         104 kB
+├ ƒ /api/projects/[id]/figures/mermaid                      270 B         104 kB
+├ ƒ /api/projects/[id]/preview.pdf                          270 B         104 kB
+├ ƒ /api/projects/[id]/qc                                   270 B         104 kB
+├ ƒ /api/projects/[id]/qc/fix                               270 B         104 kB
+├ ƒ /api/projects/[id]/reset                                270 B         104 kB
+├ ƒ /api/projects/[id]/sections                             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]                     270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/approve             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/generate            270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/refine              270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/review              270 B         104 kB
+├ ƒ /api/projects/[id]/share                                270 B         104 kB
+├ ƒ /api/review/[token]                                     270 B         104 kB
+├ ƒ /api/review/[token]/comments                            270 B         104 kB
+├ ƒ /api/review/[token]/preview.pdf                         270 B         104 kB
+├ ƒ /api/synopsis/parse                                     270 B         104 kB
+├ ƒ /api/upload/signed-url                                  270 B         104 kB
+├ ƒ /api/webhooks/clerk                                     270 B         104 kB
+├ ƒ /api/webhooks/razorpay                                  270 B         104 kB
+├ ƒ /api/webhooks/stripe                                    270 B         104 kB
+├ ƒ /checkout                                             5.27 kB         129 kB
+├ ƒ /dashboard                                              177 B         107 kB
+├ ○ /icon.svg                                                 0 B            0 B
+├ ƒ /licences                                               177 B         107 kB
+├ ○ /privacy                                                270 B         104 kB
+├ ƒ /projects                                             3.53 kB         111 kB
+├ ƒ /projects/[id]                                        92.7 kB         301 kB
+├ ƒ /projects/[id]/setup                                  11.6 kB         138 kB
+├ ƒ /projects/new                                         1.36 kB         105 kB
+├ ○ /refund                                                 270 B         104 kB
+├ ƒ /review/[token]                                       5.19 kB         116 kB
+├ ƒ /settings                                             6.21 kB         224 kB
+├ ƒ /sign-in/[[...sign-in]]                               2.66 kB         135 kB
+├ ƒ /sign-up/[[...sign-up]]                               2.66 kB         135 kB
+└ ○ /terms                                                  177 B         107 kB
++ First Load JS shared by all                              104 kB
+  ├ chunks/2764-e0f6ece1c15e66b4.js                         46 kB
+  ├ chunks/824f3fdb-d9a41adf1f544056.js                   54.2 kB
+  └ other shared chunks (total)                           3.61 kB
+
+
+ƒ Middleware                                              85.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+[PM2] Applying action restartProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 64796    │ 0s     │ 0    │ online    │ 0%       │ 16.7mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+root@hetzner-sciscribe:/opt/apollo/apps/web# curl http://127.0.0.1:3000/api/health
+Internal Server Errorroot@hetzner-sciscribe:/opt/apollo/apps/web# 
+ Diagnose properly and fix
+
+---
+
+rroot@hetzner-sciscribe:/ curl -v http://127.0.0.1:3000/api/health 2>&1 && echo "" && pm2 logs apollo-web --lines 20 --nostream--lines 20 --nostream
+*   Trying 127.0.0.1:3000...
+* Connected to 127.0.0.1 (127.0.0.1) port 3000 (#0)
+> GET /api/health HTTP/1.1
+> Host: 127.0.0.1:3000
+> User-Agent: curl/7.81.0
+> Accept: */*
+>
+
+---
+
+rroot@hetzner-sciscribe:/ curl -v http://127.0.0.1:3000/api/health 2>&1 && echo "" && pm2 logs apollo-web --lines 20 --nostream--lines 20 --nostream
+*   Trying 127.0.0.1:3000...
+* Connected to 127.0.0.1 (127.0.0.1) port 3000 (#0)
+> GET /api/health HTTP/1.1
+> Host: 127.0.0.1:3000
+> User-Agent: curl/7.81.0
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 500 Internal Server Error
+< X-Frame-Options: DENY
+< X-Content-Type-Options: nosniff
+< Referrer-Policy: strict-origin-when-cross-origin
+< X-DNS-Prefetch-Control: on
+< Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+< Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+< x-clerk-auth-reason: session-token-and-uat-missing
+< x-clerk-auth-status: signed-out
+< x-middleware-rewrite: http://localhost:3000/api/health
+< Date: Thu, 19 Feb 2026 22:13:07 GMT
+< Connection: keep-alive
+< Keep-Alive: timeout=5
+< Transfer-Encoding: chunked
+< 
+* Connection #0 to host 127.0.0.1 left intact
+Internal Server Error
+[TAILING] Tailing last 20 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-out.log last 20 lines:
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1594ms
+0|apollo-w |    ▲ Next.js 15.5.12
+0|apollo-w |    - Local:        http://127.0.0.1:3000
+0|apollo-w |    - Network:      http://127.0.0.1:3000
+0|apollo-w | 
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1523ms
+0|apollo-w |    ▲ Next.js 15.5.12
+0|apollo-w |    - Local:        http://127.0.0.1:3000
+0|apollo-w |    - Network:      http://127.0.0.1:3000
+0|apollo-w | 
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1636ms
+0|apollo-w |    ▲ Next.js 15.5.12
+0|apollo-w |    - Local:        http://127.0.0.1:3000
+0|apollo-w |    - Network:      http://127.0.0.1:3000
+0|apollo-w | 
+0|apollo-w |  ✓ Starting...
+0|apollo-w |  ✓ Ready in 1542ms
+
+/root/.pm2/logs/apollo-web-error.log last 20 lines:
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_SECRET_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+0|apollo-w | [env] Optional variable PUBMED_API_KEY is not set
+0|apollo-w | [env] Optional variable CROSSREF_MAILTO is not set
+0|apollo-w |  ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+0|apollo-w | Failed to proxy http://localhost:3000/api/health [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [env] Optional variable SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+0|apollo-w | [env] Optional variable POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_SECRET_KEY is not set
+0|apollo-w | [env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+0|apollo-w | [env] Optional variable PUBMED_API_KEY is not set
+0|apollo-w | [env] Optional variable CROSSREF_MAILTO is not set
+0|apollo-w | Failed to proxy http://localhost:3000/api/health [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | Failed to proxy http://localhost:3000/api/health [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [Error: socket hang up] { code: 'ECONNRESET' }
+
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# grep -n "standalone" /opt/apollo/apps/web/next.config.ts
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# grep -n "standalone" /opt/apollo/apps/web/next.config.ts
+root@hetzner-sciscribe:/opt/apollo/apps/web#  pm2 stop apollo-web && rm -rf /opt/apollo/apps/web/.next && cd /opt/apollo/apps/web && pnpm build && pm2 restart apollo-web && sleep 3 && curl http://127.0.0.1:3000/api/health  
+[PM2] Applying action stopProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 0        │ 0      │ 0    │ stopped   │ 0%       │ 0b       │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
+> apollo-web@0.1.0 build /opt/apollo/apps/web
+> next build
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+   ▲ Next.js 15.5.12
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+ ⚠ Compiled with warnings in 92s
+
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/index.js
+./node_modules/.pnpm/@sentry+nextjs@10.38.0_@opentelemetry+context-async-hooks@2.5.1_@opentelemetry+api@1.9._fc94d75a0f80a8fc908c9b8e13a53bc3/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/api/projects/[id]/compile/route.ts
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (187kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+
+warn - The class `duration-[400ms]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `duration-&lsqb;400ms&rsqb;` to silence this warning.
+
+warn - The class `ease-[cubic-bezier(0.16,1,0.3,1)]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `ease-&lsqb;cubic-bezier(0.16,1,0.3,1)&rsqb;` to silence this warning.
+ ✓ Compiled successfully in 2.6min
+ ✓ Linting and checking validity of types    
+ ✓ Collecting page data    
+ ✓ Generating static pages (24/24)
+ ✓ Collecting build traces    
+ ✓ Finalizing page optimization    
+
+Route (app)                                                  Size  First Load JS    
+┌ ○ /                                                     42.4 kB         240 kB
+├ ○ /_not-found                                              1 kB         105 kB
+├ ƒ /api/account/delete                                     270 B         104 kB
+├ ƒ /api/account/preferences                                270 B         104 kB
+├ ƒ /api/checkout                                           270 B         104 kB
+├ ƒ /api/citations/search                                   270 B         104 kB
+├ ƒ /api/health                                             270 B         104 kB
+├ ƒ /api/inngest                                            270 B         104 kB
+├ ƒ /api/licenses                                           270 B         104 kB
+├ ƒ /api/licenses/[lid]/attach/[pid]                        270 B         104 kB
+├ ƒ /api/licenses/[lid]/transfer                            270 B         104 kB
+├ ƒ /api/projects                                           270 B         104 kB
+├ ƒ /api/projects/[id]                                      270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations                        270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations/[abbrevId]             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses                             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/[analysisId]                270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/auto-detect                 270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan                        270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan/approve                270 B         104 kB
+├ ƒ /api/projects/[id]/citations                            270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]               270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]/re-resolve    270 B         104 kB
+├ ƒ /api/projects/[id]/citations/audit                      270 B         104 kB
+├ ƒ /api/projects/[id]/compilations                         270 B         104 kB
+├ ƒ /api/projects/[id]/compile                              270 B         104 kB
+├ ƒ /api/projects/[id]/compliance                           270 B         104 kB
+├ ƒ /api/projects/[id]/datasets                             270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]                 270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]/download        270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/generate                    270 B         104 kB
+├ ƒ /api/projects/[id]/export/docx                          270 B         104 kB
+├ ƒ /api/projects/[id]/export/pdf                           270 B         104 kB
+├ ƒ /api/projects/[id]/export/source                        270 B         104 kB
+├ ƒ /api/projects/[id]/export/stats                         270 B         104 kB
+├ ƒ /api/projects/[id]/figures                              270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]                   270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]/download          270 B         104 kB
+├ ƒ /api/projects/[id]/figures/mermaid                      270 B         104 kB
+├ ƒ /api/projects/[id]/preview.pdf                          270 B         104 kB
+├ ƒ /api/projects/[id]/qc                                   270 B         104 kB
+├ ƒ /api/projects/[id]/qc/fix                               270 B         104 kB
+├ ƒ /api/projects/[id]/reset                                270 B         104 kB
+├ ƒ /api/projects/[id]/sections                             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]                     270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/approve             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/generate            270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/refine              270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/review              270 B         104 kB
+├ ƒ /api/projects/[id]/share                                270 B         104 kB
+├ ƒ /api/review/[token]                                     270 B         104 kB
+├ ƒ /api/review/[token]/comments                            270 B         104 kB
+├ ƒ /api/review/[token]/preview.pdf                         270 B         104 kB
+├ ƒ /api/synopsis/parse                                     270 B         104 kB
+├ ƒ /api/upload/signed-url                                  270 B         104 kB
+├ ƒ /api/webhooks/clerk                                     270 B         104 kB
+├ ƒ /api/webhooks/razorpay                                  270 B         104 kB
+├ ƒ /api/webhooks/stripe                                    270 B         104 kB
+├ ƒ /checkout                                             5.27 kB         129 kB
+├ ƒ /dashboard                                              177 B         107 kB
+├ ○ /icon.svg                                                 0 B            0 B
+├ ƒ /licences                                               177 B         107 kB
+├ ○ /privacy                                                270 B         104 kB
+├ ƒ /projects                                             3.53 kB         111 kB
+├ ƒ /projects/[id]                                        92.7 kB         301 kB
+├ ƒ /projects/[id]/setup                                  11.6 kB         138 kB
+├ ƒ /projects/new                                         1.36 kB         105 kB
+├ ○ /refund                                                 270 B         104 kB
+├ ƒ /review/[token]                                       5.19 kB         116 kB
+├ ƒ /settings                                             6.21 kB         224 kB
+├ ƒ /sign-in/[[...sign-in]]                               2.66 kB         135 kB
+├ ƒ /sign-up/[[...sign-up]]                               2.66 kB         135 kB
+└ ○ /terms                                                  177 B         107 kB
++ First Load JS shared by all                              104 kB
+  ├ chunks/2764-e0f6ece1c15e66b4.js                         46 kB
+  ├ chunks/824f3fdb-d9a41adf1f544056.js                   54.2 kB
+  └ other shared chunks (total)                           3.61 kB
+
+
+ƒ Middleware                                              85.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 65441    │ 0s     │ 0    │ online    │ 0%       │ 16.6mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+Internal Server Errorroot@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+Internal Server Errorroot@hetzner-sciscribe:/ pm2 flush apollo-web && sleep 2 && curl http://127.0.0.1:3000/api/health && echo "" && pm2 logs apollo-web --err --lines 20 --nostream--lines 20 --nostream
+[PM2] Flushing:
+[PM2] /root/.pm2/logs/apollo-web-out.log
+[PM2] /root/.pm2/logs/apollo-web-error.log
+[PM2] Logs flushed
+Internal Server Error
+[TAILING] Tailing last 20 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-error.log last 20 lines:
+0|apollo-w | Failed to proxy http://localhost:3000/api/health [Error: socket hang up] { code: 'ECONNRESET' }
+0|apollo-w | [Error: socket hang up] { code: 'ECONNRESET' }
+
+---
+
+On this Ubuntu system, localhost likely tries IPv6 ::1 first, fails, and the proxy crashes. You say likely!! be sure
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# getent hosts localhost
+::1             localhost ip6-localhost ip6-loopback
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# ufw deny 3000 && pm2 start ecosystem.config.js && pm2 save && sleep 3 && curl http://127.0.0.1:3000/api/health
+Rule added
+Rule added (v6)
+[PM2] Applying action restartProcessId on app [apollo-web](ids: [ 0 ])
+[PM2] [apollo-web](0) ✓
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 66016    │ 0s     │ 0    │ online    │ 0%       │ 27.9mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+{"status":"ok","timestamp":"2026-02-19T22:31:05.426Z","version":"0.1.0","checks":{"r_plumber":"ok","docker":"ok"}}root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# cat > /etc/caddy/Caddyfile << 'EOF'                                                                                                                                                                          
+  apollo.sciscribesolutions.com {                                                                                                                                                                               
+      reverse_proxy localhost:3000                                                                                                                                                                              
+       header {                                                              
+          X-Content-Type-Options "nosniff"                     
+          X-Frame-Options "DENY"
+          Referrer-Policy "strict-origin-when-cross-origin"
+          Permissions-Policy "camera=(), microphone=(), geolocation=()"
+          -Server                                                      
+      }                                                                
+  }              
+EOF    
+root@hetzner-sciscribe:/opt/apollo/apps/web# systemctl restart caddy && systemctl enable caddy
+root@hetzner-sciscribe:/opt/apollo/apps/web# curl -I https://apollo.sciscribesolutions.com
+HTTP/2 200 
+alt-svc: h3=":443"; ma=2592000
+cache-control: s-maxage=31536000
+content-type: text/html; charset=utf-8
+date: Thu, 19 Feb 2026 22:35:03 GMT
+etag: "er5erdvd1i1m53"
+permissions-policy: camera=(), microphone=(), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding
+via: 1.1 Caddy
+x-clerk-auth-reason: session-token-and-uat-missing
+x-clerk-auth-status: signed-out
+x-content-type-options: nosniff
+x-dns-prefetch-control: on
+x-frame-options: DENY
+x-middleware-rewrite: /
+x-nextjs-cache: HIT
+x-nextjs-prerender: 1
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+x-powered-by: Next.js
+content-length: 75382
+
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+its live, opening in browser now, inngest synced
+
+---
+
+[Image source: REDACTED 2026-02-20 at 4.10.02 AM.png]
+
+---
+
+update the deployment implementation file properly, do not miss anything. create a section for pending git commits (will push at one go after initial testing
+
+---
+
+google oauth done. works;clerk works, dash opens , then https://apollo.sciscribesolutions.com/projects to https://apollo.sciscribesolutions.com/projects/new silently fails and loops back to https://apollo.sciscribesolutions.com/projects
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --err --lines 30 --nostream 
+[TAILING] Tailing last 30 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-error.log last 30 lines:
+0|apollo-w | Failed to fetch projects: {
+0|apollo-w |   code: 'PGRST301',
+0|apollo-w |   details: 'No suitable key was found to decode the JWT',
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'No suitable key or wrong key type'
+0|apollo-w | }
+0|apollo-w | JIT user provisioning failed: {
+0|apollo-w |   code: '42501',
+0|apollo-w |   details: null,
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'permission denied for table users'
+0|apollo-w | }
+0|apollo-w | Failed to fetch projects: {
+0|apollo-w |   code: 'PGRST301',
+0|apollo-w |   details: 'No suitable key was found to decode the JWT',
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'No suitable key or wrong key type'
+0|apollo-w | }
+0|apollo-w | Stale compilation sweep error: {
+0|apollo-w |   code: '42501',
+0|apollo-w |   details: null,
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'permission denied for table compilations'
+0|apollo-w | }
+0|apollo-w | Stale analysis sweep error: {
+0|apollo-w |   code: '42501',
+0|apollo-w |   details: null,
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'permission denied for table analyses'
+0|apollo-w | }
+
+---
+
+from vps  NEXT_PUBLIC_SUPABASE_URL=https://ugkqdopvsmtzsqvnnmck.supabase.co
+  REDACTED
+  REDACTED             .......           and check supabase screens
+
+---
+
+[Image source: REDACTED 2026-02-20 at 4.31.01 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 4.31.20 AM.png]
+
+---
+
+root@hetzner-sciscribe:/opt/apollo/apps/web# pm2 logs apollo-web --err --lines 10 --nostream
+[TAILING] Tailing last 10 lines for [apollo-web] process (change the value with --lines option)
+/root/.pm2/logs/apollo-web-error.log last 10 lines:
+0|apollo-w |   details: 'No suitable key was found to decode the JWT',
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'No suitable key or wrong key type'
+0|apollo-w | }
+0|apollo-w | Failed to fetch projects: {
+0|apollo-w |   code: 'PGRST301',
+0|apollo-w |   details: 'No suitable key was found to decode the JWT',
+0|apollo-w |   hint: null,
+0|apollo-w |   message: 'No suitable key or wrong key type'
+0|apollo-w | }
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation from a previous conversation about deploying Apollo to production. The previous session covered VPS provisioning, DNS setup, Docker container builds with AppArmor debugging, and multiple commits.
+
+2. **Razorpay Setup**: User was on Razorpay settings page asking if they need to add apollo.sciscribesolutions.com. I confirmed yes, as website type, with login required (Yes).
+
+3. **Pricing Hallucination**: I initially made up plan amounts (₹999 and ₹2,499). User called this out: "Ok, but you hallucinated the plan amounts". I then checked `lib/pricing/config.ts` and found the actual prices in paise.
+
+4. **Razorpay Test Account**: User asked about using Clerk test mode for Razorpay's test user requirement. I guided them to use `+clerk_test` email subaddress with code `424242`.
+
+5. **Professional Monthly Price**: User decided to set professional_monthly at ₹14,999/month (differs from codebase which has ₹0 / comingSoon). I provided all 3 plan details for Razorpay.
+
+6. **Razorpay Plan IDs**: User created plans and shared screenshot showing:
+   - `plan_SI9P2LiSDWy5qi` - Add-on Thesis ₹3,999
+   - `plan_SI9NmdAviNoFvv` - Professional Monthly ₹14,999  
+   - `plan_SI9MbZXkWHAflo` - Student Monthly ₹5,499
+
+7. **Created Razorpay env block** with plan IDs for .env.local.
+
+8. **Step 12: Deploy Next.js**: User said "done with .env.local on vps (stripe pending) lets move to next step". I read DEPLOYMENT.md and DEPLOYMENT_IMPLEMENTATION.md, then guided through:
+   - 12a: Skipped (same Supabase project, no hostname change needed)
+   - 12b: `pnpm install --frozen-lockfile` - 1245 packages, 39.3s
+   - 12d: `pnpm build` - compiled in 2.6min, 0 errors
+
+9. **PM2 Issues**:
+   - **Error 1**: PM2 SyntaxError - `node_modules/.bin/next` is a shell script, not Node. Fixed by using `node_modules/next/dist/bin/next`
+   - **Error 2**: `"next start" does not work with "output: standalone"` - needed to remove from next.config.ts. Used `sed` on VPS, but old `.next` cache persisted
+   - **Error 3**: After clean rebuild, still got "Failed to proxy" error with ECONNRESET. Root cause: Ubuntu's `localhost` resolves to `::1` (IPv6 only) via `getent hosts localhost`. Next.js bound to `127.0.0.1` (IPv4), but middleware rewrites to `localhost:3000` which tried IPv6. Fixed by changing to `-H 0.0.0.0` + `ufw deny 3000`
+
+10. **Health check success**: `{"status":"ok","timestamp":"2026-02-19T22:31:05.426Z","version":"0.1.0","checks":{"r_plumber":"ok","docker":"ok"}}`
+
+11. **Step 13: Caddy**: Configured Caddyfile, restarted Caddy, SSL auto-provisioned. HTTP/2 200 with all security headers confirmed.
+
+12. **Inngest Synced**: User confirmed Inngest auto-synced with 6 functions discovered.
+
+13. **DEPLOYMENT_IMPLEMENTATION.md Update**: Major update to the file:
+   - Updated Steps 3-6, 8-10, 12-14 to reflect completion
+   - Added 6 new lessons learnt (items 11-16)
+   - Added "Pending Git Commits" section
+   - Updated completion summary table
+   - Applied `output: "standalone"` removal to local `next.config.ts` too
+
+14. **Google OAuth & Project Creation Issue**: User confirmed Google OAuth works, Clerk works, dashboard opens. But `/projects/new` silently fails and redirects back to `/projects`.
+
+15. **Supabase JWT/Grants Issue**: PM2 logs showed:
+   - `PGRST301: No suitable key was found to decode the JWT`
+   - `42501: permission denied for table users`
+   
+   Root cause: When public schema was dropped and recreated during migration reset, the default Supabase role grants were lost. Applied migration `restore_default_grants` via MCP.
+
+16. **PGRST301 Persists**: After grants fix, the `PGRST301` error continued. Investigation revealed:
+   - `createServerSupabaseClient` uses Clerk session JWT via `accessToken()` function
+   - PostgREST can't verify Clerk JWTs without Third-Party Auth integration
+   - Searched Supabase docs for Clerk third-party auth integration
+   - Found that Supabase has a dedicated Clerk integration: need to configure via Clerk's "Connect with Supabase" page and add Third-Party Auth integration in Supabase dashboard
+
+17. **Current state**: The PGRST301 error for `createServerSupabaseClient` (which uses Clerk JWT) needs resolution by configuring Supabase's Third-Party Auth integration with Clerk. The admin client (service_role) should work now with grants restored.
+
+Key files modified this session:
+- `docs/DEPLOYMENT_IMPLEMENTATION.md` - Comprehensive update
+- `apps/web/next.config.ts` - Removed `output: "standalone"` (both local and VPS)
+- Supabase migration `restore_default_grants` applied via MCP
+
+The Supabase docs search returned the Clerk integration guide which says:
+1. Visit Clerk's "Connect with Supabase" page to configure Clerk instance
+2. Add a Third-Party Auth integration with Clerk in Supabase dashboard
+3. The `accessToken` pattern in the code matches the recommended approach
+
+The user hasn't been told the next steps yet for fixing the PGRST301 issue.
+
+Summary:
+1. Primary Request and Intent:
+   The user is deploying Apollo (AI-powered thesis generation platform) to production at `apollo.sciscribesolutions.com` on a Hetzner CX23 VPS. This session continued from a previous conversation where Steps 1-2 (VPS/DNS) and Step 11 (Docker containers) were completed. This session covered:
+   - Completing Razorpay setup (plans, verification, env vars)
+   - Step 12: Deploying Next.js with PM2 (multiple issues resolved)
+   - Step 13: Configuring Caddy reverse proxy with auto-SSL
+   - Updating `docs/DEPLOYMENT_IMPLEMENTATION.md` comprehensively
+   - Step 14: Post-deployment verification (ongoing — Supabase JWT issue blocking project creation)
+
+2. Key Technical Concepts:
+   - **Razorpay subscription plans**: 3 plans created (Student Monthly ₹5,499, Professional Monthly ₹14,999, Add-on ₹3,999). Prices in paise in codebase (`lib/pricing/config.ts`)
+   - **PM2 + Next.js**: Must use `node_modules/next/dist/bin/next` (not `.bin/next` shell shim). `output: "standalone"` incompatible with `next start` in Next.js 15
+   - **IPv6 localhost on Ubuntu**: `getent hosts localhost` returns `::1` only. Next.js middleware rewrites to `localhost:3000` → fails when server bound to `127.0.0.1`. Fix: bind to `0.0.0.0` + firewall
+   - **Supabase schema grants**: Dropping `public` schema with CASCADE destroys default role grants for `anon`, `authenticated`, `service_role`. Must restore manually
+   - **Clerk + Supabase Third-Party Auth**: `createServerSupabaseClient` uses `accessToken()` → Clerk session JWT. PostgREST can't verify without Third-Party Auth integration configured in both Clerk and Supabase dashboards
+   - **Supabase new API keys**: Project shows both legacy JWT-based keys and new `sb_publishable_*`/`sb_secret_*` keys
+
+3. Files and Code Sections:
+
+   - **`apps/web/next.config.ts`** — Removed `output: "standalone"` (incompatible with `next start`). Applied both locally and on VPS.
+     ```typescript
+     const nextConfig: NextConfig = {
+       reactStrictMode: true,
+       // output: "standalone" was HERE — removed
+       async headers() {
+         return [{ source: "/(.*)", headers: securityHeaders }];
+       },
+       images: {
+         remotePatterns: [
+           { protocol: "https", hostname: "ugkqdopvsmtzsqvnnmck.supabase.co" },
+           { protocol: "https", hostname: "img.clerk.com" },
+         ],
+       },
+     };
+     ```
+
+   - **`apps/web/lib/supabase/server.ts`** — Key to understanding the PGRST301 error. Uses Clerk JWT via `accessToken()`:
+     ```typescript
+     export async function createServerSupabaseClient() {
+       return createClient(supabaseUrl, supabaseKey, {
+         async accessToken() {
+           return (await auth()).getToken() ?? null;
+         },
+       });
+     }
+     ```
+
+   - **`apps/web/lib/supabase/admin.ts`** — Uses `SUPABASE_SERVICE_ROLE_KEY` directly. Should work now with grants restored:
+     ```typescript
+     export function createAdminSupabaseClient(): SupabaseClient {
+       if (!adminClient) {
+         adminClient = createClient(
+           process.env.NEXT_PUBLIC_SUPABASE_URL!,
+           process.env.SUPABASE_SERVICE_ROLE_KEY!,
+           { auth: { autoRefreshToken: false, persistSession: false } },
+         );
+       }
+       return adminClient;
+     }
+     ```
+
+   - **`apps/web/lib/api/auth.ts`** — JIT user provisioning uses admin client. Should work with grants restored:
+     ```typescript
+     export async function getAuthenticatedUser() {
+       const { userId } = await auth();
+       if (!userId) return null;
+       const supabase = createAdminSupabaseClient();
+       const { data: user } = await supabase.from("users").select("*").eq("clerk_user_id", userId).single();
+       if (user) return { user, clerkUserId: userId };
+       // JIT provisioning fallback...
+     }
+     ```
+
+   - **`apps/web/app/(dashboard)/projects/new/page.tsx`** — POSTs to `/api/projects`, on failure redirects to `/projects` silently
+
+   - **`apps/web/app/(dashboard)/projects/page.tsx`** — Uses `createServerSupabaseClient()` (Clerk JWT) to list projects. This is failing with PGRST301
+
+   - **`apps/web/app/api/projects/route.ts`** — POST handler uses `getAuthenticatedUser()` (admin client). Should work with grants
+
+   - **`apps/web/middleware.ts`** — Clerk middleware runs on all API routes including `/api/health`. Not blocking health but runs `auth()` on all requests
+
+   - **`apps/web/lib/pricing/config.ts`** — Source of truth for plan pricing. Professional Monthly has `comingSoon: true` and `prices: { INR: 0 }` but Razorpay plan created at ₹14,999
+
+   - **`docs/DEPLOYMENT_IMPLEMENTATION.md`** — Comprehensively updated with all step completions, 6 new lessons learnt (11-16), pending git commits section, updated completion summary. All steps 1-13 marked COMPLETE, step 14 IN PROGRESS
+
+   - **Supabase migration `restore_default_grants`** — Applied via MCP to fix missing role grants:
+     ```sql
+     GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+     GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+     GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+     -- ... and more default privileges
+     ```
+
+   - **PM2 ecosystem.config.js** (VPS only, not in git):
+     ```javascript
+     module.exports = {
+       apps: [{
+         name: "apollo-web",
+         script: "node_modules/next/dist/bin/next",
+         args: "start -H 0.0.0.0 -p 3000",
+         cwd: "/opt/apollo/apps/web",
+         env: { NODE_ENV: "production" },
+       }],
+     };
+     ```
+
+   - **Razorpay env block**:
+     ```
+     REDACTED
+     RAZORPAY_PLAN_PROFESSIONAL_MONTHLY=plan_SI9NmdAviNoFvv
+     RAZORPAY_PLAN_ADDON=plan_SI9P2LiSDWy5qi
+     ```
+
+4. Errors and Fixes:
+   - **Hallucinated Razorpay plan amounts**: I made up ₹999 and ₹2,499 prices. User called this out: "Ok, but you hallucinated the plan amounts". Fixed by reading `lib/pricing/config.ts` for actual prices.
+   - **PM2 SyntaxError on `.bin/next`**: `node_modules/.bin/next` is a bash shim, PM2 tries to parse as JS. Fixed: use `node_modules/next/dist/bin/next`
+   - **`next start` incompatible with `output: standalone`**: Next.js 15 hard-errors. Fixed: removed `output: "standalone"` from `next.config.ts` via `sed` on VPS + also applied to local copy
+   - **Stale `.next` cache**: After config change, old build artifacts persisted. Fixed: `rm -rf .next` + full rebuild
+   - **IPv6 localhost proxy failure**: `getent hosts localhost` returns `::1`. Next.js middleware rewrites to `localhost:3000` but server bound to `127.0.0.1` (IPv4). Error: `Failed to proxy http://localhost:3000/api/health [Error: socket hang up]`. User demanded: "Diagnose properly and fix" and "You say likely!! be sure". Fixed: verified with `getent hosts localhost`, changed to `-H 0.0.0.0` + `ufw deny 3000`
+   - **Supabase missing role grants**: Dropping public schema CASCADE destroyed default Supabase grants. `service_role` got `42501: permission denied`. Fixed: applied `restore_default_grants` migration via MCP
+   - **PGRST301 JWT decode failure**: `createServerSupabaseClient` sends Clerk session JWT to PostgREST. PostgREST can't verify Clerk JWTs without Third-Party Auth integration. Searched Supabase docs — found Clerk third-party auth guide. **NOT YET FIXED**
+
+5. Problem Solving:
+   - Successfully deployed Next.js with PM2 (3 issues resolved)
+   - Successfully configured Caddy with auto-SSL
+   - Restored missing Supabase grants after schema wipe
+   - **Ongoing**: PGRST301 error — need to configure Supabase Third-Party Auth integration with Clerk. The Supabase docs show this requires: (1) visiting Clerk's "Connect with Supabase" page, (2) adding Third-Party Auth integration in Supabase dashboard. The `accessToken()` pattern in `server.ts` already matches the recommended approach from docs.
+
+6. All User Messages:
+   - "should be website yes?" (Razorpay verification form screenshot)
+   - "Ok, but you hallucinated the plan amounts"
+   - "razorpay wants testuser access, can i use this clerk setting to do this? and how do i communicate this to razorpay?" (with Clerk test mode screenshot)
+   - "give me the plan name, description, etc for razorpay subscription plans, prof monthly i will kepp as 14,999 per month (only rzp plan for now, will update codebase later."
+   - "create the razorpay block for me, i will fill the api keys" (with Razorpay plans screenshot showing 3 plan IDs)
+   - "done with .env.local on vps (stripe pendong) lets move to next step"
+   - (VPS output of pnpm install)  "now?"
+   - (VPS output of pnpm build success)
+   - (VPS output of PM2 start + curl connection refused)
+   - (VPS PM2 logs showing SyntaxError on .bin/next)
+   - (VPS output after fix - Internal Server Error from health)
+   - (VPS verbose curl + PM2 logs showing standalone warning + proxy failure)
+   - (VPS output of clean rebuild - still Internal Server Error) "Diagnose properly and fix"
+   - (VPS PM2 flush + fresh logs showing "Failed to proxy" ECONNRESET)
+   - "On this Ubuntu system, localhost likely tries IPv6 ::1 first, fails, and the proxy crashes. You say likely!! be sure"
+   - (VPS `getent hosts localhost` showing `::1`)
+   - (VPS output showing health check success after 0.0.0.0 fix)
+   - (VPS Caddy configured, curl -I showing HTTP/2 200 with all headers)
+   - "its live, opening in browser now, inngest synced" (with Inngest dashboard screenshot showing 6 functions)
+   - "update the deployment implementation file properly, do not miss anything. create a section for pending git commits (will push at one go after initial testing"
+   - "google oauth done. works;clerk works, dash opens, then https://apollo.sciscribesolutions.com/projects to https://apollo.sciscribesolutions.com/projects/new silently fails and loops back to https://apollo.sciscribesolutions.com/projects"
+   - (VPS PM2 error logs showing PGRST301 and 42501 permission denied)
+   - "from vps NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... and check supabase screens" (with Supabase API keys screenshots showing both legacy and new key tabs)
+
+7. Pending Tasks:
+   - **Fix PGRST301 error**: Configure Supabase Third-Party Auth integration with Clerk so PostgREST can verify Clerk session JWTs. This requires user action in both Clerk and Supabase dashboards
+   - **Verify project creation works**: After PGRST301 fix, test the full flow (sign up → create project → etc.)
+   - **Razorpay webhook**: Still pending (requires site verification by Razorpay)
+   - **Git commit**: Push `output: "standalone"` removal from `next.config.ts` after testing
+   - **Update `lib/pricing/config.ts`**: Professional Monthly price/comingSoon status needs updating
+   - **Stripe setup**: Deferred for beta
+   - **Complete Step 14 verification checklist**: Most items still unchecked
+
+8. Current Work:
+   Diagnosing why `/projects/new` silently fails. Found two Supabase errors:
+   1. `PGRST301: No suitable key was found to decode the JWT` — from `createServerSupabaseClient()` which sends Clerk JWT to PostgREST
+   2. `42501: permission denied` — from missing role grants (FIXED via `restore_default_grants` migration)
+   
+   After fixing grants, the PGRST301 persists because PostgREST can't verify Clerk session JWTs. Searched Supabase docs and found the Clerk Third-Party Auth integration guide at `https://supabase.com/docs/guides/auth/third-party/clerk`. The guide says:
+   - Visit Clerk's "Connect with Supabase" page to configure Clerk instance
+   - Add a Third-Party Auth integration with Clerk in Supabase dashboard
+   - The `accessToken` pattern already used in `server.ts` matches the recommended approach
+   
+   The doc search results were just returned to the conversation and haven't been communicated to the user yet.
+
+9. Optional Next Step:
+   Tell the user the solution for PGRST301: they need to configure Supabase's Third-Party Auth integration with Clerk. Two steps required in dashboards:
+   1. Go to Clerk Dashboard → "Connect with Supabase" page (https://dashboard.clerk.com/setup/supabase) to configure Clerk instance for Supabase compatibility (adds `role` claim to session tokens)
+   2. Go to Supabase Dashboard → Authentication → Third-Party Auth → Add Clerk integration
+   
+   This is directly related to the user's most recent issue: "google oauth done. works;clerk works, dash opens, then https://apollo.sciscribesolutions.com/projects to https://apollo.sciscribesolutions.com/projects/new silently fails and loops back to https://apollo.sciscribesolutions.com/projects"
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+Project creation works. but if you go through the codebase ypou will find that the non licensed user  has been allowed generation upto Introducion cahpter and pdf download with watermark post that (initially this was limited to title page only, no download). The Ui and frontend flow havent yet been updated to do so yet. Also the post synopsis ingestion form fill up with details needs some corrections, and so dpoes some landing page UI elements (eg in Hero 3d element, graph axes from light grey to deep grey , almost black)
+
+---
+
+[Request interrupted by user]
+
+---
+
+show the plan approved just now
+
+---
+
+[Request interrupted by user]
+
+---
+
+show the plan again
+
+---
+
+No. there i changes i need, create a post deploy audit mitigation .md file in /docs and put this plan in there
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation from a previous conversation about deploying Apollo to production. The previous session covered VPS provisioning, DNS setup, Docker builds, PM2 setup, Caddy reverse proxy, and diagnosing a Supabase PGRST301 JWT error with Clerk integration.
+
+2. **PGRST301 Fix Guidance**: I provided the user with steps to configure Supabase Third-Party Auth with Clerk (two dashboard steps: Clerk "Connect with Supabase" page + Supabase "Third-Party Auth" configuration).
+
+3. **User's Main Request**: "Project creation works. but if you go through the codebase you will find that the non licensed user has been allowed generation upto Introduction chapter and pdf download with watermark post that (initially this was limited to title page only, no download). The UI and frontend flow haven't yet been updated to do so yet. Also the post synopsis ingestion form fill up with details needs some corrections, and so does some landing page UI elements (eg in Hero 3d element, graph axes from light grey to deep grey, almost black)"
+
+4. **Plan Mode Entered**: I entered plan mode to explore the codebase across 3 areas.
+
+5. **Exploration Phase**: Launched 3 parallel Explore agents:
+   - Agent 1: Explored sandbox/license gating system - found SANDBOX_PHASES = [0,1,2], watermark system, export gates
+   - Agent 2: Explored post-synopsis form flow - found 5-step setup wizard, all components
+   - Agent 3: Explored hero 3D scene - found AXIS_COLOR = "#C0C0C0" at line 343
+
+6. **Detailed File Reads**: Read multiple files to understand the full picture:
+   - `setup-wizard.tsx` - 5-step wizard orchestrator
+   - `licence-banner.tsx` - shows from Phase 1, wrong text
+   - `project-workspace.tsx` - full workspace with pipeline, editor, PDF viewer
+   - `pipeline-timeline.tsx` - phase navigation with lock states
+   - `title-page-preview-step.tsx` - Step 5 with sandbox-only "Activate with a Licence"
+   - `constants.ts` - PHASES array with requiresLicence flags
+   - `export-menu.tsx` - sandbox gets PDF only
+   - `pdf-viewer.tsx` - has sandbox watermark overlay + download button
+   - `metadata-form-step.tsx` - current form fields
+   - `parsed-data-review-step.tsx` - current parsed data display
+   - `prompts.ts` - SYNOPSIS_PARSE_SYSTEM_PROMPT and SynopsisParseResult
+   - `parser.ts` - ParsedSynopsis interface and regex fallback
+   - `parse-synopsis-response.ts` - AI response parser
+   - `database.ts` - ProjectMetadata interface
+   - `generate-tex.ts` - LaTeX FIELD_MAP
+   - `front-matter.ts` - front matter generation
+   - `title-page.ts` - HTML title page preview
+   - Template files for cosupervisor commands
+
+7. **User Clarification Questions**: I asked 3 questions:
+   - Form fixes: User selected "Parsed data not saved", "Missing/wrong fields", and described: candidate name, reg number, guide, co-guide should be auto-filled from synopsis. Session needs format validation. "Year" should become "Submission Month & Year"
+   - Axis colour: User said "What do you mean axis color? I want to darken the 3d graph plot axes (x,y,z axes)" - confirming they want the axes darkened
+   - Sandbox UX: User described the core problem - "from here there is no way to proceed to the frontmatter and Intro sections... The entire pipeline is gated beyond the licence gate" and attached a screenshot showing Step 5 with only "Activate with a Licence"
+
+8. **Plan Design**: Launched a Plan agent with comprehensive context. The agent produced a detailed 9-step implementation plan.
+
+9. **Plan Review and Writing**: Wrote the plan to the plan file. Verified critical files (generate-tex.ts, front-matter.ts, title-page.ts, template cosupervisor commands).
+
+10. **First ExitPlanMode Rejection**: User rejected saying "Few things, 2A we can also add Institute name, and University name here (helpful for generic thesis.cls, and double check for wbuhs and ssuhs.)"
+
+11. **Plan Update**: I updated the plan to add `institute_name` and `university_name` to:
+    - AI parsing prompt (6 fields instead of 4)
+    - ParsedSynopsis interface
+    - Step 3 display
+    - ProjectMetadata (institute_name only, university_name is display-only cross-check)
+    - Metadata form (Institute Name field)
+    - Auto-fill
+    - LaTeX wiring (generate-tex.ts, front-matter.ts, title-page.ts)
+
+12. **Second ExitPlanMode**: Approved by user.
+
+13. **User Interrupted**: User used `/plan` command and asked to see the plan.
+
+14. **Plan Display**: I read and displayed the plan file.
+
+15. **Second ExitPlanMode**: Approved again.
+
+16. **User Interrupted Again**: "No. there is changes i need, create a post deploy audit mitigation .md file in /docs and put this plan in there"
+
+17. **File Created**: I created `/Users/devs/Downloads/Apollo/docs/POST_DEPLOY_AUDIT.md` with the full plan content.
+
+Key files that were read but NOT modified:
+- All the exploration files listed above
+
+Key file that WAS created:
+- `docs/POST_DEPLOY_AUDIT.md`
+
+The plan file was also written:
+- `/Users/devs/.claude/plans/tranquil-roaming-nest.md`
+
+No implementation has started yet. The user explicitly said "No" when asked if they want to start implementing, and instead asked for the plan to be saved as a doc file.
+
+Summary:
+1. Primary Request and Intent:
+   The user's primary requests across this session are:
+   - **Supabase + Clerk JWT fix** (from previous session continuation): Configure Supabase Third-Party Auth with Clerk to resolve PGRST301 errors. I provided the 2-step dashboard configuration guide.
+   - **Three UI/flow improvements** (main task this session):
+     1. **Hero 3D scene**: Darken the scatter plot graph axes (X, Y, Z) from light grey to deep grey/almost black
+     2. **Setup wizard form corrections**: Add co-guide name field, auto-fill metadata from AI-parsed synopsis (candidate name, reg no, guide, co-guide, institute, university), rename "Year" to "Submission Month & Year", add session format validation
+     3. **Sandbox user flow**: Enable sandbox users to reach the workspace from setup wizard Step 5 (currently blocked with only "Activate with a Licence" and no "Continue" button), despite backend already supporting Phases 0-2 + watermarked PDF
+   - **Save plan as documentation**: User explicitly declined implementation and asked to create `docs/POST_DEPLOY_AUDIT.md` with the plan
+
+2. Key Technical Concepts:
+   - **Sandbox/License gating**: `SANDBOX_PHASES = [0, 1, 2]` in `lib/pricing/config.ts`, `checkLicenceForPhase()` in `lib/api/licence-phase-gate.ts`, project statuses: sandbox/licensed/completed
+   - **Watermarked PDF**: CSS overlay in `pdf-viewer.tsx` + LaTeX `draftwatermark` package injection in `compile.ts`
+   - **5-step setup wizard**: University → Synopsis → Parsed Review → Metadata → Title Preview, orchestrated by `setup-wizard.tsx`
+   - **AI synopsis parsing**: `SYNOPSIS_PARSE_SYSTEM_PROMPT` → Claude Sonnet → `parseSynopsisResponse()` → `ParsedSynopsis`, with regex fallback
+   - **Two parallel interfaces**: `SynopsisParseResult` (AI output, in prompts.ts) and `ParsedSynopsis` (wizard state, in parser.ts) — need alignment
+   - **LaTeX template commented lines**: `%\cosupervisorname{...}` and `%\institutename{...}` in main.tex — FIELD_MAP regex doesn't match commented lines, needs special-case handling
+   - **CLS cosupervisor commands**: Both `sskm-thesis.cls` and `ssuhs-thesis.cls` have `\cosupervisorname`, `\cosupervisordesignation`, `\makecoguidecertificate`
+   - **Pipeline timeline**: `PipelineTimeline` component with 3-tier dots, lock states for unlicensed phases
+   - **Licence banner**: Currently shows from Phase 1 with wrong text ("beyond Phase 1"), should show from Phase 2 with "beyond Introduction (Phase 2)"
+
+3. Files and Code Sections:
+   - **`apps/web/components/landing/hero-3d-scene.tsx`** (LOCKED — user approved change)
+     - Contains `const AXIS_COLOR = "#C0C0C0"` at line 343, controls all axis lines/arrowheads/ticks
+     - Plan: Change to `"#2A2A2A"`
+
+   - **`apps/web/lib/ai/prompts.ts`**
+     - `SYNOPSIS_PARSE_SYSTEM_PROMPT` (lines 23-46): Currently extracts title, study_type, study_design, department, aims, objectives, methodology_summary, sample_size, duration, setting, inclusion_criteria, exclusion_criteria, keywords
+     - `SynopsisParseResult` interface (lines 673-687): Missing candidate_name, registration_no, guide_name, co_guide_name, institute_name, university_name
+     - Plan: Add 6 new extraction fields to prompt and interface
+
+   - **`apps/web/lib/ai/parse-synopsis-response.ts`**
+     - Return block (lines 26-53): Parses AI JSON response into typed fields
+     - Plan: Add 6 new field extractions with typeof string checks
+
+   - **`apps/web/lib/synopsis/parser.ts`**
+     - `ParsedSynopsis` interface (lines 1-11): Missing department, duration, setting, keywords, and the 6 new fields
+     - `parseSynopsis()` function (lines 33-111): Regex fallback parser
+     - Plan: Add all missing fields with null defaults
+
+   - **`apps/web/components/wizard/steps/parsed-data-review-step.tsx`**
+     - Displays AI-parsed data with editable fields (title, study_type, sample_size, aims, objectives, criteria)
+     - Plan: Add 2-col grid with Candidate Name, Registration No., Guide Name, Co-Guide Name, Department, Institute Name, University Name
+
+   - **`apps/web/lib/types/database.ts`**
+     - `ProjectMetadata` interface (lines 58-69): Has candidate_name, guide_name, hod_name, department, degree, speciality, registration_no, session, year
+     - Plan: Add `co_guide_name?: string;`, `institute_name?: string;`
+
+   - **`apps/web/components/wizard/steps/metadata-form-step.tsx`**
+     - Full metadata form with Candidate Details, Supervision (guide + HOD), Academic (dept, degree, speciality, session, year) fieldsets
+     - Plan: Add Co-Guide Name, Institute Name fields; rename Year → "Submission Month & Year"; add session format validation
+
+   - **`apps/web/components/wizard/setup-wizard.tsx`**
+     - 5-step wizard orchestrator; lines 100-106 only persist `title` and `study_type` from parsed data
+     - Plan: Seed metadata fields (candidate_name, registration_no, guide_name, co_guide_name, department, institute_name) from parsed data, guarded by `!metadata.xxx`
+
+   - **`apps/web/components/wizard/steps/title-page-preview-step.tsx`**
+     - Lines 44-56: Sandbox users see ONLY "Activate with a Licence" amber banner, no way to proceed
+     - Plan: Add "Continue to Workspace" primary button + "Get Licence" secondary button
+
+   - **`apps/web/components/project/licence-banner.tsx`**
+     - Line 21: `if (currentPhase < 1) return null;` — wrong threshold
+     - Lines 29-32: Wrong text ("beyond Phase 1", "Phase 0 and Phase 1")
+     - Plan: Threshold → `< 2`, text → "beyond Introduction (Phase 2)", "Phases 0–2"
+
+   - **`apps/web/lib/latex/generate-tex.ts`**
+     - FIELD_MAP (lines 14-30): Maps LaTeX commands to metadata keys, regex replaces uncommented `\command{...}` patterns
+     - Plan: Add special-case handling for commented `%\cosupervisorname` and `%\institutename` lines
+
+   - **`apps/web/lib/latex/front-matter.ts`**
+     - `generateFrontMatterLatex()` (lines 9-71): Generates metadata LaTeX commands
+     - `generateAcknowledgements()` (lines 77-105): Generates acknowledgements text
+     - Plan: Add co-guide + institute lines, add co-guide acknowledgement paragraph
+
+   - **`apps/web/lib/preview/title-page.ts`**
+     - `generateTitlePageHtml()`: HTML title page preview with Candidate/Guide table
+     - Plan: Add co-guide block, use institute_name in footer
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`**
+     - Full workspace component — already handles sandbox correctly (pipeline, generate, compile, PDF viewer with watermark, download button)
+     - The missing piece is GETTING sandbox users here from the setup wizard
+
+   - **`apps/web/lib/phases/constants.ts`**
+     - `PHASES` array: Phases 0-2 have `requiresLicence: false`, phases 3-11 have `requiresLicence: true`
+
+   - **`docs/POST_DEPLOY_AUDIT.md`** (CREATED)
+     - Full plan document with all 4 changes, implementation order, and verification steps
+
+4. Errors and fixes:
+   - **Plan file write error**: Got "File has not been read yet" when trying to Write the plan file. Fixed by reading it first, then writing.
+   - **User correction on field count**: I initially planned 4 new fields for AI parsing. User said "we can also add Institute name, and University name here (helpful for generic thesis.cls, and double check for wbuhs and ssuhs)". Updated plan from 4 → 6 fields.
+   - **User correction on axis colour question**: I asked "For the hero 3D scene axis colour, what shade do you want?" and the user responded "What do you mean axis color? I want to darken the 3d graph plot axes (x,y,z axes)" — they were confirming they want the same thing I described, just phrased differently.
+
+5. Problem Solving:
+   - **Identified the sandbox flow gap**: The backend fully supports Phases 0-2 for sandbox users (generation, compilation, watermarked PDF, download), but the setup wizard Step 5 has no "Continue to Workspace" button — only "Activate with a Licence". This is the single blocking UX issue.
+   - **Identified type alignment issue**: `SynopsisParseResult` (AI output) and `ParsedSynopsis` (wizard state) are two separate interfaces that must stay aligned. The AI response is cast as `ParsedSynopsis` in the review step.
+   - **Identified commented LaTeX template pattern**: `generate-tex.ts` FIELD_MAP regex only matches `\command{...}` (uncommented). But `\cosupervisorname` and `\institutename` are commented in `main.tex`. Need special-case regex to match `%\command{...}`.
+   - **Decided against DB migration for `year` field**: Keep `year` in interface, only change UI label to "Submission Month & Year" to avoid migration.
+   - **Decided `university_name` is display-only**: Already captured by `university_type` in Step 1, parsed value serves as cross-check only — not added to `ProjectMetadata`.
+
+6. All user messages:
+   - "Project creation works. but if you go through the codebase you will find that the non licensed user has been allowed generation upto Introduction chapter and pdf download with watermark post that (initially this was limited to title page only, no download). The Ui and frontend flow havent yet been updated to do so yet. Also the post synopsis ingestion form fill up with details needs some corrections, and so does some landing page UI elements (eg in Hero 3d element, graph axes from light grey to deep grey , almost black)"
+   - (Answers to AskUserQuestion): Form fixes: "Parsed data not saved, Missing/wrong fields, I'll describe specific issues, The candidate name, reg number, guide, co guide name will be present in synopsis, they should be auto filled in the form (hence allowing edit) Session should have format validation, and instead of year, it should be Submission month and year."
+   - (Answers to AskUserQuestion): Axis: "What do you mean axis color? I want to darken the 3d graph plot axes (x,y,z axes)"
+   - (Answers to AskUserQuestion): Sandbox flow: "Once a sandbox user uploads a synopsis, it is parsed, passed to AI, then a form fill up comes for metadata, then a title page preview comes, and from here there is no way to proceed to the frontmatter and Intro sections (ie upto phase 4 of the pipeline) The entire pipeline i think is gated beyond the licence gate and starts afresh after this, but for sandbox users we need to upgrade this flow to have identical steps as in main pipeline upto intro chapter and then download watermarked pdf (as already preset in backend)" (with screenshot attached)
+   - (Rejected ExitPlanMode): "Few things, 2A we can also add Institute name, and University name here (helpful for generic thesis.cls, and double check for wbuhs and ssuhs.)"
+   - "/plan" command, then "show the plan approved just now"
+   - "No. there is changes i need, create a post deploy audit mitigation .md file in /docs and put this plan in there"
+
+7. Pending Tasks:
+   - **Implementation of the approved plan**: All 9 steps from the plan are pending (hero axis, types, AI prompt, parsed data review UI, metadata form, auto-fill, sandbox button, licence banner, LaTeX co-guide wiring). User has NOT asked to start implementation yet — they explicitly said "No" when asked.
+   - **Supabase + Clerk Third-Party Auth configuration**: Dashboard configuration steps were provided but not confirmed completed by user
+   - **Previous Phase 11 cleanup items**: The old plan file had Phase 11 cleanup tasks (lint, dead code, bug fixes, RLS policies, performance) — these are separate from the current post-deploy audit
+
+8. Current Work:
+   The most recent action was creating `docs/POST_DEPLOY_AUDIT.md` with the full approved plan. The user explicitly declined starting implementation ("No. there is changes i need, create a post deploy audit mitigation .md file in /docs and put this plan in there"). The file was successfully created.
+
+9. Optional Next Step:
+   No next step should be taken without user direction. The user explicitly said "No" to implementation and only asked for the plan to be saved as a doc file, which is complete. The user may want to:
+   - Review the created `docs/POST_DEPLOY_AUDIT.md` and request changes
+   - Ask to start implementing specific changes from the plan
+   - Continue with other deployment tasks (Clerk+Supabase Third-Party Auth, etc.)
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+check the post deploy audit.md in /docs Read the plan written there. it requires some chnages and some more additions (there is some weird edge case behaviour which isnt intended. eg. 1. During University selection, WBUHS, and SSUHS and Other University are shown but the full form of SSUHS is wrong. 2. Although currently there is no way to proceed beyond step 5 in that flow ( It generates upto title page only) from there , there is no frontend to proceed to main pipeline step 1 ie orientation which should be the normal flow for both Both sandbox and licenced ( since there is a page change required to editor, may be add a UI button to proceed to that page from this flow only?) Instead using the sidebar after the title oage flow is completed, selecting the created sandbox project takes to the editor page where we can proceed and approve the orientation step . (step 1 of the pipeline), but are gated before reaching frontmatter (no generate button, instead a banner saying licence reqd, and compile pdf button +, but on pressing compile we get error..see attched ) But if I now proceed to projects page on sidebar , and click the card for the new project, I can see the frontamtter stage active but which get stuck at generating. and again compile pdf fails here with same error. I think all these steps in both preliminary pipeline and main pipeline, needs to be audited for flow, and harmonise the behaviour. Also to diagnose these errors and create proper production grade fixes. We also need to have proper easy to reference step/flow stage names which helps me to convey the behaviour better, which you need to reember. 3. For razorpay webhook, I can only get to the one time student plan , which takes me to razorpay. other show error "page-84c60ae3ef4bdade.js:1  POST https://apollo.sciscribesolutions.com/api/checkout 500 (Internal Server Error)" , also for the one i can reach many errors are there (see attached).  I need to properly log all these issues, and properly plan a diagnosis and fixes. See the big picture always, and no stopgap patches. Never assume, always confirm. ask claryfying questions as necessary.
+
+---
+
+[Image source: REDACTED 2026-02-20 at 10.18.37 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 10.19.58 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 10.21.59 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 10.26.09 AM.png]
+
+[Image source: REDACTED 2026-02-20 at 10.26.55 AM.png]
+
+---
+
+review/modify the audit document
+  first
+
+---
+
+Lets implement these, and then do a push and pull on the vps. But we need to verify every fix has worked properly.
+
+---
+
+continue

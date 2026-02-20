@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 203,
+  "checkpoints_count": 206,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -245,6 +245,7 @@
     "apps/web/lib/phases/word-count-config.ts",
     "apps/web/lib/phases/word-count-targets.test.ts",
     "apps/web/lib/phases/word-count-targets.ts",
+    "apps/web/lib/preview/title-page.ts",
     "apps/web/lib/pricing/config.ts",
     "apps/web/lib/qc/final-qc.test.ts",
     "apps/web/lib/qc/final-qc.ts",
@@ -299,6 +300,7 @@
     "apps/web/supabase/migrations/029_analysis_plan_columns.sql",
     "apps/web/supabase/migrations/030_privacy_compliance.sql",
     "apps/web/supabase/migrations/031_database_audit_fixes.sql",
+    "apps/web/supabase/migrations/032_missing_rls_policies.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -306,6 +308,7 @@
     "apps/web/tests/pricing/config.test.ts",
     "apps/web/tests/pricing/velocity.test.ts",
     "apps/web/tests/security/licence-gates.test.ts",
+    "apps/web/tests/security/rls.test.ts",
     "apps/web/vancouver.bst",
     "docker/Dockerfile.latex",
     "docker/Dockerfile.r-plumber",
@@ -318,9 +321,11 @@
     "docker/seccomp-r.json",
     "docker/watermark.sh",
     "docs/DECISIONS.md",
+    "docs/DEPLOYMENT.md",
     "docs/DEPLOYMENT_IMPLEMENTATION.md",
     "docs/Mitigation_implementation.md",
     "docs/Mitigation_plan.md",
+    "docs/POST_DEPLOY_AUDIT.md",
     "docs/REVIEW.md",
     "docs/SPRINT-CITATIONS-TABLES-PIPELINE.md",
     "docs/governance/security-tests.md",
@@ -574,10 +579,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 108824,
-    "cache_creation_tokens": 7962561,
-    "cache_read_tokens": 275480913,
-    "output_tokens": 573723,
-    "api_call_count": 2861
+    "input_tokens": 115870,
+    "cache_creation_tokens": 8686846,
+    "cache_read_tokens": 298296813,
+    "output_tokens": 612016,
+    "api_call_count": 3065
   }
 }
