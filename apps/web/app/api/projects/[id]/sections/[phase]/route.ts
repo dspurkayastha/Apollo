@@ -53,6 +53,20 @@ export async function GET(
       return notFound("Section not found");
     }
 
+    // Recalculate word count (strips BibTeX trailer) and patch DB if stale
+    if (section.latex_content) {
+      const correctCount = countWords(section.latex_content);
+      if (correctCount !== section.word_count) {
+        section.word_count = correctCount;
+        void supabase
+          .from("sections")
+          .update({ word_count: correctCount })
+          .eq("project_id", id)
+          .eq("phase_number", phaseNumber)
+          .then();
+      }
+    }
+
     return NextResponse.json({ data: section });
   } catch (err) {
     console.error("Unexpected error in GET /api/projects/[id]/sections/[phase]:", err);

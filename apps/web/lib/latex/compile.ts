@@ -252,8 +252,9 @@ async function dockerCompile(
 }
 
 /**
- * Inject draftwatermark LaTeX package for local compile mode.
- * Docker mode handles this via --watermark-mode flag instead.
+ * Inject watermark commands AFTER \begin{document} so they override the CLS
+ * defaults (both sskm-thesis.cls and ssuhs-thesis.cls already
+ * \RequirePackage{draftwatermark} and set text to empty).
  */
 function injectWatermarkPackage(
   texContent: string,
@@ -261,14 +262,16 @@ function injectWatermarkPackage(
 ): string {
   if (!options.watermark && !options.draftFooter) return texContent;
 
-  const beginDocIdx = texContent.indexOf("\\begin{document}");
+  const marker = "\\begin{document}";
+  const beginDocIdx = texContent.indexOf(marker);
   if (beginDocIdx === -1) return texContent;
 
-  let pkg: string;
+  const insertIdx = beginDocIdx + marker.length;
+
+  let cmds: string;
   if (options.watermark) {
     // Sandbox: elegant centred "Apollo" in Palatino italic — stealth branding
-    pkg = [
-      "\\usepackage{draftwatermark}",
+    cmds = "\n" + [
       "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont\\itshape Apollo}",
       "\\SetWatermarkColor[gray]{0.92}",
       "\\SetWatermarkScale{2.5}",
@@ -276,8 +279,7 @@ function injectWatermarkPackage(
     ].join("\n") + "\n";
   } else {
     // Licensed draft: subtle bottom footer
-    pkg = [
-      "\\usepackage{draftwatermark}",
+    cmds = "\n" + [
       "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont Generated with Apollo}",
       "\\SetWatermarkColor[gray]{0.88}",
       "\\SetWatermarkScale{0.3}",
@@ -285,7 +287,7 @@ function injectWatermarkPackage(
     ].join("\n") + "\n";
   }
 
-  return texContent.slice(0, beginDocIdx) + pkg + texContent.slice(beginDocIdx);
+  return texContent.slice(0, insertIdx) + cmds + texContent.slice(insertIdx);
 }
 
 async function localCompile(

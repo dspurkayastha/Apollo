@@ -47,6 +47,29 @@ export default async function ProjectDetailPage({
 
   const sections = (sectionsData ?? []) as Section[];
 
+  // Recalculate word counts (strips BibTeX trailer) — self-heals stale DB values
+  for (const s of sections) {
+    if (!s.latex_content) continue;
+    const sepIdx = s.latex_content.indexOf("---BIBTEX---");
+    if (sepIdx < 0) continue; // no trailer — count is already correct
+    const body = s.latex_content.slice(0, sepIdx);
+    const stripped = body
+      .replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " ")
+      .replace(/[{}\\%$&_^~#]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const correctCount = stripped ? stripped.split(" ").length : 0;
+    if (correctCount !== s.word_count) {
+      s.word_count = correctCount;
+      void supabase
+        .from("sections")
+        .update({ word_count: correctCount })
+        .eq("project_id", id)
+        .eq("phase_number", s.phase_number)
+        .then();
+    }
+  }
+
   // Fetch citations for this project
   const { data: citationsData } = await supabase
     .from("citations")
