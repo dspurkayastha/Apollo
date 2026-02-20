@@ -171,25 +171,13 @@ async function dockerCompile(
     const outputDir = path.join(workDir, "output");
     await mkdir(outputDir, { recursive: true });
 
-    // Run Docker compile with full security hardening
+    // Run Docker compile
     const containerName = process.env.LATEX_CONTAINER_NAME ?? "apollo-latex";
 
-    // Resolve seccomp profile path (graceful fallback to Docker default)
-    const seccompPath = path.resolve(process.cwd(), "../../docker/seccomp-latex.json");
-    let seccompExists = false;
-    try {
-      await access(seccompPath);
-      seccompExists = true;
-    } catch {
-      // Profile not found — Docker's default seccomp applies (still secure)
-      console.warn(`[compile] Seccomp profile not found at ${seccompPath} — using Docker default`);
-    }
-
-    // Security: network isolation + resource limits + seccomp.
-    // --cap-drop=ALL and --no-new-privileges removed because the combination
-    // causes EPERM on mkdir inside bind-mounted volumes on some Docker/kernel
-    // versions. The container is still isolated: no network, memory/PID limits,
-    // ephemeral (--rm), and seccomp-filtered.
+    // Security: network isolation + resource limits + Docker default seccomp.
+    // Docker's built-in seccomp profile blocks dangerous syscalls (mount,
+    // ptrace, reboot, kexec_load, etc.) and is well-tested. A custom whitelist
+    // profile breaks container init (missing chdir, capget, epoll, etc.).
     const args = [
       "run", "--rm",
       "--network=none",
@@ -199,13 +187,6 @@ async function dockerCompile(
       "-v", `${workDir}:/thesis:rw`,
       containerName,
     ];
-
-    // Add custom seccomp profile if available; otherwise Docker default applies
-    if (seccompExists) {
-      // Insert before container name (last element before watermark flags)
-      const containerIdx = args.indexOf(containerName);
-      args.splice(containerIdx, 0, "--security-opt", `seccomp=${seccompPath}`);
-    }
 
     if (options.watermark) {
       args.push("--watermark-mode=sandbox");
