@@ -32,7 +32,9 @@ export function sanitiseLatexOutput(content: string): string {
   body = body.replace(/\*\*([^*]+)\*\*/g, "\\textbf{$1}");
 
   // 3. Convert markdown italic to LaTeX italic
-  body = body.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "\\textit{$1}");
+  //    - (?<![a-zA-Z*]) prevents matching \section* and other starred LaTeX commands
+  //    - [^*\n]+ prevents matching across newlines (italic is single-line)
+  body = body.replace(/(?<![a-zA-Z*])\*([^*\n]+)\*(?!\*)/g, "\\textit{$1}");
 
   // 4. Escape bare # that are NOT in LaTeX commands and NOT in comments
   //    A bare # is one not preceded by a backslash and not at line start as a heading (already converted)
