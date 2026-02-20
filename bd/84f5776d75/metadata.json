@@ -344,7 +344,9 @@
     "supabase/migrations/016_create_abbreviations.sql",
     "supabase/migrations/017_add_rich_content_to_sections.sql",
     "supabase/migrations/018_add_rows_json_to_datasets.sql",
-    "templates/main.tex"
+    "templates/main.tex",
+    "templates/sskm-thesis.cls",
+    "templates/ssuhs-thesis.cls"
   ],
   "sessions": [
     {
@@ -594,10 +596,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 111558,
-    "cache_creation_tokens": 7987198,
-    "cache_read_tokens": 279936617,
-    "output_tokens": 586276,
-    "api_call_count": 2889
+    "input_tokens": 111555,
+    "cache_creation_tokens": 7993876,
+    "cache_read_tokens": 279760228,
+    "output_tokens": 589537,
+    "api_call_count": 2886
   }
 }
