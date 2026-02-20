@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 202,
+  "checkpoints_count": 203,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -338,13 +338,17 @@
     "docs/mitigation_implementation.md",
     "package.json",
     "pnpm-workspace.yaml",
+    "sciscribe-ssh",
+    "sciscribe-ssh.pub",
     "scripts/backfill-latex-content.ts",
     "scripts/deploy-conformance.sh",
     "scripts/load-test.js",
     "supabase/migrations/016_create_abbreviations.sql",
     "supabase/migrations/017_add_rich_content_to_sections.sql",
     "supabase/migrations/018_add_rows_json_to_datasets.sql",
-    "templates/main.tex"
+    "templates/main.tex",
+    "templates/sskm-thesis.cls",
+    "templates/ssuhs-thesis.cls"
   ],
   "sessions": [
     {
@@ -584,13 +588,20 @@
       "context": "/bd/84f5776d75/33/context.md",
       "content_hash": "/bd/84f5776d75/33/content_hash.txt",
       "prompt": "/bd/84f5776d75/33/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/34/metadata.json",
+      "transcript": "/bd/84f5776d75/34/full.jsonl",
+      "context": "/bd/84f5776d75/34/context.md",
+      "content_hash": "/bd/84f5776d75/34/content_hash.txt",
+      "prompt": "/bd/84f5776d75/34/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 111537,
-    "cache_creation_tokens": 7973328,
-    "cache_read_tokens": 277250619,
-    "output_tokens": 585642,
-    "api_call_count": 2870
+    "input_tokens": 111579,
+    "cache_creation_tokens": 8082174,
+    "cache_read_tokens": 281549983,
+    "output_tokens": 591233,
+    "api_call_count": 2908
   }
 }

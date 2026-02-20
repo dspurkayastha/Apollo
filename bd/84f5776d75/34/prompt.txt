@@ -1,0 +1,250 @@
+Implement the following plan:
+
+# Post-Deploy: Logos, Watermark, 3D Axes, Button Layout, Banner, Word Count
+
+## Context
+
+Six issues visible post-deployment need fixes: title page logos crash if file missing, sandbox watermark is ugly instead of branded, 3D scatter axes clip the container, editor buttons shift when messages appear, licence banner has poor contrast, and word count includes BibTeX trailer.
+
+---
+
+## Change 1: Logo Fallback in CLS Files
+
+**Files**: `templates/sskm-thesis.cls` (lines 349-351), `templates/ssuhs-thesis.cls` (lines 382-389), `apps/web/lib/latex/generate-tex.ts` (line 54-58)
+
+**Problem**: If logo path is set but file doesn't exist on disk, `\includegraphics` crashes compilation.
+
+**Fix in both CLS files** — add a safe helper after the setter commands (~line 210/226):
+```latex
+\newcommand{\@includelogoifexists}[2]{%
+  \IfFileExists{#1.pdf}{\includegraphics[width=#2]{#1}\\[0.4cm]}{%
+  \IfFileExists{#1.png}{\includegraphics[width=#2]{#1}\\[0.4cm]}{%
+  \IfFileExists{#1.jpg}{\includegraphics[width=#2]{#1}\\[0.4cm]}{}}}%
+}
+```
+
+Replace `\includegraphics` calls in title page:
+- `sskm-thesis.cls:350` → `\@includelogoifexists{\universitylogopath}{4.5cm}`
+- `ssuhs-thesis.cls:383` → `\@includelogoifexists{\universitylogopath}{4.5cm}`
+- `ssuhs-thesis.cls:388` → `\@includelogoifexists{\institutelogopath}{3.5cm}`
+
+**`generate-tex.ts`**: Add `generic` entry with empty logo paths:
+```typescript
+generic: { university: "", institute: "" },
+```
+
+---
+
+## Change 2: Branded Sandbox Watermark
+
+**File**: `apps/web/lib/latex/compile.ts` (lines 264-283, `injectWatermarkPackage`)
+
+**Problem**: Current sandbox watermark is "SANDBOX --- Apollo" in default font at 45° — looks like a warning, not branding. User wants elegant "Apollo" as stealth marketing.
+
+**Fix**: Use Palatino (`ppl`) — closest TeX Live serif to Playfair Display:
+
+```typescript
+function injectWatermarkPackage(
+  texContent: string,
+  options: { watermark?: boolean; draftFooter?: boolean }
+): string {
+  if (!options.watermark && !options.draftFooter) return texContent;
+  const beginDocIdx = texContent.indexOf("\\begin{document}");
+  if (beginDocIdx === -1) return texContent;
+
+  let pkg: string;
+  if (options.watermark) {
+    // Sandbox: elegant centered "Apollo" in Palatino italic — stealth branding
+    pkg = [
+      "\\usepackage{draftwatermark}",
+      "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont\\itshape Apollo}",
+      "\\SetWatermarkColor[gray]{0.92}",
+      "\\SetWatermarkScale{2.5}",
+      "\\SetWatermarkAngle{0}",
+    ].join("\n") + "\n";
+  } else {
+    // Licensed draft: subtle bottom footer
+    pkg = [
+      "\\usepackage{draftwatermark}",
+      "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont Generated with Apollo}",
+      "\\SetWatermarkColor[gray]{0.88}",
+      "\\SetWatermarkScale{0.3}",
+      "\\SetWatermarkAngle{0}",
+    ].join("\n") + "\n";
+  }
+  return texContent.slice(0, beginDocIdx) + pkg + texContent.slice(beginDocIdx);
+}
+```
+
+---
+
+## Change 3: 3D Scatter Plot Axis Proportions
+
+**File**: `apps/web/components/landing/hero-3d-scene.tsx` (LOCKED — user approved this change)
+
+**Problem**: Z-axis hardcoded to 0.6 (data goes to z=1.30). X-axis at 2.2 clips container at 45° rotation.
+
+**Fix**: Replace single `AXIS_LENGTH` with per-axis constants:
+```typescript
+const AXIS_LENGTH_X = 1.8;  // Shorter — prevents clipping
+const AXIS_LENGTH_Y = 2.2;  // Unchanged
+const AXIS_LENGTH_Z = 1.2;  // Doubled — shows full depth
+```
+
+Update 9 locations:
+- **Tick loops** (lines 371, 374, 377): X→`AXIS_LENGTH_X`, Y→`AXIS_LENGTH_Y`, Z→`AXIS_LENGTH_Z`
+- **Axis lines** (lines 394-396): endpoints use respective constants
+- **Arrowheads** (lines 399-401): positions use respective constants
+
+---
+
+## Change 4: Stable Button Layout + Auto-Dismissing Messages
+
+**Files**: `compile-button.tsx`, `ai-generate-button.tsx`, `project-workspace.tsx`
+
+**Problem**: CompileButton and AIGenerateButton each stack button + status messages vertically (`space-y-2/3`) inside the action bar's horizontal flex. Messages appearing grow the stack, shifting sibling buttons and word count bar.
+
+**Fix**: Lift message rendering out of button components into a dedicated **status row ABOVE the button row**. Messages auto-dismiss after 8 seconds (success) or are dismissable via click (errors).
+
+### 4A: `compile-button.tsx`
+- Add optional `onResult?: (r: CompileResult | null) => void` and `onError?: (e: string | null) => void` callback props
+- Call these when result/error state changes (in `handleCompile` and poll handler)
+- Remove the `{result && ...}` and `{error && ...}` JSX blocks from return
+- Keep only the button + queue badge inline (the `<div className="flex items-center gap-2">` wrapper stays, the outer `<div className="space-y-2">` goes)
+
+### 4B: `ai-generate-button.tsx`
+- Add optional `onError?: (e: string | null) => void` callback prop
+- Call it when error state changes
+- Remove `{error && <p>...}` from return JSX
+- Keep citation summary badge (it's contextually tied to the generate action)
+
+### 4C: `project-workspace.tsx` (lines 393-442)
+
+Add state + auto-dismiss logic:
+```typescript
+const [compileResult, setCompileResult] = useState<CompileResult | null>(null);
+const [compileError, setCompileError] = useState<string | null>(null);
+const [generateError, setGenerateError] = useState<string | null>(null);
+
+// Auto-dismiss success messages after 8s
+useEffect(() => {
+  if (!compileResult) return;
+  const t = setTimeout(() => setCompileResult(null), 8000);
+  return () => clearTimeout(t);
+}, [compileResult]);
+```
+
+Restructure layout — messages ABOVE buttons:
+```tsx
+{/* Status messages — above button row, auto-dismiss / click-dismiss */}
+{(compileResult || compileError || generateError) && (
+  <div className="space-y-1">
+    {compileResult && (
+      <div
+        className="flex items-center justify-between rounded-2xl bg-[#8B9D77]/10 p-3 text-sm text-[#8B9D77] cursor-pointer"
+        onClick={() => setCompileResult(null)}
+        title="Click to dismiss"
+      >
+        <span>
+          Compiled successfully in {compileResult.compile_time_ms}ms
+          {compileResult.warnings.length > 0 && ` (${compileResult.warnings.length} warnings)`}
+        </span>
+        <X className="h-3.5 w-3.5 opacity-50" />
+      </div>
+    )}
+    {compileError && (
+      <div
+        className="flex items-center justify-between rounded-2xl bg-destructive/10 p-3 text-sm text-destructive cursor-pointer"
+        onClick={() => setCompileError(null)}
+        title="Click to dismiss"
+      >
+        <span>{compileError}</span>
+        <X className="h-3.5 w-3.5 opacity-50" />
+      </div>
+    )}
+    {generateError && (
+      <div
+        className="flex items-center justify-between rounded-2xl bg-destructive/10 p-3 text-sm text-destructive cursor-pointer"
+        onClick={() => setGenerateError(null)}
+        title="Click to dismiss"
+      >
+        <span>{generateError}</span>
+        <X className="h-3.5 w-3.5 opacity-50" />
+      </div>
+    )}
+  </div>
+)}
+
+{/* Action buttons — stable row, never shifts */}
+<div className="flex items-center gap-3" data-tour="compile">
+  {/* AIGenerateButton, Approve, CompileButton, ExportMenu */}
+</div>
+```
+
+---
+
+## Change 5: Licence Banner Contrast
+
+**File**: `apps/web/components/project/licence-banner.tsx` (lines 24-42)
+
+**Problem**: `#D4A373` text on `#D4A373/10` bg — very low contrast on `#FAFAFA` dot-grid dashboard background.
+
+**Fix**:
+- Background: `bg-[#D4A373]/10` → `bg-[#FDF6EE]` (solid warm cream)
+- Border: `border-[#D4A373]/30` → `border-[#C8964C]/40` (slightly richer)
+- Heading: `text-[#D4A373]` → `text-[#92600A]` (dark amber — high contrast)
+- Body: `text-[#D4A373]/80` → `text-[#7A5F2A]` (dark warm brown)
+
+---
+
+## Change 6: Word Count Excludes BibTeX
+
+**File**: `apps/web/app/api/projects/[id]/sections/[phase]/route.ts` (lines 172-180)
+
+**Problem**: `countWords()` receives full `latex_content` including `---BIBTEX---` trailer. BibTeX entries inflate count (5,200 shown vs ~1,400 body-only).
+
+**Fix**: Split at separator before counting:
+```typescript
+function countWords(latex: string): number {
+  // Only count body — exclude BibTeX trailer
+  const sepIdx = latex.indexOf("---BIBTEX---");
+  const body = sepIdx >= 0 ? latex.slice(0, sepIdx) : latex;
+
+  const stripped = body
+    .replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " ")
+    .replace(/[{}\\%$&_^~#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stripped ? stripped.split(" ").length : 0;
+}
+```
+
+---
+
+## Implementation Order
+
+| Step | Change | Files | Complexity |
+|------|--------|-------|-----------|
+| 1 | Word count fix | `route.ts` | Trivial |
+| 2 | Licence banner contrast | `licence-banner.tsx` | Trivial |
+| 3 | 3D axis proportions | `hero-3d-scene.tsx` | Small |
+| 4 | Watermark branding | `compile.ts` | Small |
+| 5 | Logo fallback | `sskm-thesis.cls`, `ssuhs-thesis.cls`, `generate-tex.ts` | Medium |
+| 6 | Button layout stability | `compile-button.tsx`, `ai-generate-button.tsx`, `project-workspace.tsx` | Medium |
+
+## Verification
+
+1. **TypeScript**: `npx tsc --noEmit` — 0 errors
+2. **Word count**: Section with BibTeX → word_count reflects body only (should drop from ~5,200 to ~1,400 for Introduction)
+3. **Banner**: Heading and body text clearly readable against dashboard background
+4. **3D scene**: Z-axis visibly longer, X-axis no longer clips container edge
+5. **Watermark**: Sandbox compile → "Apollo" in elegant centred Palatino italic, very light grey
+6. **Logos**: `generic` university → no logos, no crash. SSKM/SSUHS → logos show if files exist
+7. **Buttons**: Compile success → message appears below button row, buttons don't shift
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+commit , push and watch the CI
