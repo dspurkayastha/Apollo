@@ -338,17 +338,13 @@
     "docs/mitigation_implementation.md",
     "package.json",
     "pnpm-workspace.yaml",
-    "sciscribe-ssh",
-    "sciscribe-ssh.pub",
     "scripts/backfill-latex-content.ts",
     "scripts/deploy-conformance.sh",
     "scripts/load-test.js",
     "supabase/migrations/016_create_abbreviations.sql",
     "supabase/migrations/017_add_rich_content_to_sections.sql",
     "supabase/migrations/018_add_rows_json_to_datasets.sql",
-    "templates/main.tex",
-    "templates/sskm-thesis.cls",
-    "templates/ssuhs-thesis.cls"
+    "templates/main.tex"
   ],
   "sessions": [
     {
@@ -598,10 +594,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 111579,
-    "cache_creation_tokens": 8082174,
-    "cache_read_tokens": 281549983,
-    "output_tokens": 591233,
-    "api_call_count": 2908
+    "input_tokens": 111558,
+    "cache_creation_tokens": 7987198,
+    "cache_read_tokens": 279936617,
+    "output_tokens": 586276,
+    "api_call_count": 2889
   }
 }

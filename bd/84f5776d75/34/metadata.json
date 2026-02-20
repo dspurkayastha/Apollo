@@ -3,40 +3,31 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "38563eae-9857-42fa-bd25-352fca5f5b94",
   "strategy": "manual-commit",
-  "created_at": "2026-02-20T16:24:47.937723Z",
+  "created_at": "2026-02-20T16:38:00.320153Z",
   "branch": "main",
   "checkpoints_count": 1,
   "files_touched": [
-    "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
-    "apps/web/app/api/projects/[id]/sections/[phase]/route.ts",
-    "apps/web/components/landing/hero-3d-scene.tsx",
-    "apps/web/components/project/ai-generate-button.tsx",
-    "apps/web/components/project/compile-button.tsx",
-    "apps/web/components/project/licence-banner.tsx",
-    "apps/web/lib/latex/compile.ts",
-    "apps/web/lib/latex/generate-tex.ts",
-    "apps/web/supabase/.temp/cli-latest",
-    "sciscribe-ssh",
-    "sciscribe-ssh.pub",
-    "templates/sskm-thesis.cls",
-    "templates/ssuhs-thesis.cls"
+    ".github/workflows/ci.yml"
   ],
   "agent": "Claude Code",
+  "transcript_identifier_at_start": "478d573a-bc49-410e-9f5b-f1eef004c218",
+  "checkpoint_transcript_start": 226,
+  "transcript_lines_at_start": 226,
   "token_usage": {
-    "input_tokens": 42,
-    "cache_creation_tokens": 108846,
-    "cache_read_tokens": 4299364,
-    "output_tokens": 5591,
-    "api_call_count": 38
+    "input_tokens": 21,
+    "cache_creation_tokens": 13870,
+    "cache_read_tokens": 2685998,
+    "output_tokens": 634,
+    "api_call_count": 19
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-20T16:24:47.21375Z",
-    "agent_lines": 177,
-    "human_added": 0,
-    "human_modified": 0,
-    "human_removed": 10,
-    "total_committed": 177,
-    "agent_percentage": 100
+    "calculated_at": "2026-02-20T16:37:59.691294Z",
+    "agent_lines": 0,
+    "human_added": 14192,
+    "human_modified": 5,
+    "human_removed": 0,
+    "total_committed": 14192,
+    "agent_percentage": 0
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/38563eae-9857-42fa-bd25-352fca5f5b94.jsonl"
 }
