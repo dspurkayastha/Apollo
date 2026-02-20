@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 206,
+  "checkpoints_count": 203,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -153,7 +153,11 @@
     "apps/web/components/upload/file-uploader.tsx",
     "apps/web/components/viewer/pdf-viewer.tsx",
     "apps/web/components/wizard/setup-wizard.tsx",
+    "apps/web/components/wizard/steps/metadata-form-step.tsx",
+    "apps/web/components/wizard/steps/parsed-data-review-step.tsx",
     "apps/web/components/wizard/steps/synopsis-upload-step.tsx",
+    "apps/web/components/wizard/steps/title-page-preview-step.tsx",
+    "apps/web/components/wizard/steps/university-step.tsx",
     "apps/web/e2e/analysis-run.spec.ts",
     "apps/web/e2e/compliance-check.spec.ts",
     "apps/web/e2e/dataset-upload.spec.ts",
@@ -256,6 +260,7 @@
     "apps/web/lib/r2/client.ts",
     "apps/web/lib/redis/client.ts",
     "apps/web/lib/supabase/admin.ts",
+    "apps/web/lib/synopsis/parser.ts",
     "apps/web/lib/types/database.ts",
     "apps/web/lib/validation/abbreviation-schemas.ts",
     "apps/web/lib/validation/analysis-plan-schemas.ts",
@@ -579,10 +584,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 115870,
-    "cache_creation_tokens": 8686846,
-    "cache_read_tokens": 298296813,
-    "output_tokens": 612016,
-    "api_call_count": 3065
+    "input_tokens": 108868,
+    "cache_creation_tokens": 7997423,
+    "cache_read_tokens": 279083343,
+    "output_tokens": 576452,
+    "api_call_count": 2895
   }
 }

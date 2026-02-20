@@ -4797,3 +4797,461 @@ Lets implement these, and then do a push and pull on the vps. But we need to ver
 ---
 
 continue
+
+---
+
+Push the other pending git diff items
+
+---
+
+tell me the commands for the vps
+
+---
+
+From https://github.com/dspurkayastha/Apollo
+ * branch            main       -> FETCH_HEAD
+   683840d..54ba2f9  main       -> origin/main
+Updating 683840d..54ba2f9
+error: Your local changes to the following files would be overwritten by merge:
+    apps/web/next.config.ts
+Please commit your changes or stash them before you merge.
+Aborting
+ I need to stash and discard those changes
+
+---
+
+do i not need to rebuild the R plumber docker again?
+
+---
+
+root@hetzner-sciscribe:/opt/apollo#  cd apps/web && pnpm install && pnpm build && pm2 restart apollo
+Lockfile is up to date, resolution step is skipped
+Already up to date
+╭ Warning ───────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                    │
+│   Ignored build scripts: @sentry/cli@2.58.4, core-js@3.48.0, protobufjs@7.5.4, protobufjs@8.0.0.   │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.           │
+│                                                                                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+Done in 3.4s using pnpm v10.30.0
+
+> apollo-web@0.1.0 build /opt/apollo/apps/web
+> next build
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+   ▲ Next.js 15.5.12
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+ ⚠ Compiled with warnings in 37.8s
+
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.211.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/.pnpm/@sentry+node@10.38.0/node_modules/@sentry/node/build/cjs/index.js
+./node_modules/.pnpm/@sentry+nextjs@10.38.0_@opentelemetry+context-async-hooks@2.5.1_@opentelemetry+api@1.9._fc94d75a0f80a8fc908c9b8e13a53bc3/node_modules/@sentry/nextjs/build/cjs/index.server.js
+./app/api/projects/[id]/compile/route.ts
+
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+[env] Optional variable SENTRY_DSN is not set
+[env] Optional variable NEXT_PUBLIC_SENTRY_DSN is not set
+[env] Optional variable POSTHOG_KEY is not set
+[env] Optional variable NEXT_PUBLIC_POSTHOG_KEY is not set
+[env] Optional variable STRIPE_SECRET_KEY is not set
+[env] Optional variable STRIPE_WEBHOOK_SECRET is not set
+[env] Optional variable PUBMED_API_KEY is not set
+[env] Optional variable CROSSREF_MAILTO is not set
+
+warn - The class `duration-[400ms]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `duration-&lsqb;400ms&rsqb;` to silence this warning.
+
+warn - The class `ease-[cubic-bezier(0.16,1,0.3,1)]` is ambiguous and matches multiple utilities.
+warn - If this is content and not a class, replace it with `ease-&lsqb;cubic-bezier(0.16,1,0.3,1)&rsqb;` to silence this warning.
+ ✓ Compiled successfully in 62s
+ ✓ Linting and checking validity of types    
+ ✓ Collecting page data    
+ ✓ Generating static pages (24/24)
+ ✓ Collecting build traces    
+ ✓ Finalizing page optimization    
+
+Route (app)                                                  Size  First Load JS    
+┌ ○ /                                                     42.4 kB         240 kB
+├ ○ /_not-found                                              1 kB         105 kB
+├ ƒ /api/account/delete                                     270 B         104 kB
+├ ƒ /api/account/preferences                                270 B         104 kB
+├ ƒ /api/checkout                                           270 B         104 kB
+├ ƒ /api/citations/search                                   270 B         104 kB
+├ ƒ /api/health                                             270 B         104 kB
+├ ƒ /api/inngest                                            270 B         104 kB
+├ ƒ /api/licenses                                           270 B         104 kB
+├ ƒ /api/licenses/[lid]/attach/[pid]                        270 B         104 kB
+├ ƒ /api/licenses/[lid]/transfer                            270 B         104 kB
+├ ƒ /api/projects                                           270 B         104 kB
+├ ƒ /api/projects/[id]                                      270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations                        270 B         104 kB
+├ ƒ /api/projects/[id]/abbreviations/[abbrevId]             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses                             270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/[analysisId]                270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/auto-detect                 270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan                        270 B         104 kB
+├ ƒ /api/projects/[id]/analyses/plan/approve                270 B         104 kB
+├ ƒ /api/projects/[id]/citations                            270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]               270 B         104 kB
+├ ƒ /api/projects/[id]/citations/[citationId]/re-resolve    270 B         104 kB
+├ ƒ /api/projects/[id]/citations/audit                      270 B         104 kB
+├ ƒ /api/projects/[id]/compilations                         270 B         104 kB
+├ ƒ /api/projects/[id]/compile                              270 B         104 kB
+├ ƒ /api/projects/[id]/compliance                           270 B         104 kB
+├ ƒ /api/projects/[id]/datasets                             270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]                 270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/[datasetId]/download        270 B         104 kB
+├ ƒ /api/projects/[id]/datasets/generate                    270 B         104 kB
+├ ƒ /api/projects/[id]/export/docx                          270 B         104 kB
+├ ƒ /api/projects/[id]/export/pdf                           270 B         104 kB
+├ ƒ /api/projects/[id]/export/source                        270 B         104 kB
+├ ƒ /api/projects/[id]/export/stats                         270 B         104 kB
+├ ƒ /api/projects/[id]/figures                              270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]                   270 B         104 kB
+├ ƒ /api/projects/[id]/figures/[figureId]/download          270 B         104 kB
+├ ƒ /api/projects/[id]/figures/mermaid                      270 B         104 kB
+├ ƒ /api/projects/[id]/preview.pdf                          270 B         104 kB
+├ ƒ /api/projects/[id]/qc                                   270 B         104 kB
+├ ƒ /api/projects/[id]/qc/fix                               270 B         104 kB
+├ ƒ /api/projects/[id]/reset                                270 B         104 kB
+├ ƒ /api/projects/[id]/sections                             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]                     270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/approve             270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/generate            270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/refine              270 B         104 kB
+├ ƒ /api/projects/[id]/sections/[phase]/review              270 B         104 kB
+├ ƒ /api/projects/[id]/share                                270 B         104 kB
+├ ƒ /api/review/[token]                                     270 B         104 kB
+├ ƒ /api/review/[token]/comments                            270 B         104 kB
+├ ƒ /api/review/[token]/preview.pdf                         270 B         104 kB
+├ ƒ /api/synopsis/parse                                     270 B         104 kB
+├ ƒ /api/upload/signed-url                                  270 B         104 kB
+├ ƒ /api/webhooks/clerk                                     270 B         104 kB
+├ ƒ /api/webhooks/razorpay                                  270 B         104 kB
+├ ƒ /api/webhooks/stripe                                    270 B         104 kB
+├ ƒ /checkout                                             5.28 kB         129 kB
+├ ƒ /dashboard                                              177 B         107 kB
+├ ○ /icon.svg                                                 0 B            0 B
+├ ƒ /licences                                               177 B         107 kB
+├ ○ /privacy                                                270 B         104 kB
+├ ƒ /projects                                             3.53 kB         111 kB
+├ ƒ /projects/[id]                                        92.7 kB         301 kB
+├ ƒ /projects/[id]/setup                                  12.4 kB         139 kB
+├ ƒ /projects/new                                         1.36 kB         105 kB
+├ ○ /refund                                                 270 B         104 kB
+├ ƒ /review/[token]                                       5.19 kB         116 kB
+├ ƒ /settings                                             6.21 kB         224 kB
+├ ƒ /sign-in/[[...sign-in]]                               2.66 kB         135 kB
+├ ƒ /sign-up/[[...sign-up]]                               2.66 kB         135 kB
+└ ○ /terms                                                  177 B         107 kB
++ First Load JS shared by all                              104 kB
+  ├ chunks/2764-e0f6ece1c15e66b4.js                         46 kB
+  ├ chunks/824f3fdb-d9a41adf1f544056.js                   54.2 kB
+  └ other shared chunks (total)                           3.61 kB
+
+
+ƒ Middleware                                              85.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Use --update-env to update environment variables
+[PM2][ERROR] Process or Namespace apollo not found
+root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+still same!
+
+---
+
+[Image source: /Users/devs/Desktop/Screenshot 2026-02-20 at 5.41.13 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation from a previous conversation. The user had already created a POST_DEPLOY_AUDIT.md with a plan for UI/flow improvements. The previous session covered:
+   - Hero 3D scene axes darkening
+   - Setup wizard form improvements (co-guide, institute, auto-fill, year rename, session validation)
+   - Sandbox user flow (Continue to Workspace button)
+   - Co-guide LaTeX wiring
+
+2. **User's Main Request**: The user asked to review the POST_DEPLOY_AUDIT.md and noted it needs changes and additions. They reported several new issues:
+   - SSUHS full form is wrong
+   - No way to proceed from Step 5 to workspace pipeline
+   - Compilation errors (mkdir: cannot create directory '/thesis': Operation not permitted)
+   - Front Matter stuck at "Generating" 
+   - Compile PDF returns 422
+   - Checkout 500 for subscription plans
+   - Razorpay localhost:7071 image errors
+   - Clerk ERR_INTERNET_DISCONNECTED errors
+
+3. **Investigation Phase**: I launched 4 parallel Explore agents to diagnose:
+   - SSUHS name bug: Found "Sri Siddhartha University of Health Sciences" (wrong - should be "Srimanta Sankaradeva")
+   - Docker compile failure: Missing `:rw` on volume mount in compile.ts line 199
+   - Checkout 500: Missing Razorpay plan IDs for subscription plans
+   - Generate/compile flow: Inngest jobs may not be executing
+
+4. **Clarifying Questions**: Asked about SSUHS name, Inngest config, Clerk DNS, Razorpay mode
+   - SSUHS: Confirmed "Srimanta Sankaradeva"
+   - Inngest: "Configured but not tested"
+   - Clerk: "Using default Clerk domain"
+   - Razorpay: "Live mode keys"
+
+5. **Rewrote POST_DEPLOY_AUDIT.md**: Comprehensive document with flow terminology (S1-S5, P0-P11), issue registry (C1-C3 critical, H1-H5 high, M1-M5 medium, L1 low), detailed diagnosis, implementation plan
+
+6. **User approved and asked to implement**: "Lets implement these, and then do a push and pull on the vps. But we need to verify every fix has worked properly."
+
+7. **Implementation**: Created 10 tasks, implemented all changes:
+   - A1: Docker volume mount `:rw` in compile.ts
+   - A2: Inngest error handling in generate route
+   - A3: "Continue to Workspace" button on S5
+   - A4: SSUHS full form fix (university-step.tsx, title-page.ts, DB migration)
+   - B1: Disable subscription plans (student_monthly, addon as comingSoon)
+   - B2: Licence banner threshold and text
+   - C1: Hero axes darkened
+   - C2-C6: Setup wizard form improvements (types, AI prompt, parser, UI, auto-fill)
+   - C7: Co-guide + institute LaTeX wiring
+
+8. **Verification**: TypeScript 0 errors, Lint 0 warnings
+
+9. **Commit and Push**: Two commits pushed:
+   - `0eab99e` — Post-deploy audit (14 fixes, 19 files, 802 insertions)
+   - `54ba2f9` — Deployment docs + standalone mode removal
+
+10. **VPS Deployment**: User pulled on VPS, encountered merge conflict with next.config.ts, stashed and pulled. Built successfully. PM2 process not found — helped user start fresh with `pm2 start`.
+
+11. **Current Issue**: User reports "still same!" with screenshot showing:
+    - Compile still fails with same mkdir error (but the error message now shows `:rw` in the volume mount — so the code fix IS deployed)
+    - Introduction section stuck at "Generating"
+    - Compile returns 422
+    - Clerk proxy domain errors
+    
+    Looking at the screenshot more carefully: the error message shows `...:/thesis:rw --security-opt seccomp=/opt/apollo/docker/seccomp-latex.json apollo-latex --watermark-mode=sandbox mkdir: cannot create directory '/thesis': Operation not permitted`
+    
+    The `:rw` IS present now in the command, but it STILL fails! This means the `:rw` fix alone isn't sufficient. The issue might be:
+    - The `--read-only` flag makes the entire container read-only, and Docker may need the volume mount to come AFTER the `--read-only` flag (it already does)
+    - OR the seccomp profile is blocking mkdir
+    - OR Docker needs `--tmpfs /thesis:rw` instead of a volume mount
+    - OR the host directory permissions are wrong
+    - Actually, looking more carefully at Docker behavior: `--read-only` combined with volume mounts SHOULD work with `:rw`. But the error "Operation not permitted" (EPERM) rather than "Read-only file system" (EROFS) suggests this might be a different issue — possibly the seccomp profile or capabilities.
+    
+    Wait, let me re-read the error: `mkdir: cannot create directory '/thesis': Operation not permitted`. The volume is mounted at `/thesis`, and `mkdir -p /thesis/output` should work if the mount is `:rw`. But if the container user doesn't have permission on the HOST directory, it would fail.
+    
+    Actually, the container runs with `--cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER`. DAC_OVERRIDE should bypass file permission checks. But the host `/tmp/apollo-compile-*` directory might have restrictive ownership.
+    
+    This is the CURRENT unresolved issue that the user is reporting.
+
+The user's last message was sending a screenshot showing the same compilation error persists even after deploying the fix, and they were asked to create a summary.
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to:
+   - Review and update `docs/POST_DEPLOY_AUDIT.md` with newly discovered production issues beyond the original 3 areas (hero axes, setup wizard, sandbox flow)
+   - Implement ALL fixes from the audit document (14 total across critical, high, and UX categories)
+   - Push to git and pull on VPS, verifying every fix works
+   - The user explicitly stated: "See the big picture always, and no stopgap patches. Never assume, always confirm."
+   
+   New issues reported by the user (with screenshots):
+   1. SSUHS full form wrong in university selection
+   2. No way to proceed from setup wizard Step 5 to workspace pipeline
+   3. Docker compilation error: `mkdir: cannot create directory '/thesis': Operation not permitted`
+   4. Front Matter stuck at "Generating" state
+   5. Compile PDF returns 422
+   6. Checkout API 500 for subscription plans (Student Monthly, Add-on Thesis)
+   7. Razorpay localhost:7071 image loading errors
+   8. Clerk ERR_INTERNET_DISCONNECTED errors
+
+2. Key Technical Concepts:
+   - **Flow Terminology established**: Setup Flow (S1-S5), Pipeline Flow (P0-P11), Checkout Flow, Transition (S5→P0)
+   - **Docker `--read-only` flag**: Makes entire container filesystem read-only; volume mounts need explicit `:rw` suffix
+   - **Inngest background jobs**: Generate route sets status to "generating" then enqueues Inngest job; if job fails, section stays stuck
+   - **Razorpay subscription plans**: Require pre-created Plan IDs in env vars (`RAZORPAY_PLAN_ID_STUDENT_MONTHLY`, etc.)
+   - **Clerk proxy domain**: Clerk JS SDK auto-constructs `clerk.<your-domain>` for frontend API calls, needs CNAME DNS record
+   - **SSUHS**: Srimanta Sankaradeva University of Health Sciences (Guwahati, Assam) — NOT Sri Siddhartha (Tumkur, Karnataka)
+   - **Sandbox phases**: `SANDBOX_PHASES = [0, 1, 2]` — Orientation, Front Matter, Introduction allowed without licence
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/latex/compile.ts`** (line 199)
+     - Critical Docker compilation fix — volume mount missing `:rw`
+     - Changed: `"-v", \`${workDir}:/thesis\`` → `"-v", \`${workDir}:/thesis:rw\``
+     - **STILL FAILING on production** despite fix being deployed (see Current Work)
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (lines 351-361)
+     - Added try/catch around `inngest.send()` to rollback section status on failure
+     ```ts
+     try {
+       await inngest.send({ name: "thesis/section.generate", data: { ... } });
+     } catch (err) {
+       console.error("[generate] Failed to enqueue Inngest job:", err);
+       await supabase.from("sections").update({ status: "draft", updated_at: new Date().toISOString() })
+         .eq("project_id", project.id).eq("phase_number", phaseNumber);
+       return internalError("Failed to start generation. Please try again.");
+     }
+     ```
+
+   - **`apps/web/components/wizard/steps/title-page-preview-step.tsx`** (lines 44-80)
+     - Replaced sandbox "Activate with a Licence" block with dual-button layout
+     - Sandbox: "Continue to Workspace" (blue, links to `/projects/${project.id}`) + "Get Licence" (amber outline, links to `/checkout?attach=${project.id}`)
+     - Licensed: "Setup Complete" + "Continue to Workspace" green button
+
+   - **`apps/web/components/wizard/setup-wizard.tsx`** (lines 260-273)
+     - Removed empty div on step 5; now only shows Next button for steps < 5
+     - Added auto-fill from parsed synopsis at step 3→4 transition (candidate_name, registration_no, guide_name, co_guide_name, department, institute_name)
+
+   - **`apps/web/components/wizard/steps/university-step.tsx`** (line 19)
+     - Changed: `"Sri Siddhartha University of Health Sciences"` → `"Srimanta Sankaradeva University of Health Sciences"`
+
+   - **`apps/web/lib/preview/title-page.ts`** (lines 13, 20, 31-33, 90+)
+     - Fixed SSUHS name and location ("Guwahati, Assam")
+     - `instituteName` now uses `metadata.institute_name` → fallback `metadata.department`
+     - Added co-guide block in candidate/guide table
+
+   - **`apps/web/lib/ai/prompts.ts`** (lines 38+, 673-693)
+     - Added 6 fields to `SYNOPSIS_PARSE_SYSTEM_PROMPT`: candidate_name, registration_no, guide_name, co_guide_name, institute_name, university_name
+     - Added same 6 fields to `SynopsisParseResult` interface
+
+   - **`apps/web/lib/ai/parse-synopsis-response.ts`** (lines 50-55)
+     - Added 6 field extractions with `typeof string` guards
+
+   - **`apps/web/lib/synopsis/parser.ts`** (lines 1-11, 34-44)
+     - Extended `ParsedSynopsis` interface with 10 new fields: department, duration, setting, keywords, candidate_name, registration_no, guide_name, co_guide_name, institute_name, university_name
+     - Added null defaults in `parseSynopsis()` initialiser
+
+   - **`apps/web/lib/types/database.ts`** (lines 58-69)
+     - Added `co_guide_name?: string;` and `institute_name?: string;` to `ProjectMetadata`
+
+   - **`apps/web/components/wizard/steps/metadata-form-step.tsx`**
+     - Added Co-Guide Name field in Supervision fieldset
+     - Added Institute Name field in Academic fieldset
+     - Renamed "Year" → "Submission Month & Year", placeholder "e.g. March 2026"
+     - Added session format validation: `pattern="\d{4}-\d{4}"` with `invalid:border-red-400`
+
+   - **`apps/web/components/wizard/steps/parsed-data-review-step.tsx`**
+     - Added 2-col grid with 7 new fields: Candidate Name, Registration No., Guide Name, Co-Guide Name, Department, Institute Name, University Name
+
+   - **`apps/web/lib/pricing/config.ts`**
+     - `student_monthly.comingSoon: false` → `true`
+     - `addon.comingSoon: false` → `true`
+
+   - **`apps/web/app/(dashboard)/checkout/page.tsx`**
+     - Added `comingSoon: true` to student_monthly and addon plan cards
+
+   - **`apps/web/components/project/licence-banner.tsx`**
+     - Changed: `currentPhase < 1` → `currentPhase < 2`
+     - Changed text: "beyond Phase 1" → "beyond Introduction (Phase 2)", "Phase 0 and Phase 1" → "Phases 0--2"
+
+   - **`apps/web/components/landing/hero-3d-scene.tsx`** (line 343)
+     - Changed: `AXIS_COLOR = "#C0C0C0"` → `"#2A2A2A"`
+
+   - **`apps/web/lib/latex/generate-tex.ts`** (after line 95)
+     - Added special-case handling for commented template lines:
+     ```ts
+     if (metadata.co_guide_name) {
+       tex = tex.replace(/^%\\cosupervisorname\{[^}]*\}/m, `\\cosupervisorname{${escaped}}`);
+       tex = tex.replace(/^%\\cosupervisordesignation\{[^}]*\}/m, "\\cosupervisordesignation{Associate Professor}");
+     }
+     if (metadata.institute_name) {
+       tex = tex.replace(/^%\\institutename\{[^}]*\}/m, `\\institutename{${escaped}}`);
+     }
+     ```
+
+   - **`apps/web/lib/latex/front-matter.ts`**
+     - Added co-guide lines after guide block
+     - Added institute line after department block
+     - Added co-guide acknowledgement paragraph
+
+   - **`docs/POST_DEPLOY_AUDIT.md`** — Created comprehensive audit document with flow terminology, issue registry, detailed diagnosis, and implementation plan
+
+   - **DB Migration**: `fix_ssuhs_organisation_name` applied via MCP to update organisations table
+
+4. Errors and Fixes:
+   - **Docker compile `mkdir` failure**: Added `:rw` to volume mount. **STILL FAILING on production** — the screenshot shows the `:rw` IS in the command now but `mkdir` still returns "Operation not permitted". Root cause likely NOT the volume mount `:rw` alone — may be seccomp profile, host directory permissions, or container user permissions.
+   - **PM2 process not found**: User got `[PM2][ERROR] Process or Namespace apollo not found` — told user to start fresh with `pm2 start "pnpm start" --name apollo --cwd /opt/apollo/apps/web`
+   - **Git pull conflict**: `next.config.ts` had local changes on VPS. Told user to `git stash && git pull origin main`
+   - **Inngest generation stuck**: Added error handling but the underlying issue (Inngest not executing jobs) is infrastructure-level, not resolved by code alone — needs Inngest Cloud dashboard verification
+   - **"Still same!" after deploy**: User screenshot shows compilation STILL fails with Operation not permitted even with `:rw` fix deployed. The Introduction section is stuck at "Generating". Compile returns 422.
+
+5. Problem Solving:
+   - **Solved**: SSUHS name, subscription plan 500s (disabled), licence banner text/threshold, hero axes, wizard form improvements, S5 transition button, co-guide LaTeX wiring, Inngest error handling
+   - **Partially solved**: Docker compile failure — `:rw` fix deployed but STILL FAILING. Need deeper investigation into why `mkdir /thesis` fails with EPERM even with `:rw` volume mount + DAC_OVERRIDE capability
+   - **Not yet solved**: Inngest job execution (infrastructure verification needed), Clerk proxy DNS (external), Razorpay branding (external)
+
+6. All User Messages:
+   - "check the post deploy audit.md in /docs Read the plan written there. it requires some chnages and some more additions (there is some weird edge case behaviour which isnt intended. eg. 1. During University selection, WBUHS, and SSUHS and Other University are shown but the full form of SSUHS is wrong. 2. Although currently there is no way to proceed beyond step 5 in that flow... 3. For razorpay webhook, I can only get to the one time student plan... I need to properly log all these issues, and properly plan a diagnosis and fixes. See the big picture always, and no stopgap patches. Never assume, always confirm. ask claryfying questions as necessary." [with 5 screenshots]
+   - Answers to clarifying questions: SSUHS="Srimanta Sankaradeva", Inngest="Configured but not tested", Clerk="Using default Clerk domain", Razorpay="Live mode keys"
+   - "review/modify the audit document first"
+   - "Lets implement these, and then do a push and pull on the vps. But we need to verify every fix has worked properly."
+   - "continue" (after context limit mid-C7 implementation)
+   - "Push the other pending git diff items"
+   - "tell me the commands for the vps"
+   - "From https://github.com/dspurkayastha/Apollo... error: Your local changes to the following files would be overwritten by merge: apps/web/next.config.ts... I need to stash and discard those changes"
+   - "do i not need to rebuild the R plumber docker again?"
+   - [PM2 build output showing successful build but PM2 process not found error]
+   - "still same!" [with screenshot showing compilation still failing with same mkdir error, Introduction stuck at Generating, compile 422]
+
+7. Pending Tasks:
+   - **Docker compile STILL FAILING**: The `:rw` volume mount fix is deployed but `mkdir: cannot create directory '/thesis': Operation not permitted` persists. Need deeper investigation — likely host directory permissions, seccomp profile issue, or Docker version behavior
+   - **Inngest verification**: Need to check Inngest Cloud dashboard for function discovery, event delivery, and job execution. Introduction section stuck at "Generating" confirms Inngest jobs aren't running
+   - **Clerk DNS**: Need CNAME record `clerk.apollo.sciscribesolutions.com` → `frontend-api.clerk.dev`
+   - **Razorpay branding**: Need to update logo URL in Razorpay Dashboard
+
+8. Current Work:
+   The user just sent a screenshot saying "still same!" showing that after deploying all 14 fixes to production:
+   - The Docker compilation error PERSISTS: `mkdir: cannot create directory '/thesis': Operation not permitted` — notably the command now shows `:/thesis:rw` confirming the code fix IS deployed, but the error remains
+   - Introduction section is stuck at "Generating" (Inngest issue)
+   - Compile returns 422 (downstream of the above two issues)
+   
+   The immediate problem is that the `:rw` fix alone did not resolve the Docker compilation failure. The error shows EPERM (Operation not permitted) not EROFS (Read-only file system), which suggests the issue may be:
+   1. The seccomp profile blocking mkdir syscall in that path
+   2. Host directory `/tmp/apollo-compile-*` permissions
+   3. Container user (likely root) doesn't own the mounted directory
+   4. Docker version behavior with `--read-only` + volume mounts
+
+9. Optional Next Step:
+   Investigate WHY the Docker compile still fails despite the `:rw` fix being deployed. The user said "still same!" with a screenshot confirming the error persists. Need to:
+   1. Check the seccomp profile (`seccomp-latex.json`) for mkdir restrictions in the `/thesis` path
+   2. Check the Dockerfile.latex for the container's USER directive
+   3. Check host directory creation and permissions in compile.ts (the `workDir` creation)
+   4. Potentially test on VPS: `docker run --rm --read-only --tmpfs /tmp:rw -v /tmp/test:/thesis:rw --cap-drop=ALL --cap-add=DAC_OVERRIDE --cap-add=FOWNER apollo-latex ls -la /thesis`
+   5. Also investigate the Inngest "Generating" stuck state — check if Inngest Cloud can reach the webhook endpoint
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
