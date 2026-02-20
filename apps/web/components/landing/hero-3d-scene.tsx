@@ -341,7 +341,9 @@ function ScatterSphere({
 
 // ── Axes with tick marks and arrowheads ──────────────────────────────────────
 const AXIS_COLOR = "#2A2A2A";
-const AXIS_LENGTH = 2.2;
+const AXIS_LENGTH_X = 1.8;  // Shorter — prevents clipping at 45° rotation
+const AXIS_LENGTH_Y = 2.2;  // Unchanged
+const AXIS_LENGTH_Z = 1.2;  // Doubled — shows full depth
 const TICK_SIZE = 0.025;
 const TICK_INTERVAL = 0.5;
 const ARROW_HEIGHT = 0.1;
@@ -368,13 +370,13 @@ function ScatterAxes({ reducedMotion }: { reducedMotion: boolean }) {
   const ticks = useMemo(() => {
     const result: { start: [number, number, number]; end: [number, number, number] }[] = [];
 
-    for (let t = TICK_INTERVAL; t <= AXIS_LENGTH; t += TICK_INTERVAL) {
+    for (let t = TICK_INTERVAL; t <= AXIS_LENGTH_X; t += TICK_INTERVAL) {
       result.push({ start: [t, -TICK_SIZE, 0], end: [t, TICK_SIZE, 0] });
     }
-    for (let t = TICK_INTERVAL; t <= AXIS_LENGTH; t += TICK_INTERVAL) {
+    for (let t = TICK_INTERVAL; t <= AXIS_LENGTH_Y; t += TICK_INTERVAL) {
       result.push({ start: [-TICK_SIZE, t, 0], end: [TICK_SIZE, t, 0] });
     }
-    for (let t = TICK_INTERVAL; t <= 0.6; t += TICK_INTERVAL) {
+    for (let t = TICK_INTERVAL; t <= AXIS_LENGTH_Z; t += TICK_INTERVAL) {
       result.push({ start: [0, -TICK_SIZE, t], end: [0, TICK_SIZE, t] });
     }
 
@@ -391,14 +393,14 @@ function ScatterAxes({ reducedMotion }: { reducedMotion: boolean }) {
   return (
     <group ref={groupRef}>
       {/* Axis lines */}
-      <Line points={[[0, 0, 0], [AXIS_LENGTH, 0, 0]]} color={AXIS_COLOR} lineWidth={1} />
-      <Line points={[[0, 0, 0], [0, AXIS_LENGTH, 0]]} color={AXIS_COLOR} lineWidth={1} />
-      <Line points={[[0, 0, 0], [0, 0, 0.6]]} color={AXIS_COLOR} lineWidth={1} />
+      <Line points={[[0, 0, 0], [AXIS_LENGTH_X, 0, 0]]} color={AXIS_COLOR} lineWidth={1} />
+      <Line points={[[0, 0, 0], [0, AXIS_LENGTH_Y, 0]]} color={AXIS_COLOR} lineWidth={1} />
+      <Line points={[[0, 0, 0], [0, 0, AXIS_LENGTH_Z]]} color={AXIS_COLOR} lineWidth={1} />
 
       {/* Arrowheads — cones at axis tips */}
-      <AxisArrow position={[AXIS_LENGTH, 0, 0]} rotation={[0, 0, -Math.PI / 2]} />
-      <AxisArrow position={[0, AXIS_LENGTH, 0]} rotation={[0, 0, 0]} />
-      <AxisArrow position={[0, 0, 0.6]} rotation={[Math.PI / 2, 0, 0]} />
+      <AxisArrow position={[AXIS_LENGTH_X, 0, 0]} rotation={[0, 0, -Math.PI / 2]} />
+      <AxisArrow position={[0, AXIS_LENGTH_Y, 0]} rotation={[0, 0, 0]} />
+      <AxisArrow position={[0, 0, AXIS_LENGTH_Z]} rotation={[Math.PI / 2, 0, 0]} />
 
       {/* Tick marks */}
       {ticks.map((tick, i) => (

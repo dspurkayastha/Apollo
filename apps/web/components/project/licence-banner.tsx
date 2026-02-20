@@ -21,13 +21,13 @@ export function LicenceBanner({
   if (currentPhase < 2) return null;
 
   return (
-    <div className="rounded-2xl border border-[#D4A373]/30 bg-[#D4A373]/10 p-4">
+    <div className="rounded-2xl border border-[#C8964C]/40 bg-[#FDF6EE] p-4">
       <div className="flex items-start gap-3">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-[#D4A373]">
+          <h3 className="text-sm font-semibold text-[#92600A]">
             Licence required
           </h3>
-          <p className="mt-1 text-sm text-[#D4A373]/80">
+          <p className="mt-1 text-sm text-[#7A5F2A]">
             Attach a thesis licence to continue beyond Introduction (Phase 2).
             Your work in Phases 0--2 is preserved.
           </p>

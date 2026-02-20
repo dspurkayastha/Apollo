@@ -209,6 +209,13 @@
 \newcommand{\universitylogo}[1]{\renewcommand{\universitylogopath}{#1}}
 \newcommand{\institutelogo}[1]{\renewcommand{\institutelogopath}{#1}}
 
+%% Safe logo inclusion — graceful fallback if file is missing
+\newcommand{\@includelogoifexists}[2]{%
+  \IfFileExists{#1.pdf}{\includegraphics[width=#2]{#1}\\[0.4cm]}{%
+  \IfFileExists{#1.png}{\includegraphics[width=#2]{#1}\\[0.4cm]}{%
+  \IfFileExists{#1.jpg}{\includegraphics[width=#2]{#1}\\[0.4cm]}{}}}%
+}
+
 %% Aliases for guide/supervisor terminology
 \let\guidename\supervisorname
 \let\guidedesignation\supervisordesignation
@@ -347,7 +354,7 @@
 
         % University logo (if defined and non-empty)
         \ifx\universitylogopath\empty\else
-            \includegraphics[width=4.5cm]{\universitylogopath}\\[0.4cm]
+            \@includelogoifexists{\universitylogopath}{4.5cm}
         \fi
 
         {\Large\bfseries\MakeUppercase{\thesistitletext}}

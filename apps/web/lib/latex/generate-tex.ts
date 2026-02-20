@@ -54,6 +54,7 @@ export function generateTex(
   const logoMap: Record<string, { university: string; institute: string }> = {
     sskm: { university: "logo/wbuhs-logo", institute: "logo/sskm-logo" },
     ssuhs: { university: "logo/ssuhs-logo", institute: "logo/ssuhs-logo" },
+    generic: { university: "", institute: "" },
   };
   const logos = logoMap[project.university_type ?? ""] ?? logoMap.sskm;
   // Insert logos and additional packages before \begin{document}

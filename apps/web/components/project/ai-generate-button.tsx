@@ -24,6 +24,7 @@ interface AIGenerateButtonProps {
   onGenerating?: () => void;
   onComplete?: (data: SSEMessage) => void;
   onRefine?: () => void;
+  onError?: (e: string | null) => void;
 }
 
 export function AIGenerateButton({
@@ -35,6 +36,7 @@ export function AIGenerateButton({
   onGenerating,
   onComplete,
   onRefine,
+  onError: onErrorCallback,
 }: AIGenerateButtonProps) {
   const [citationSummary, setCitationSummary] = useState<CitationSummary | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,6 +57,7 @@ export function AIGenerateButton({
   async function handleBackgroundGenerate() {
     setCitationSummary(null);
     setBgError(null);
+    onErrorCallback?.(null);
     setIsSubmitting(true);
     try {
       const res = await fetch(
@@ -71,13 +74,16 @@ export function AIGenerateButton({
           (errorBody as Record<string, Record<string, string>>)?.error?.message ??
           `Request failed with status ${res.status}`;
         setBgError(msg);
+        onErrorCallback?.(msg);
         return;
       }
       // Generation enqueued — notify parent to show Realtime live preview
       onGenerating?.();
       onComplete?.({ type: "complete" });
     } catch (err) {
-      setBgError(err instanceof Error ? err.message : "Failed to start generation");
+      const msg = err instanceof Error ? err.message : "Failed to start generation";
+      setBgError(msg);
+      onErrorCallback?.(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -95,14 +101,18 @@ export function AIGenerateButton({
   }
 
   const isBusy = backgroundMode ? isSubmitting : isStreaming;
-  const error = backgroundMode ? bgError : sseError;
+
+  // Forward SSE errors to parent (background errors are forwarded inline)
+  useEffect(() => {
+    if (sseError) onErrorCallback?.(sseError);
+  }, [sseError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const verified = citationSummary
     ? citationSummary.total - citationSummary.tierD
     : 0;
 
   return (
-    <div className="space-y-3">
+    <>
       <div className="flex gap-2">
         <Button
           onClick={handleGenerate}
@@ -145,8 +155,6 @@ export function AIGenerateButton({
         </div>
       )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
       {citationSummary && citationSummary.total > 0 && (
         <div
           className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
@@ -168,6 +176,6 @@ export function AIGenerateButton({
           </span>
         </div>
       )}
-    </div>
+    </>
   );
 }

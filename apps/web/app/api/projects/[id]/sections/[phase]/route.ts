@@ -170,8 +170,11 @@ export async function PUT(
 }
 
 function countWords(latex: string): number {
-  // Strip LaTeX commands and count remaining words
-  const stripped = latex
+  // Only count body — exclude BibTeX trailer
+  const sepIdx = latex.indexOf("---BIBTEX---");
+  const body = sepIdx >= 0 ? latex.slice(0, sepIdx) : latex;
+
+  const stripped = body
     .replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " ")
     .replace(/[{}\\%$&_^~#]/g, " ")
     .replace(/\s+/g, " ")

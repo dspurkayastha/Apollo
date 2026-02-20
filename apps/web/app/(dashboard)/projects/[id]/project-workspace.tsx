@@ -25,7 +25,7 @@ import { ReviewDialog } from "@/components/project/review-dialog";
 import { Button } from "@/components/ui/button";
 import { useGlassSidebar } from "@/components/layout/glass-sidebar-provider";
 import { useSupabaseClient } from "@/lib/supabase/client";
-import { FileText, Eye, CheckCircle2, Loader2 } from "lucide-react";
+import { FileText, Eye, CheckCircle2, Loader2, X } from "lucide-react";
 import { CitationListPanel } from "@/components/project/citation-list-panel";
 import { ThesisCompletion } from "@/components/project/thesis-completion";
 import { ExportMenu } from "@/components/project/export-menu";
@@ -94,6 +94,11 @@ interface ProjectWorkspaceProps {
   devLicenceBypass?: boolean;
 }
 
+interface CompileResultInfo {
+  warnings: string[];
+  compile_time_ms: number;
+}
+
 // Phases that support direct AI generation (no external data dependency)
 const AI_GENERATABLE_PHASES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 10]);
 
@@ -126,6 +131,18 @@ export function ProjectWorkspace({
   const [refineDialogOpen, setRefineDialogOpen] = useState(false);
   const [refineInstructions, setRefineInstructions] = useState("");
   const [isRefining, setIsRefining] = useState(false);
+
+  // Lifted status messages from button components — stable layout
+  const [compileResult, setCompileResult] = useState<CompileResultInfo | null>(null);
+  const [compileError, setCompileError] = useState<string | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // Auto-dismiss success messages after 8s
+  useEffect(() => {
+    if (!compileResult) return;
+    const t = setTimeout(() => setCompileResult(null), 8000);
+    return () => clearTimeout(t);
+  }, [compileResult]);
 
   // Auto-collapse sidebar on desktop to maximise workspace area
   useEffect(() => {
@@ -391,7 +408,46 @@ export function ProjectWorkspace({
       )}
 
       {!isCompleted && <>
-      {/* Action Bar */}
+      {/* Status messages — above button row, auto-dismiss / click-dismiss */}
+      {(compileResult || compileError || generateError) && (
+        <div className="space-y-1">
+          {compileResult && (
+            <div
+              className="flex items-center justify-between rounded-2xl bg-[#8B9D77]/10 p-3 text-sm text-[#8B9D77] cursor-pointer"
+              onClick={() => setCompileResult(null)}
+              title="Click to dismiss"
+            >
+              <span>
+                Compiled successfully in {compileResult.compile_time_ms}ms
+                {compileResult.warnings.length > 0 && ` (${compileResult.warnings.length} warnings)`}
+              </span>
+              <X className="h-3.5 w-3.5 opacity-50" />
+            </div>
+          )}
+          {compileError && (
+            <div
+              className="flex items-center justify-between rounded-2xl bg-destructive/10 p-3 text-sm text-destructive cursor-pointer"
+              onClick={() => setCompileError(null)}
+              title="Click to dismiss"
+            >
+              <span>{compileError}</span>
+              <X className="h-3.5 w-3.5 opacity-50" />
+            </div>
+          )}
+          {generateError && (
+            <div
+              className="flex items-center justify-between rounded-2xl bg-destructive/10 p-3 text-sm text-destructive cursor-pointer"
+              onClick={() => setGenerateError(null)}
+              title="Click to dismiss"
+            >
+              <span>{generateError}</span>
+              <X className="h-3.5 w-3.5 opacity-50" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Action buttons — stable row, never shifts */}
       <div className="flex items-center gap-3" data-tour="compile">
         {isCurrentPhase && AI_GENERATABLE_PHASES.has(viewingPhase) && (
           <AIGenerateButton
@@ -402,6 +458,7 @@ export function ProjectWorkspace({
             onGenerating={() => router.refresh()}
             onComplete={handleGenerateComplete}
             onRefine={() => setRefineDialogOpen(true)}
+            onError={setGenerateError}
           />
         )}
 
@@ -431,6 +488,8 @@ export function ProjectWorkspace({
             setPdfUrl(`/api/projects/${project.id}/preview.pdf?t=${Date.now()}`);
             setPdfKey((k) => k + 1);
           }}
+          onResult={setCompileResult}
+          onError={setCompileError}
         />
 
         {/* Show export menu from Phase 6b onwards (DECISIONS.md 8.4) */}

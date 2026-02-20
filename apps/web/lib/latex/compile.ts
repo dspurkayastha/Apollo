@@ -272,11 +272,23 @@ function injectWatermarkPackage(
 
   let pkg: string;
   if (options.watermark) {
-    pkg =
-      "\\usepackage[text={SANDBOX --- Apollo},color=gray!20,scale=1.5,angle=45]{draftwatermark}\n";
+    // Sandbox: elegant centred "Apollo" in Palatino italic — stealth branding
+    pkg = [
+      "\\usepackage{draftwatermark}",
+      "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont\\itshape Apollo}",
+      "\\SetWatermarkColor[gray]{0.92}",
+      "\\SetWatermarkScale{2.5}",
+      "\\SetWatermarkAngle{0}",
+    ].join("\n") + "\n";
   } else {
-    pkg =
-      "\\usepackage[text={Generated with Apollo},color=gray!30,scale=0.3,pos=b]{draftwatermark}\n";
+    // Licensed draft: subtle bottom footer
+    pkg = [
+      "\\usepackage{draftwatermark}",
+      "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont Generated with Apollo}",
+      "\\SetWatermarkColor[gray]{0.88}",
+      "\\SetWatermarkScale{0.3}",
+      "\\SetWatermarkAngle{0}",
+    ].join("\n") + "\n";
   }
 
   return texContent.slice(0, beginDocIdx) + pkg + texContent.slice(beginDocIdx);
