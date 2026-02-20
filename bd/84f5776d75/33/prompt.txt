@@ -5286,3 +5286,11 @@ Still same error. Find the root cause for this. Search on the web , find resourc
 ---
 
 now new error :Compilation failed: Command failed: docker run --rm --network=none --tmpfs /tmp:rw,size=512m --memory=1g --pids-limit=256 -v /tmp/apollo-compile-2c97694f-0b1f-49d6-860b-174d7a50d2a6:/thesis:rw --security-opt seccomp=/opt/apollo/docker/seccomp-latex.json apollo-latex --watermark-mode=sandbox docker: Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to get capability version from the kernel: operation not permitted Run 'docker run --help' for more information
+
+---
+
+Still same error. DO not give me stopgap fixes. Think ultra hard before suggesting edits and making them
+
+---
+
+[Image source: REDACTED 2026-02-20 at 7.50.52 PM.png]
