@@ -5294,3 +5294,282 @@ Still same error. DO not give me stopgap fixes. Think ultra hard before suggesti
 ---
 
 [Image source: REDACTED 2026-02-20 at 7.50.52 PM.png]
+
+---
+
+Compilation failed: ! You can't use `macro parameter character #' in vertical mode. Error now?
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Session Start**: This is a continuation from a previous conversation. The summary at the top covers extensive prior work on a POST_DEPLOY_AUDIT.md with 14 fixes across critical, high, and UX categories.
+
+2. **First task**: The conversation starts mid-work. I was reading files (title-page.ts, front-matter.ts, generate-tex.ts, setup-wizard.tsx, metadata-form-step.tsx) and had a plan file for UI & Flow Improvements.
+
+3. **Docker compile investigation**: The main issue was Docker compilation failing with `mkdir: cannot create directory '/thesis': Operation not permitted`. I investigated by reading compile.ts, Dockerfile.latex, compile.sh, and the seccomp profile.
+
+4. **First fix attempt - `:rw` and `--read-only` removal**: 
+   - Removed `--read-only` from Docker args in compile.ts
+   - Fixed watermark flag mismatch (compile.sh expected `--watermark` but compile.ts sent `--watermark-mode=sandbox`)
+   - Fixed duplicate co-guide/institute block in generate-tex.ts
+   - Added inline generation fallback for when Inngest isn't configured
+
+5. **User reports "still same!" with screenshot showing errors persist**
+
+6. **AI prompt and citation quality issues**:
+   - User reported `# INTRODUCTION` markdown heading in LaTeX output
+   - 21/35 citations unverified (Tier D)
+   - User frustrated about citation quality
+   
+   Fixes:
+   - Added Rules 11, 12, 13 to COMMON_RULES in prompts.ts
+   - Created sanitise-latex.ts post-processor
+   - Fixed existing DB content (removed `# INTRODUCTION` heading and `\cite{synopsis}` references)
+
+7. **pnpm build failing on VPS**: 
+   - Root cause: Missing `pnpm-workspace.yaml` and root `package.json`
+   - Fix: Created both files, moved `onlyBuiltDependencies` to root
+
+8. **Docker compile - continued failures**:
+   - First: `--read-only` removal didn't fix it alone
+   - Removed `--cap-drop=ALL`, `--cap-add=DAC_OVERRIDE/FOWNER`, `--security-opt no-new-privileges`
+   - Then: `unable to get capability version from kernel` - added `capget/capset` to seccomp
+   - Then: `chdir to cwd ("/thesis") failed` - `chdir` not in seccomp whitelist
+   - **User explicitly said "DO not give me stopgap fixes. Think ultra hard before suggesting edits"**
+   - Final fix: Removed custom seccomp profile entirely, rely on Docker's default
+
+9. **Current error**: LaTeX compilation error `! You can't use 'macro parameter character #' in vertical mode` — bare `#` in the content. I queried the DB and got the full content. Looking at it, line 1 has `\section{Introduction}` — the `# INTRODUCTION` was fixed. But there's a truncated BibTeX entry at line 493-494: `@article{itani2012, author = {Itani, K M and Rosen,` which is incomplete/truncated, immediately followed by `@article{rosen2013,...`. This truncated entry would cause BibTeX parsing issues but not the `#` error.
+
+Actually, the `#` error is likely coming from the BibTeX content being included in the LaTeX compilation. BibTeX `.bib` files can contain `#` for string concatenation, but if BibTeX entries are embedded directly in the .tex file, `#` would be interpreted as a LaTeX macro parameter character.
+
+Wait, but the content doesn't have bare `#` characters that I can see. Let me re-examine... The content is stored in `latex_content` and gets split into body + BibTeX by `splitBibtex()`. The BibTeX goes into `references.bib` and the body goes into the chapter `.tex` file. If the split works correctly, `#` in BibTeX would only be in the `.bib` file.
+
+But the `\section{Introduction}` at line 1 — this might be the issue. The template already adds the chapter heading. Having `\section{Introduction}` as the first line means there's a `\section` right at the start of the chapter content, which should be fine but might interact with the template's `\chapter` command.
+
+Actually, the `#` error might be from the compile pipeline's chapter injection. Let me think about where `#` could appear... The content I see doesn't have any bare `#` characters. The error might be from the main.tex template processing, where a metadata value or chapter content has a `#`.
+
+This is what was being investigated when the user asked for the summary.
+
+Let me now compile all the information for the summary.
+
+Key files modified:
+- `apps/web/lib/latex/compile.ts` - Docker args simplified (removed --read-only, --cap-drop, --cap-add, --no-new-privileges, custom seccomp)
+- `docker/compile.sh` - watermark flag matching
+- `docker/seccomp-latex.json` - added capget/capset (but then custom seccomp was removed from compile.ts entirely)
+- `apps/web/lib/latex/generate-tex.ts` - removed duplicate co-guide/institute block
+- `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts` - inline generation fallback
+- `apps/web/lib/ai/prompts.ts` - Rules 11, 12, 13 added
+- `apps/web/lib/ai/sanitise-latex.ts` - new file, post-processing sanitiser
+- `apps/web/lib/inngest/functions/ai-generate.ts` - added sanitise call
+- `pnpm-workspace.yaml` - new file
+- `package.json` (root) - new file
+- `apps/web/package.json` - removed pnpm.onlyBuiltDependencies
+
+Commits pushed:
+1. `4026e1d` - Fix Docker compile EPERM, watermark flag mismatch, inline generation fallback
+2. `d9e0102` - Fix AI output quality: no-markdown rule, citation integrity, post-processing sanitiser
+3. `06fbc2d` - Fix pnpm workspace setup and simplify Docker security flags
+4. `433c6d4` - Add capget/capset to seccomp profile
+5. `1a33f4c` - Remove custom seccomp profile — use Docker's battle-tested default
+
+Summary:
+1. Primary Request and Intent:
+   The user is performing post-deployment verification of the Apollo thesis generation platform on a Hetzner VPS. The session focuses on fixing production-blocking issues discovered after deploying code changes. The user's core requests are:
+   - Fix Docker LaTeX compilation failing with `mkdir: cannot create directory '/thesis': Operation not permitted`
+   - Fix pnpm build failing on VPS ("No projects matched the filters")
+   - Fix AI-generated content quality: markdown headings in LaTeX output (`# INTRODUCTION`), bare `#` characters breaking compilation, and 21/35 citations being unverified/fabricated (Tier D)
+   - Fix inline generation so it works without Inngest configured
+   - The user explicitly demanded: "DO not give me stopgap fixes. Think ultra hard before suggesting edits and making them" and "See the big picture always, and no stopgap patches. Never assume, always confirm."
+
+2. Key Technical Concepts:
+   - **Docker security flags interaction**: `--read-only`, `--cap-drop=ALL`, `--cap-add=DAC_OVERRIDE/FOWNER`, `--security-opt no-new-privileges:true`, and custom seccomp profiles interact in ways that block basic container operations (mkdir, chdir, capget)
+   - **Seccomp whitelist profiles**: A custom seccomp profile with `defaultAction: SCMP_ACT_ERRNO` blocks ALL syscalls not explicitly listed. This is fundamentally incompatible with container runtime (runc) requirements, which need hundreds of syscalls. Docker's built-in default seccomp profile is the correct approach.
+   - **pnpm workspaces**: Require `pnpm-workspace.yaml` and root `package.json` for `--filter` to work. Package name is `apollo-web` (not `web`).
+   - **AI LaTeX generation**: AI sometimes outputs markdown syntax (`# HEADING`, `**bold**`) instead of LaTeX. Post-processing sanitisation catches these before saving to DB.
+   - **Citation integrity**: AI fabricates citation details (DOIs, volumes, pages). Prompt rules must explicitly demand real, verifiable references.
+   - **Inngest fallback**: When `INNGEST_EVENT_KEY` is not set, generation runs inline as fire-and-forget async instead of via Inngest background jobs.
+   - **BibTeX splitting**: Content stored as `body + ---BIBTEX--- + entries`. `splitBibtex()` separates them during compilation.
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/latex/compile.ts`** — Docker compilation orchestration
+     - Removed `--read-only`, `--cap-drop=ALL`, `--cap-add=DAC_OVERRIDE`, `--cap-add=FOWNER`, `--security-opt no-new-privileges:true`
+     - Removed custom seccomp profile loading entirely (the seccompPath, seccompExists, and splice logic)
+     - Final Docker args:
+     ```typescript
+     const args = [
+       "run", "--rm",
+       "--network=none",
+       "--tmpfs", "/tmp:rw,size=512m",
+       "--memory=1g",
+       "--pids-limit=256",
+       "-v", `${workDir}:/thesis:rw`,
+       containerName,
+     ];
+     ```
+
+   - **`docker/compile.sh`** — Container entrypoint for LaTeX compilation
+     - Fixed watermark flag mismatch: now matches `--watermark-mode=sandbox` that compile.ts sends
+     ```bash
+     WATERMARK=false
+     DRAFT_FOOTER=false
+     TIMEOUT=120
+     OUTPUT_DIR="/thesis/output"
+     
+     for arg in "$@"; do
+       case $arg in
+         --watermark|--watermark-mode=sandbox) WATERMARK=true ;;
+         --watermark-mode=draft_footer) DRAFT_FOOTER=true ;;
+       esac
+     done
+     ```
+
+   - **`docker/seccomp-latex.json`** — Custom seccomp profile (added capget/capset but then the profile was removed from use in compile.ts entirely)
+     - The whitelist approach with `defaultAction: SCMP_ACT_ERRNO` was the root cause of multiple EPERM errors
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** — AI generation endpoint
+     - Added inline generation fallback when Inngest is not configured
+     - Added imports: `extractCiteKeys`, `resolveSectionCitations`, `recordTokenUsage`, `checkBibtexIntegrity`, `requestMissingBibtexEntries`, `splitBibtex`, `sanitiseLatexOutput`
+     - Key logic:
+     ```typescript
+     const useInngest = !!process.env.INNGEST_EVENT_KEY;
+     if (useInngest) {
+       try {
+         await inngest.send({...});
+         return NextResponse.json({data: { status: "generating", message: "Generation started" }});
+       } catch (err) {
+         console.error("[generate] Inngest send failed, falling back to inline:", err);
+       }
+     }
+     // Inline generation: fire-and-forget async, return immediately
+     void runInlineGeneration(supabase, { projectId, phaseNumber, systemPrompt, userMessage, model, maxTokens });
+     return NextResponse.json({data: { status: "generating", message: "Generation started" }});
+     ```
+     - `runInlineGeneration()` function replicates the Inngest ai-generate function: streams AI response with Realtime updates, BibTeX integrity check, saves content, records tokens, resolves citations, applies `sanitiseLatexOutput()`, and rolls back to "draft" on error.
+
+   - **`apps/web/lib/ai/prompts.ts`** — AI system prompts
+     - Added 3 new rules to COMMON_RULES:
+     ```
+     11. NEVER output Markdown syntax. No # headings, no **bold**, no - bullet lists, no [links](). Use ONLY LaTeX commands.
+     12. CITATION INTEGRITY: Only cite references you are confident actually exist. Include DOI fields. Prefer PubMed-indexed journals. NEVER fabricate DOIs, PMIDs, volume numbers, or page ranges.
+     13. NEVER cite the synopsis itself. Do NOT use \cite{synopsis}.
+     ```
+
+   - **`apps/web/lib/ai/sanitise-latex.ts`** — NEW file, post-processing sanitiser
+     ```typescript
+     export function sanitiseLatexOutput(content: string): string {
+       const bibtexMarker = "---BIBTEX---";
+       const markerIdx = content.indexOf(bibtexMarker);
+       let body = markerIdx >= 0 ? content.slice(0, markerIdx) : content;
+       const trailer = markerIdx >= 0 ? content.slice(markerIdx) : "";
+       // Convert markdown headings to LaTeX sections
+       body = body.replace(/^######\s+(.+)$/gm, (_m, title) => `\\subparagraph{${title.trim()}}`);
+       // ... (## → \subsection, # → \section, etc.)
+       // Convert markdown bold/italic to LaTeX
+       body = body.replace(/\*\*([^*]+)\*\*/g, "\\textbf{$1}");
+       body = body.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "\\textit{$1}");
+       // Escape bare # outside comments
+       body = body.replace(/^(%.*$)/gm, "%%COMMENT%%$1");
+       body = body.replace(/(?<!\\)#/g, "\\#");
+       body = body.replace(/%%COMMENT%%(%.*$)/gm, "$1");
+       return trailer ? `${body}${trailer}` : body;
+     }
+     ```
+
+   - **`apps/web/lib/inngest/functions/ai-generate.ts`** — Inngest background generation
+     - Added `sanitiseLatexOutput` import and call after BibTeX integrity check, before saving
+
+   - **`apps/web/lib/latex/generate-tex.ts`** — LaTeX template population
+     - Removed duplicate co-guide/institute block (lines 110-121 were exact copies of 97-108)
+
+   - **`pnpm-workspace.yaml`** — NEW file at repo root
+     ```yaml
+     packages:
+       - "apps/*"
+     ```
+
+   - **`package.json`** (root) — NEW file at repo root
+     ```json
+     {
+       "name": "apollo",
+       "private": true,
+       "pnpm": {
+         "onlyBuiltDependencies": ["@clerk/shared", "esbuild", "sharp", "unrs-resolver"]
+       }
+     }
+     ```
+
+   - **`apps/web/package.json`** — Removed `pnpm.onlyBuiltDependencies` block (moved to root)
+
+4. Errors and Fixes:
+   - **Docker `mkdir: cannot create directory '/thesis': Operation not permitted` (EPERM)**:
+     - First attempt: Added `:rw` to volume mount → didn't fix it
+     - Second attempt: Removed `--read-only` flag → didn't fix it (pnpm build was failing so code wasn't deployed)
+     - Third attempt: Removed `--cap-drop=ALL`, `--cap-add`, `--no-new-privileges` → revealed seccomp issue
+     - Fourth attempt: `unable to get capability version from kernel` → added `capget/capset` to seccomp → revealed `chdir` missing
+     - Fifth attempt (user said "DO not give me stopgap fixes"): `chdir to cwd ("/thesis") failed` → removed custom seccomp profile entirely, use Docker's default
+     - **User feedback**: "DO not give me stopgap fixes. Think ultra hard before suggesting edits and making them" — the whack-a-mole approach of adding syscalls one by one was wrong. The correct fix was removing the custom seccomp profile entirely.
+   
+   - **pnpm `No projects matched the filters`**:
+     - Root cause: Missing `pnpm-workspace.yaml` and root `package.json`
+     - Fix: Created both files, moved `onlyBuiltDependencies` to root
+     - `pnpm --filter web build` also wrong — package name is `apollo-web`
+
+   - **AI generates `# INTRODUCTION` markdown heading**:
+     - Fix: Added Rule 11 to COMMON_RULES, created sanitise-latex.ts post-processor
+     - Database fix: `regexp_replace` to remove existing `# INTRODUCTION\n\n` from sections table
+
+   - **21/35 citations unverified (Tier D)**:
+     - Fix: Added Rule 12 (citation integrity) and Rule 13 (no synopsis self-citation) to COMMON_RULES
+     - Removed 11 `\cite{synopsis}` references from existing DB content
+
+   - **`! You can't use 'macro parameter character #' in vertical mode`**:
+     - This is the CURRENT error. Docker is now running successfully (all previous errors fixed), LaTeX compilation is executing, but fails on a bare `#` character somewhere in the content.
+     - The full DB content was queried but no obvious bare `#` found in the body text. The issue may be in how the content is assembled into chapters or from a truncated BibTeX entry (line 493: `@article{itani2012, author = {Itani, K M and Rosen,` is truncated/incomplete).
+
+   - **Duplicate import**: `checkTokenBudget` and `recordTokenUsage` were imported separately from same module — consolidated into single import.
+
+5. Problem Solving:
+   - **Solved**: pnpm workspace setup, Docker security flags (removed custom seccomp, all capability restrictions), watermark flag mismatch, inline generation fallback, AI prompt quality rules, sanitise-latex post-processor, duplicate code in generate-tex.ts, DB content cleanup
+   - **Current**: LaTeX compilation error `macro parameter character #` — Docker is now running successfully and LaTeX is executing, but the content has a bare `#` somewhere that breaks compilation. Full content was retrieved from DB for analysis.
+
+6. All User Messages:
+   - "Before pulling to vps, now on refresh the Phase 2 Introduction section is generated, but the pdf doesnt compile due to # (which seems to be a remnant from the Rich text editor days. Also, I want to show you my inngest logs, so you can better diagnose the generating issue. How to do that? The UI is not smooth (lke physically it is smooth, but there are so many hiccups here and there). Also the citations, so any unverified citations! why? why not be truthfull and honest and give proper citation" in the generate sys prompt?" [with screenshot showing `# INTRODUCTION` heading, validation errors, 35 citations with A:14 D:21]
+   - "continue" (after context continuation)
+   - "Still same error. DO not give me stopgap fixes. Think ultra hard before suggesting edits and making them" [with screenshot showing `chdir to cwd ("/thesis")` error]
+   - "now new error :Compilation failed: Command failed: docker run --rm --network=none --tmpfs /tmp:rw,size=512m --memory=1g --pids-limit=256 -v /tmp/apollo-compile-2c97694f-0b1f-49d6-860b-174d7a50d2a6:/thesis:rw --security-opt seccomp=/opt/apollo/docker/seccomp-latex.json apollo-latex --watermark-mode=sandbox docker: Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to get capability version from the kernel: operation not permitted"
+   - "root@hetzner-sciscribe:/opt/apollo# pnpm --filter web build ... No projects matched the filters in '/opt/apollo'"
+   - "Still same error. Find the root cause for this. Search on the web, find resources, but diagnose this issue properly. think of alternate options to fix this. then tell me the plan" [with screenshot showing Docker `mkdir: cannot create directory '/thesis': Operation not permitted` persisting]
+   - "Compilation failed: ! You can't use `macro parameter character #' in vertical mode. Error now?" [with screenshot showing LaTeX compilation IS running but failing on bare # character]
+
+7. Pending Tasks:
+   - **Fix the `macro parameter character #` LaTeX error** — Docker is working, LaTeX is executing, but content has a bare `#` somewhere. Full content was retrieved from DB. Need to identify the source of the bare `#` and fix it. The truncated BibTeX entry at line 493 (`@article{itani2012, author = {Itani, K M and Rosen,` cut off) is suspicious — it's malformed and could cause issues. Also need to check how content is assembled in the compile pipeline (how chapter files and BibTeX are written).
+   - Verify all fixes work end-to-end on VPS after this is resolved
+
+8. Current Work:
+   The user's most recent message was: "Compilation failed: ! You can't use `macro parameter character #' in vertical mode. Error now?"
+   
+   I had just queried the full content of the Introduction section from the database using SQL. The content was returned showing 527 lines. The content body looks clean (no bare `#` characters visible), but there is a **truncated BibTeX entry** at lines 493-494:
+   ```
+   @article{itani2012,
+     author = {Itani, K M and Rosen,
+   
+   @article{rosen2013,
+   ```
+   The `itani2012` entry is cut off mid-author field and has no closing `}`. This malformed BibTeX could cause compilation errors. Additionally, the `\section{Introduction}` at line 1 might be redundant with what the template's `\chapter` command generates.
+   
+   The `#` error in LaTeX specifically means a bare `#` character appears somewhere in the compiled document. This could come from: (1) the chapter content itself, (2) the BibTeX processing, (3) the main.tex template assembly, or (4) how `\input{chapters/introduction.tex}` interacts with the template. I need to investigate the compile pipeline to find where `#` enters the output.
+
+9. Optional Next Step:
+   Investigate the source of the bare `#` character causing `! You can't use 'macro parameter character #' in vertical mode`. The user asked "Error now?" indicating they want this fixed. Steps:
+   1. Check the compile pipeline (`apps/web/lib/latex/assemble.ts` or similar) to see how chapter content and BibTeX are written to files — the `#` may be introduced during assembly
+   2. Fix the truncated `@article{itani2012,...` BibTeX entry in the database
+   3. Check if `\section{Introduction}` at line 1 conflicts with the template's chapter heading
+   4. Check if the `splitBibtex()` function properly separates body from BibTeX trailer, and if BibTeX content with `#` (used for string concatenation in BibTeX) leaks into the .tex file
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
