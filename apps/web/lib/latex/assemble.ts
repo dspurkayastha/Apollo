@@ -1,6 +1,7 @@
 import { generateTex } from "./generate-tex";
 import { normaliseUnicode } from "./escape";
 import { generateAbbreviationsLatex } from "./abbreviations";
+import { sanitiseLatexOutput } from "@/lib/ai/sanitise-latex";
 import type { Project, Section, Citation, Abbreviation } from "@/lib/types/database";
 
 // ── Phase → chapter file mapping ────────────────────────────────────────────
@@ -328,13 +329,20 @@ function injectFrontMatter(
 
   if (!content.trim()) return tex;
 
-  // Split at ABSTRACT heading — try \section{ABSTRACT} first, then markdown
+  // Sanitise markdown artefacts — AI may generate markdown instead of LaTeX.
+  // This converts # headings → \section{}, **bold** → \textbf{}, etc.
+  content = sanitiseLatexOutput(content);
+  // Strip markdown separators (---) that sanitiseLatexOutput doesn't handle
+  content = content.replace(/^\s*[-*_]{3,}\s*$/gm, "");
+
+  // Split at ABSTRACT heading — try \section first, then \subsection (from sanitised markdown)
   let ackText = content;
   let abstractText = "";
 
   const abstractPatterns = [
     /\\section\*?\{[^}]*ABSTRACT[^}]*\}/i,
     /\\section\*?\{[^}]*Abstract[^}]*\}/,
+    /\\subsection\*?\{[^}]*ABSTRACT[^}]*\}/i,
   ];
 
   for (const pattern of abstractPatterns) {
@@ -347,9 +355,12 @@ function injectFrontMatter(
   }
 
   // Clean acknowledgements — remove heading, keep body paragraphs
+  // Handle both LaTeX \section and \subsection (from sanitised markdown ## headings)
   ackText = ackText
+    .replace(/\\section\*?\{[^}]*FRONT\s+MATTER[^}]*\}/i, "")
     .replace(/\\section\*?\{[^}]*ACKNOWLEDGEMENTS[^}]*\}/i, "")
     .replace(/\\section\*?\{[^}]*Acknowledgements[^}]*\}/i, "")
+    .replace(/\\subsection\*?\{[^}]*ACKNOWLEDGEMENTS[^}]*\}/i, "")
     .trim();
 
   // Inject acknowledgements (sanitise bare & in case AI missed escaping)
@@ -417,8 +428,11 @@ function injectAppendices(
 
   if (!phase10?.latex_content) return tex;
 
-  const { body } = splitBibtex(phase10.latex_content);
-  if (!body.trim()) return tex;
+  const { body: rawBody } = splitBibtex(phase10.latex_content);
+  if (!rawBody.trim()) return tex;
+
+  // Sanitise markdown artefacts in appendices content
+  const body = sanitiseLatexOutput(rawBody);
 
   // Split AI content by \section*{} headings
   const sectionParts = body.split(/\\section\*?\{([^}]+)\}/);
