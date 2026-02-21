@@ -949,3 +949,565 @@ Use --update-env to update environment variables
 │ 0  │ apollo-web    │ default     │ 15.5.12 │ fork    │ 152669   │ 0s     │ 8    │ online    │ 0%       │ 12.0mb   │ root     │ disabled │
 └────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
 root@hetzner-sciscribe:/opt/apollo/apps/web#
+
+---
+
+Giving you screenshots for the entire flow of the setup process S1 through S5 and tp P0. Synopsis parsing from pdf doesnt happen!, no text generated (use pandoc maybe?) And no AI call, and hence no Synopsis data sent to Pipeline. Go through all screeenshots meticulously and find the gaps and issues, and create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0. Think ultra hard and audit everything before suggesting the plan. Ensure that you do proper research into each error to fix it, and not just guess,
+
+---
+
+[Image source: REDACTED 2026-02-21 at 4.52.58 PM.png]
+
+[Image source: REDACTED 2026-02-21 at 4.53.11 PM.png]
+
+[Image source: REDACTED 2026-02-21 at 4.53.24 PM.png]
+
+[Image source: REDACTED 2026-02-21 at 4.55.34 PM.png]
+
+[Image source: REDACTED 2026-02-21 at 4.55.55 PM.png]
+
+[Image source: REDACTED 2026-02-21 at 4.56.05 PM.png]
+
+[Image source: REDACTED 2026-02-21 at 4.56.34 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the entire conversation:
+
+**Session Start (Continued from previous conversation)**
+The conversation was continued from a previous session that ran out of context. The summary provided details about a 6-change plan for post-deploy fixes that was already implemented:
+1. Word count excluding BibTeX trailer
+2. Licence banner contrast
+3. 3D scatter plot axis proportions
+4. Branded sandbox watermark
+5. Logo fallback in CLS files
+6. Stable button layout
+
+CI had been fixed (lockfile moved to root, pnpm version aligned, italic regex fixed). The pending task was fixing lint warnings.
+
+**Phase 1: Fixing Lint Warnings**
+The user's previous session ended with lint warnings that needed fixing:
+- `bgError` unused in ai-generate-button.tsx
+- `result` and `error` unused in compile-button.tsx
+- Missing deps in useEffect in compile-button.tsx
+- `access` unused import in compile.ts
+
+I fixed all 5 lint warnings by:
+1. Removing `bgError`/`setBgError` state from ai-generate-button.tsx
+2. Removing `result`/`setResult` and `error`/`setError` from compile-button.tsx
+3. Adding `onResult` and `onError` to useEffect dependency array
+4. Removing unused `access` import from compile.ts
+
+Found a leftover `setBgError(msg)` on line 82 that needed separate fixing.
+
+TypeScript check passed, lint check passed with 0 warnings.
+
+**Phase 2: Watermark and Word Count Still Broken**
+User reported: "the compiled pdf still says Draft-Sandbox as watermark. And the word count still shows red with 5400/1500 counts."
+
+I investigated and found TWO root causes:
+1. **Watermark**: Docker mode passes `--watermark-mode=sandbox` to the container, which runs `watermark.sh` (Ghostscript PostScript overlay with "DRAFT - SANDBOX"). Our `injectWatermarkPackage` was only for local mode.
+2. **Word count**: The GET route's `countWords` was fixed, but `generate/route.ts` (line 482-486) and `refine/route.ts` (line 126-130) had their own inline word counting that didn't strip the BibTeX trailer.
+
+Fixes applied:
+- `docker/watermark.sh`: Changed from Helvetica-Bold "DRAFT - SANDBOX" at 45° to Palatino-Italic "Apollo" centered
+- `generate/route.ts`: Strip `---BIBTEX---` trailer before counting
+- `refine/route.ts`: Same fix
+
+**Phase 3: Draft Footer Fix**
+User asked to also fix the draft footer for Docker mode.
+
+I found that Docker mode's `compile.sh` only handled the `WATERMARK=true` case (calling watermark.sh). The `DRAFT_FOOTER=true` case fell through to the else branch (no watermark applied).
+
+Fix: Made Docker compile use the same LaTeX-based watermarking as local mode by:
+1. `compile.ts:110`: Changed to `injectWatermarkPackage(texContent, options)` before writing to Docker workdir
+2. Removed `--watermark-mode` Docker args (lines 191-195)
+3. Both sandbox and draft footer now use LaTeX `draftwatermark` package
+
+**Phase 4: Commit, Push, Watch CI**
+User asked to commit, push, and watch CI. All 4 jobs passed.
+
+I provided VPS deployment instructions.
+
+**Phase 5: Screenshots Still Broken After Deployment**
+User showed that even after deploying (git pull, docker compose build, pnpm build, pm2 restart), the watermark still showed "SANDBOX" and word count still 5,200.
+
+I investigated:
+1. **Word count**: The workspace page (`page.tsx`) queries Supabase directly (`from("sections").select("*")`), reading the DB `word_count` column — NOT the recalculated value. The GET route fix only applies to API calls, not the server component.
+2. **Watermark**: Both CLS files already `\RequirePackage{draftwatermark}` and set `\SetWatermarkText{}` (empty). Our injection was BEFORE `\begin{document}`, but the CLS's empty default should have been overridden... However, I moved the injection to AFTER `\begin{document}` to guarantee it runs last.
+
+Fixes applied:
+- `page.tsx`: Added self-healing word count recalculation on page load (fire-and-forget DB updates)
+- `route.ts` GET handler: Added recalculation + DB patch when stale
+- `compile.ts`: Changed `injectWatermarkPackage` to inject AFTER `\begin{document}` instead of before, removed redundant `\usepackage{draftwatermark}`
+
+Committed, pushed, CI passed all 4 jobs.
+
+**Phase 6: Setup Flow Investigation (Current Work)**
+User provided 7 screenshots showing the complete setup flow (S1→S5→P0) with multiple issues:
+
+Screenshot analysis:
+1. S2: PDF upload succeeds but shows "PDF uploaded. Text extraction will be available in a future update. Please paste the synopsis text manually below."
+2. S3: "No synopsis text available. Please go back and provide your synopsis first."
+3. S4: Metadata form with pre-filled data (but no AI-parsed data since synopsis wasn't parsed)
+4. S5: "UNTITLED THESIS" on title page preview
+5. S5 bottom: Old SANDBOX watermark still visible
+6. P0 workspace: "Untitled Thesis", "No content for Orientation yet"
+
+User's explicit request: "Go through all screenshots meticulously and find the gaps and issues, and create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0. Think ultra hard and audit everything before suggesting the plan. Ensure that you do proper research into each error to fix it, and not just guess."
+
+I entered plan mode and launched 3 parallel Explore agents to investigate:
+1. Setup wizard flow architecture
+2. PDF text extraction implementation
+3. Synopsis parse API and data flow
+
+All 3 agents returned comprehensive findings:
+
+**Key findings:**
+1. **PDF text extraction NOT implemented** — `file-uploader.tsx` has `readTextFile()` for TXT and `readDocxFile()` for DOCX, but PDFs just go to R2 upload with no text extraction. `pdfjs-dist` is installed but only used for rendering via `react-pdf`.
+2. **S2 allows advancement without synopsis text** — The wizard saves `synopsis_text: synopsisText ?? ""` (empty string) and advances
+3. **S3 shows "No synopsis text" but Next button still works** — user can skip review entirely
+4. **No AI parse happens** — Because synopsis_text is empty, the review step's useEffect never calls `/api/synopsis/parse`
+5. **Title stays "Untitled Thesis"** — no parsed data means no title extraction
+6. **P0 generate will fail** — endpoint checks `if (!project.synopsis_text)` and returns error
+
+I then read the three key files (file-uploader.tsx, synopsis-upload-step.tsx, setup-wizard.tsx) to understand exact code before writing the plan.
+
+The conversation ended mid-plan-mode. I had finished Phase 1 (exploration) and Phase 2 (design via agents) and was in Phase 3 (reading critical files before writing the plan).
+
+Summary:
+1. Primary Request and Intent:
+   The conversation spans multiple phases of post-deploy fixes for the Apollo thesis generation platform:
+   
+   **Phase A (Completed)**: Fix lint warnings from button layout refactor — remove unused state variables (`bgError`, `result`, `error`), fix missing useEffect deps, remove unused `access` import.
+   
+   **Phase B (Completed)**: Fix watermark still showing "DRAFT - SANDBOX" and word count still inflated (5,200 instead of ~1,400). Root causes: Docker mode used Ghostscript watermark.sh instead of LaTeX injection; generate/refine routes didn't strip BibTeX trailer from word count.
+   
+   **Phase C (Completed)**: Fix draft footer for Docker mode — unify watermark injection so both local and Docker modes use LaTeX `draftwatermark` package.
+   
+   **Phase D (Completed)**: After user deployed and issues persisted: Fix watermark injection placement (AFTER `\begin{document}` to override CLS defaults) and add self-healing word count recalculation in page.tsx server component.
+   
+   **Phase E (CURRENT — In Progress)**: User provided 7 screenshots of the complete setup flow (S1 through S5 to P0) showing critical issues. User's exact request: "Go through all screenshots meticulously and find the gaps and issues, and create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0. Think ultra hard and audit everything before suggesting the plan. Ensure that you do proper research into each error to fix it, and not just guess." User also noted: "Synopsis parsing from pdf doesnt happen!, no text generated (use pandoc maybe?) And no AI call, and hence no Synopsis data sent to Pipeline."
+
+2. Key Technical Concepts:
+   - **LaTeX `draftwatermark` package**: Both CLS files (`sskm-thesis.cls`, `ssuhs-thesis.cls`) already `\RequirePackage{draftwatermark}` and set `\SetWatermarkText{}` (empty). Watermark commands must be injected AFTER `\begin{document}` to override CLS defaults.
+   - **BibTeX trailer separator**: `---BIBTEX---` marker separates body content from BibTeX entries. Word counting must strip this trailer.
+   - **Docker vs Local compile modes**: `LATEX_COMPILE_MODE` env var selects mode. Both now use `injectWatermarkPackage()` for watermark injection via LaTeX (no more Ghostscript PostScript overlay).
+   - **pdfjs-dist**: Installed (^5.4.624) but ONLY used for PDF rendering via `react-pdf`. No text extraction implemented.
+   - **mammoth**: Used for DOCX text extraction client-side. Works correctly.
+   - **Setup wizard architecture**: 5-step linear wizard (University → Synopsis → Review → Metadata → Preview). State managed in React, DB patched on each "Next" click.
+   - **Synopsis parse API**: POST `/api/synopsis/parse` accepts `synopsis_text` (plain text, min 20 chars), calls Claude Sonnet 4.5 to extract structured metadata (title, aims, study_type, etc.), falls back to regex parser.
+   - **Self-healing DB pattern**: Server component recalculates stale values and fire-and-forget patches DB.
+
+3. Files and Code Sections:
+
+   - **`apps/web/components/project/ai-generate-button.tsx`**
+     - Removed unused `bgError`/`setBgError` state — errors now only forwarded via `onErrorCallback`
+     - Removed all `setBgError(msg)` calls (3 occurrences)
+
+   - **`apps/web/components/project/compile-button.tsx`**
+     - Removed unused `result`/`setResult` and `error`/`setError` state
+     - Replaced all `setResult(x); onResult?.(x)` with just `onResult?.(x)` (and same for error)
+     - Fixed useEffect dependency array: `[queuePosition, projectId, onCompileSuccess, onResult, onError]`
+
+   - **`apps/web/lib/latex/compile.ts`**
+     - Removed unused `access` import from `fs/promises`
+     - Docker compile now injects watermark via LaTeX: `await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, options));`
+     - Removed `--watermark-mode` Docker args
+     - `injectWatermarkPackage` rewritten to inject AFTER `\begin{document}`:
+     ```typescript
+     function injectWatermarkPackage(
+       texContent: string,
+       options: { watermark?: boolean; draftFooter?: boolean }
+     ): string {
+       if (!options.watermark && !options.draftFooter) return texContent;
+       const marker = "\\begin{document}";
+       const beginDocIdx = texContent.indexOf(marker);
+       if (beginDocIdx === -1) return texContent;
+       const insertIdx = beginDocIdx + marker.length;
+       let cmds: string;
+       if (options.watermark) {
+         cmds = "\n" + [
+           "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont\\itshape Apollo}",
+           "\\SetWatermarkColor[gray]{0.92}",
+           "\\SetWatermarkScale{2.5}",
+           "\\SetWatermarkAngle{0}",
+         ].join("\n") + "\n";
+       } else {
+         cmds = "\n" + [
+           "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont Generated with Apollo}",
+           "\\SetWatermarkColor[gray]{0.88}",
+           "\\SetWatermarkScale{0.3}",
+           "\\SetWatermarkAngle{0}",
+         ].join("\n") + "\n";
+       }
+       return texContent.slice(0, insertIdx) + cmds + texContent.slice(insertIdx);
+     }
+     ```
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`**
+     - Word count now strips BibTeX trailer:
+     ```typescript
+     const bibSepIdx = response.indexOf("---BIBTEX---");
+     const bodyForCount = bibSepIdx >= 0 ? response.slice(0, bibSepIdx) : response;
+     ```
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`**
+     - Same BibTeX trailer stripping applied to word count
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/route.ts`**
+     - GET handler now recalculates word count and patches DB if stale:
+     ```typescript
+     if (section.latex_content) {
+       const correctCount = countWords(section.latex_content);
+       if (correctCount !== section.word_count) {
+         section.word_count = correctCount;
+         void supabase.from("sections").update({ word_count: correctCount })
+           .eq("project_id", id).eq("phase_number", phaseNumber).then();
+       }
+     }
+     ```
+
+   - **`apps/web/app/(dashboard)/projects/[id]/page.tsx`** (LOCKED — user approved change)
+     - Server component now recalculates word counts for all sections on load:
+     ```typescript
+     for (const s of sections) {
+       if (!s.latex_content) continue;
+       const sepIdx = s.latex_content.indexOf("---BIBTEX---");
+       if (sepIdx < 0) continue;
+       const body = s.latex_content.slice(0, sepIdx);
+       const stripped = body.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " ")
+         .replace(/[{}\\%<summary>
+1. Primary Request and Intent:
+   The conversation spans multiple phases of post-deploy fixes for the Apollo thesis generation platform:
+   
+   **Phase A (Completed)**: Fix lint warnings from button layout refactor — remove unused state variables (`bgError`, `result`, `error`), fix missing useEffect deps, remove unused `access` import.
+   
+   **Phase B (Completed)**: Fix watermark still showing "DRAFT - SANDBOX" and word count still inflated (5,200 instead of ~1,400). Root causes: Docker mode used Ghostscript watermark.sh instead of LaTeX injection; generate/refine routes didn't strip BibTeX trailer from word count.
+   
+   **Phase C (Completed)**: Fix draft footer for Docker mode — unify watermark injection so both local and Docker modes use LaTeX `draftwatermark` package.
+   
+   **Phase D (Completed)**: After user deployed and issues persisted: Fix watermark injection placement (AFTER `\begin{document}` to override CLS defaults) and add self-healing word count recalculation in page.tsx server component.
+   
+   **Phase E (CURRENT — In Progress)**: User provided 7 screenshots of the complete setup flow (S1 through S5 to P0) showing critical issues. User's exact request: "Go through all screenshots meticulously and find the gaps and issues, and create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0. Think ultra hard and audit everything before suggesting the plan. Ensure that you do proper research into each error to fix it, and not just guess." User also noted: "Synopsis parsing from pdf doesnt happen!, no text generated (use pandoc maybe?) And no AI call, and hence no Synopsis data sent to Pipeline."
+
+2. Key Technical Concepts:
+   - **LaTeX `draftwatermark` package**: Both CLS files (`sskm-thesis.cls`, `ssuhs-thesis.cls`) already `\RequirePackage{draftwatermark}` and set `\SetWatermarkText{}` (empty). Watermark commands must be injected AFTER `\begin{document}` to override CLS defaults.
+   - **BibTeX trailer separator**: `---BIBTEX---` marker separates body content from BibTeX entries. Word counting must strip this trailer.
+   - **Docker vs Local compile modes**: `LATEX_COMPILE_MODE` env var selects mode. Both now use `injectWatermarkPackage()` for watermark injection via LaTeX (no more Ghostscript PostScript overlay).
+   - **pdfjs-dist**: Installed (^5.4.624) but ONLY used for PDF rendering via `react-pdf`. No text extraction implemented.
+   - **mammoth**: Used for DOCX text extraction client-side. Works correctly.
+   - **Setup wizard architecture**: 5-step linear wizard (University → Synopsis → Review → Metadata → Preview). State managed in React, DB patched on each "Next" click.
+   - **Synopsis parse API**: POST `/api/synopsis/parse` accepts `synopsis_text` (plain text, min 20 chars), calls Claude Sonnet 4.5 to extract structured metadata (title, aims, study_type, etc.), falls back to regex parser.
+   - **Self-healing DB pattern**: Server component recalculates stale values and fire-and-forget patches DB.
+
+3. Files and Code Sections:
+
+   - **`apps/web/components/project/ai-generate-button.tsx`**
+     - Removed unused `bgError`/`setBgError` state — errors now only forwarded via `onErrorCallback`
+     - Removed all `setBgError(msg)` calls (3 occurrences)
+
+   - **`apps/web/components/project/compile-button.tsx`**
+     - Removed unused `result`/`setResult` and `error`/`setError` state
+     - Replaced all `setResult(x); onResult?.(x)` with just `onResult?.(x)` (and same for error)
+     - Fixed useEffect dependency array: `[queuePosition, projectId, onCompileSuccess, onResult, onError]`
+
+   - **`apps/web/lib/latex/compile.ts`**
+     - Removed unused `access` import from `fs/promises`
+     - Docker compile now injects watermark via LaTeX: `await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, options));`
+     - Removed `--watermark-mode` Docker args
+     - `injectWatermarkPackage` rewritten to inject AFTER `\begin{document}`:
+     ```typescript
+     function injectWatermarkPackage(
+       texContent: string,
+       options: { watermark?: boolean; draftFooter?: boolean }
+     ): string {
+       if (!options.watermark && !options.draftFooter) return texContent;
+       const marker = "\\begin{document}";
+       const beginDocIdx = texContent.indexOf(marker);
+       if (beginDocIdx === -1) return texContent;
+       const insertIdx = beginDocIdx + marker.length;
+       let cmds: string;
+       if (options.watermark) {
+         cmds = "\n" + [
+           "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont\\itshape Apollo}",
+           "\\SetWatermarkColor[gray]{0.92}",
+           "\\SetWatermarkScale{2.5}",
+           "\\SetWatermarkAngle{0}",
+         ].join("\n") + "\n";
+       } else {
+         cmds = "\n" + [
+           "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont Generated with Apollo}",
+           "\\SetWatermarkColor[gray]{0.88}",
+           "\\SetWatermarkScale{0.3}",
+           "\\SetWatermarkAngle{0}",
+         ].join("\n") + "\n";
+       }
+       return texContent.slice(0, insertIdx) + cmds + texContent.slice(insertIdx);
+     }
+     ```
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`**
+     - Word count now strips BibTeX trailer:
+     ```typescript
+     const bibSepIdx = response.indexOf("---BIBTEX---");
+     const bodyForCount = bibSepIdx >= 0 ? response.slice(0, bibSepIdx) : response;
+     ```
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/refine/route.ts`**
+     - Same BibTeX trailer stripping applied to word count
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/route.ts`**
+     - GET handler now recalculates word count and patches DB if stale:
+     ```typescript
+     if (section.latex_content) {
+       const correctCount = countWords(section.latex_content);
+       if (correctCount !== section.word_count) {
+         section.word_count = correctCount;
+         void supabase.from("sections").update({ word_count: correctCount })
+           .eq("project_id", id).eq("phase_number", phaseNumber).then();
+       }
+     }
+     ```
+
+   - **`apps/web/app/(dashboard)/projects/[id]/page.tsx`** (LOCKED — user approved change)
+     - Server component now recalculates word counts for all sections on load:
+     ```typescript
+     for (const s of sections) {
+       if (!s.latex_content) continue;
+       const sepIdx = s.latex_content.indexOf("---BIBTEX---");
+       if (sepIdx < 0) continue;
+       const body = s.latex_content.slice(0, sepIdx);
+       const stripped = body.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, " ")
+         .replace(/[{}\\%$&_^~#]/g, " ").replace(/\s+/g, " ").trim();
+       const correctCount = stripped ? stripped.split(" ").length : 0;
+       if (correctCount !== s.word_count) {
+         s.word_count = correctCount;
+         void supabase.from("sections").update({ word_count: correctCount })
+           .eq("project_id", id).eq("phase_number", s.phase_number).then();
+       }
+     }
+     ```
+
+   - **`docker/watermark.sh`**
+     - Changed from Helvetica-Bold "DRAFT - SANDBOX" at 45° to Palatino-Italic "Apollo" centered horizontally
+
+   - **`.github/workflows/ci.yml`** (from previous session)
+     - `PNPM_VERSION` changed from '9' to '10'
+     - `cache-dependency-path` changed to `pnpm-lock.yaml` (root)
+
+   **Files Read During Setup Flow Investigation (Phase E):**
+   
+   - **`apps/web/components/upload/file-uploader.tsx`** (371 lines)
+     - Handles TXT (readTextFile via FileReader), DOCX (readDocxFile via mammoth), and PDF (uploadToR2 only — NO text extraction)
+     - `processFile()` dispatch: `isTextFile` → readTextFile, `isDocxFile` → readDocxFile, else → uploadToR2
+     - PDF path: gets signed URL from `/api/upload/signed-url`, PUTs to R2, calls `onUploadComplete(key)`
+     - **Critical gap**: No `readPdfFile()` function exists
+
+   - **`apps/web/components/wizard/steps/synopsis-upload-step.tsx`** (145 lines)
+     - Line 91-98: Shows amber warning "PDF uploaded. Text extraction will be available in a future update. Please paste the synopsis text manually below." when `uploadedPdf` is true
+     - `handleUploadComplete` just sets `setUploadedPdf(true)` — no text extraction
+     - `handleFileRead` calls `onSynopsisChange(text)` — but only triggered for TXT/DOCX
+     - Textarea at line 118-124 for manual paste
+
+   - **`apps/web/components/wizard/setup-wizard.tsx`** (285 lines)
+     - Line 92-98: S2 validation only checks `aiConsentAccepted`, saves `synopsis_text: synopsisText ?? ""` (allows empty)
+     - Line 100-116: S3 handles parsed data — saves title/study_type, seeds metadata
+     - **No validation requiring synopsis text** — user can proceed with empty string
+
+   - **`apps/web/components/wizard/steps/parsed-data-review-step.tsx`** (explored by agent)
+     - useEffect on mount: if `synopsisText` exists and not empty AND `parsedData` not set → calls `/api/synopsis/parse`
+     - If synopsisText empty → shows "No synopsis text available" message
+     - **Next button still active** even when no synopsis text
+
+   - **`apps/web/app/api/synopsis/parse/route.ts`** (explored by agent)
+     - Accepts `{ synopsis_text }` (min 20 chars), calls Claude Sonnet 4.5
+     - System prompt extracts: title, study_type, study_design, department, aims, objectives, methodology_summary, sample_size, etc.
+     - Returns structured `SynopsisParseResult`
+
+4. Errors and Fixes:
+
+   - **Lint warnings after button layout refactor**: `bgError` assigned but never used, `result`/`error` assigned but never used, missing useEffect deps, unused `access` import. Fixed by removing unused state variables, removing all their setter calls, adding missing deps to useEffect array, removing import.
+   
+   - **Leftover `setBgError(msg)` in catch block**: The `replace_all` edit pattern only caught instances where `setBgError(msg)` was followed by `onErrorCallback?.(msg)` on the next line. One instance in the catch block had different indentation. Fixed with a separate targeted edit.
+
+   - **Word count still inflated (5,200 vs ~1,400)**: Three root causes: (1) generate route didn't strip BibTeX trailer, (2) refine route same issue, (3) workspace page.tsx reads DB column directly, not the GET route. Fixed all three.
+
+   - **Watermark still showing "DRAFT - SANDBOX"**: Docker mode used Ghostscript PostScript overlay via watermark.sh. Fixed by switching Docker mode to LaTeX-based injection (same as local mode).
+
+   - **Watermark STILL showing after deploy**: CLS files already `\RequirePackage{draftwatermark}` and set `\SetWatermarkText{}` (empty). Our injection before `\begin{document}` got overridden. Fixed by injecting AFTER `\begin{document}` and removing redundant `\usepackage`.
+
+   - **Word count STILL showing 5,200 after deploy**: Workspace `page.tsx` queries Supabase directly (`from("sections").select("*")`), returning DB column value — not the recalculated value. Fixed by adding self-healing recalculation in the server component.
+
+   - **Git add path escaping error**: `git add apps/web/app/\(dashboard\)/...` failed with path not found. Fixed by using quoted paths: `git add "apps/web/app/(dashboard)/projects/[id]/page.tsx"`.
+
+5. Problem Solving:
+   - All lint warnings resolved — 0 ESLint warnings, 0 TypeScript errors
+   - Word count now strips BibTeX trailer in GET route, generate route, refine route, AND page.tsx server component (self-healing)
+   - Watermark injection unified: both local and Docker modes use LaTeX `draftwatermark` package, commands injected AFTER `\begin{document}`
+   - Draft footer also works via same mechanism
+   - CI passes all 4 jobs (Lint & Type Check, Unit Tests, Compile Test, Security & RLS Tests) across all commits
+   - **Setup flow investigation completed** — identified 6 critical issues in the S1→S5→P0 pipeline
+
+6. All User Messages:
+   - (Session start — continuation from previous conversation with lint warnings pending)
+   - "Also the compiled pdf still says Draft-Sandbox as watermark. And the word count still shows red with 5400/1500 counts."
+   - "fix the draft footer issue as well"
+   - "commit and push, watch ci"
+   - "now what do i do on the vps?"
+   - "Check" (with 3 screenshots showing issues persist)
+   - (Terminal output showing deployment steps — git pull, docker compose build, pnpm install, pnpm build, pm2 restart)
+   - "screenshots were after this ....." (followed by full deployment terminal output proving they DID deploy)
+   - "I did recompile!!" (responding to my suggestion to recompile)
+   - "commit and push, watch ci" (for the watermark/word count fix)
+   - "Giving you screenshots for the entire flow of the setup process S1 through S5 and to P0. Synopsis parsing from pdf doesnt happen!, no text generated (use pandoc maybe?) And no AI call, and hence no Synopsis data sent to Pipeline. Go through all screenshots meticulously and find the gaps and issues, and create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0. Think ultra hard and audit everything before suggesting the plan. Ensure that you do proper research into each error to fix it, and not just guess." (with 7 screenshots)
+
+7. Pending Tasks:
+   - **Write the comprehensive plan** for fixing the setup flow (S1→S5→P0) — currently in plan mode, Phase 3 (reading critical files before writing plan)
+   - The plan needs to address:
+     1. **PDF text extraction** — implement using pdfjs-dist (already installed) or server-side approach
+     2. **S2 validation** — require synopsis text before advancing (not just AI consent)
+     3. **S3 validation** — block advancement if no parsed data / no synopsis text
+     4. **Title extraction** — ensure AI parse populates title from synopsis
+     5. **Data flow to P0** — ensure synopsis_text is populated so Phase 0 generation works
+     6. **Step progression guards** — prevent skipping critical steps
+
+8. Current Work:
+   I am in **plan mode** investigating the setup wizard flow. I entered plan mode after the user's request to create a comprehensive plan to fix the setup flow. I launched 3 parallel Explore agents which returned comprehensive findings, then read 3 critical files directly:
+   - `apps/web/components/upload/file-uploader.tsx` — confirmed PDF text extraction is NOT implemented (only R2 upload)
+   - `apps/web/components/wizard/steps/synopsis-upload-step.tsx` — confirmed the "future update" message and lack of extraction
+   - `apps/web/components/wizard/setup-wizard.tsx` — confirmed S2 allows empty synopsis_text, no validation guards
+   
+   I had just finished reading these files and was about to write the plan to the plan file (`/Users/devs/.claude/plans/tranquil-roaming-nest.md`).
+
+9. Optional Next Step:
+   Write the comprehensive plan to the plan file and call ExitPlanMode for user approval. The plan must address all issues identified in the setup flow based on the user's request: "create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0."
+   
+   The plan needs to cover:
+   1. Implement PDF text extraction in `file-uploader.tsx` (add `readPdfFile()` using pdfjs-dist's `getDocument()` + `getTextContent()` API, parallel to existing `readTextFile()` and `readDocxFile()`)
+   2. Update `processFile()` dispatch to handle PDFs via extraction instead of R2 upload
+   3. Remove the "future update" amber warning from `synopsis-upload-step.tsx`
+   4. Add synopsis text validation in `setup-wizard.tsx` S2 (require non-empty text)
+   5. Add validation in S3 to prevent advancement without parsed data
+   6. Verify the full data flow: PDF → text extraction → textarea → AI parse → title/metadata → DB → P0 generation
+</summary>_^~#]/g, " ").replace(/\s+/g, " ").trim();
+       const correctCount = stripped ? stripped.split(" ").length : 0;
+       if (correctCount !== s.word_count) {
+         s.word_count = correctCount;
+         void supabase.from("sections").update({ word_count: correctCount })
+           .eq("project_id", id).eq("phase_number", s.phase_number).then();
+       }
+     }
+     ```
+
+   - **`docker/watermark.sh`**
+     - Changed from Helvetica-Bold "DRAFT - SANDBOX" at 45° to Palatino-Italic "Apollo" centered horizontally
+
+   - **`.github/workflows/ci.yml`** (from previous session)
+     - `PNPM_VERSION` changed from '9' to '10'
+     - `cache-dependency-path` changed to `pnpm-lock.yaml` (root)
+
+   **Files Read During Setup Flow Investigation (Phase E):**
+   
+   - **`apps/web/components/upload/file-uploader.tsx`** (371 lines)
+     - Handles TXT (readTextFile via FileReader), DOCX (readDocxFile via mammoth), and PDF (uploadToR2 only — NO text extraction)
+     - `processFile()` dispatch: `isTextFile` → readTextFile, `isDocxFile` → readDocxFile, else → uploadToR2
+     - PDF path: gets signed URL from `/api/upload/signed-url`, PUTs to R2, calls `onUploadComplete(key)`
+     - **Critical gap**: No `readPdfFile()` function exists
+
+   - **`apps/web/components/wizard/steps/synopsis-upload-step.tsx`** (145 lines)
+     - Line 91-98: Shows amber warning "PDF uploaded. Text extraction will be available in a future update. Please paste the synopsis text manually below." when `uploadedPdf` is true
+     - `handleUploadComplete` just sets `setUploadedPdf(true)` — no text extraction
+     - `handleFileRead` calls `onSynopsisChange(text)` — but only triggered for TXT/DOCX
+     - Textarea at line 118-124 for manual paste
+
+   - **`apps/web/components/wizard/setup-wizard.tsx`** (285 lines)
+     - Line 92-98: S2 validation only checks `aiConsentAccepted`, saves `synopsis_text: synopsisText ?? ""` (allows empty)
+     - Line 100-116: S3 handles parsed data — saves title/study_type, seeds metadata
+     - **No validation requiring synopsis text** — user can proceed with empty string
+
+   - **`apps/web/components/wizard/steps/parsed-data-review-step.tsx`** (explored by agent)
+     - useEffect on mount: if `synopsisText` exists and not empty AND `parsedData` not set → calls `/api/synopsis/parse`
+     - If synopsisText empty → shows "No synopsis text available" message
+     - **Next button still active** even when no synopsis text
+
+   - **`apps/web/app/api/synopsis/parse/route.ts`** (explored by agent)
+     - Accepts `{ synopsis_text }` (min 20 chars), calls Claude Sonnet 4.5
+     - System prompt extracts: title, study_type, study_design, department, aims, objectives, methodology_summary, sample_size, etc.
+     - Returns structured `SynopsisParseResult`
+
+4. Errors and Fixes:
+
+   - **Lint warnings after button layout refactor**: `bgError` assigned but never used, `result`/`error` assigned but never used, missing useEffect deps, unused `access` import. Fixed by removing unused state variables, removing all their setter calls, adding missing deps to useEffect array, removing import.
+   
+   - **Leftover `setBgError(msg)` in catch block**: The `replace_all` edit pattern only caught instances where `setBgError(msg)` was followed by `onErrorCallback?.(msg)` on the next line. One instance in the catch block had different indentation. Fixed with a separate targeted edit.
+
+   - **Word count still inflated (5,200 vs ~1,400)**: Three root causes: (1) generate route didn't strip BibTeX trailer, (2) refine route same issue, (3) workspace page.tsx reads DB column directly, not the GET route. Fixed all three.
+
+   - **Watermark still showing "DRAFT - SANDBOX"**: Docker mode used Ghostscript PostScript overlay via watermark.sh. Fixed by switching Docker mode to LaTeX-based injection (same as local mode).
+
+   - **Watermark STILL showing after deploy**: CLS files already `\RequirePackage{draftwatermark}` and set `\SetWatermarkText{}` (empty). Our injection before `\begin{document}` got overridden. Fixed by injecting AFTER `\begin{document}` and removing redundant `\usepackage`.
+
+   - **Word count STILL showing 5,200 after deploy**: Workspace `page.tsx` queries Supabase directly (`from("sections").select("*")`), returning DB column value — not the recalculated value. Fixed by adding self-healing recalculation in the server component.
+
+   - **Git add path escaping error**: `git add apps/web/app/\(dashboard\)/...` failed with path not found. Fixed by using quoted paths: `git add "apps/web/app/(dashboard)/projects/[id]/page.tsx"`.
+
+5. Problem Solving:
+   - All lint warnings resolved — 0 ESLint warnings, 0 TypeScript errors
+   - Word count now strips BibTeX trailer in GET route, generate route, refine route, AND page.tsx server component (self-healing)
+   - Watermark injection unified: both local and Docker modes use LaTeX `draftwatermark` package, commands injected AFTER `\begin{document}`
+   - Draft footer also works via same mechanism
+   - CI passes all 4 jobs (Lint & Type Check, Unit Tests, Compile Test, Security & RLS Tests) across all commits
+   - **Setup flow investigation completed** — identified 6 critical issues in the S1→S5→P0 pipeline
+
+6. All User Messages:
+   - (Session start — continuation from previous conversation with lint warnings pending)
+   - "Also the compiled pdf still says Draft-Sandbox as watermark. And the word count still shows red with 5400/1500 counts."
+   - "fix the draft footer issue as well"
+   - "commit and push, watch ci"
+   - "now what do i do on the vps?"
+   - "Check" (with 3 screenshots showing issues persist)
+   - (Terminal output showing deployment steps — git pull, docker compose build, pnpm install, pnpm build, pm2 restart)
+   - "screenshots were after this ....." (followed by full deployment terminal output proving they DID deploy)
+   - "I did recompile!!" (responding to my suggestion to recompile)
+   - "commit and push, watch ci" (for the watermark/word count fix)
+   - "Giving you screenshots for the entire flow of the setup process S1 through S5 and to P0. Synopsis parsing from pdf doesnt happen!, no text generated (use pandoc maybe?) And no AI call, and hence no Synopsis data sent to Pipeline. Go through all screenshots meticulously and find the gaps and issues, and create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0. Think ultra hard and audit everything before suggesting the plan. Ensure that you do proper research into each error to fix it, and not just guess." (with 7 screenshots)
+
+7. Pending Tasks:
+   - **Write the comprehensive plan** for fixing the setup flow (S1→S5→P0) — currently in plan mode, Phase 3 (reading critical files before writing plan)
+   - The plan needs to address:
+     1. **PDF text extraction** — implement using pdfjs-dist (already installed) or server-side approach
+     2. **S2 validation** — require synopsis text before advancing (not just AI consent)
+     3. **S3 validation** — block advancement if no parsed data / no synopsis text
+     4. **Title extraction** — ensure AI parse populates title from synopsis
+     5. **Data flow to P0** — ensure synopsis_text is populated so Phase 0 generation works
+     6. **Step progression guards** — prevent skipping critical steps
+
+8. Current Work:
+   I am in **plan mode** investigating the setup wizard flow. I entered plan mode after the user's request to create a comprehensive plan to fix the setup flow. I launched 3 parallel Explore agents which returned comprehensive findings, then read 3 critical files directly:
+   - `apps/web/components/upload/file-uploader.tsx` — confirmed PDF text extraction is NOT implemented (only R2 upload)
+   - `apps/web/components/wizard/steps/synopsis-upload-step.tsx` — confirmed the "future update" message and lack of extraction
+   - `apps/web/components/wizard/setup-wizard.tsx` — confirmed S2 allows empty synopsis_text, no validation guards
+   
+   I had just finished reading these files and was about to write the plan to the plan file (`/Users/devs/.claude/plans/tranquil-roaming-nest.md`).
+
+9. Optional Next Step:
+   Write the comprehensive plan to the plan file and call ExitPlanMode for user approval. The plan must address all issues identified in the setup flow based on the user's request: "create a plan to comprehensively fix the Setup flow. After this pass, no issues to remain in Setup flow from S1 through S5 and upto P0."
+   
+   The plan needs to cover:
+   1. Implement PDF text extraction in `file-uploader.tsx` (add `readPdfFile()` using pdfjs-dist's `getDocument()` + `getTextContent()` API, parallel to existing `readTextFile()` and `readDocxFile()`)
+   2. Update `processFile()` dispatch to handle PDFs via extraction instead of R2 upload
+   3. Remove the "future update" amber warning from `synopsis-upload-step.tsx`
+   4. Add synopsis text validation in `setup-wizard.tsx` S2 (require non-empty text)
+   5. Add validation in S3 to prevent advancement without parsed data
+   6. Verify the full data flow: PDF → text extraction → textarea → AI parse → title/metadata → DB → P0 generation
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]

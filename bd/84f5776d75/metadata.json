@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 203,
+  "checkpoints_count": 202,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -344,7 +344,9 @@
     "supabase/migrations/016_create_abbreviations.sql",
     "supabase/migrations/017_add_rich_content_to_sections.sql",
     "supabase/migrations/018_add_rows_json_to_datasets.sql",
-    "templates/main.tex"
+    "templates/main.tex",
+    "templates/sskm-thesis.cls",
+    "templates/ssuhs-thesis.cls"
   ],
   "sessions": [
     {
@@ -594,10 +596,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 111688,
-    "cache_creation_tokens": 8010466,
-    "cache_read_tokens": 281976225,
-    "output_tokens": 586840,
-    "api_call_count": 2909
+    "input_tokens": 111615,
+    "cache_creation_tokens": 8197526,
+    "cache_read_tokens": 279054774,
+    "output_tokens": 593046,
+    "api_call_count": 2890
   }
 }
