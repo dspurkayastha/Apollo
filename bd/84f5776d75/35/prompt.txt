@@ -179,3 +179,299 @@ Its the exact same behaviour!, why? I did  the pull and restart!
 [Image source: /Users/devs/Desktop/Screenshot 2026-02-21 at 7.12.34 PM.png]
 
 [Image source: REDACTED 2026-02-21 at 7.13.40 PM.png]
+
+---
+
+<task-notification>
+<task-id>b782bd7</task-id>
+<output-file>REDACTED.output</output-file>
+<status>completed</status>
+<summary>Background command "Commit migration and push" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: REDACTED.output
+
+---
+
+when i try to go back to setup from pipeline as it was untitled first time. (no pdf parse)
+
+---
+
+[Image source: REDACTED 2026-02-21 at 7.26.17 PM.png]
+
+---
+
+ok, so now Setup step works, parses pdf, gives prefilled details panel, allows to go to workspace, P0 orientation generation works. P1 Front matter is injected. Pdf compile works here. But now the issues, In the compiled pdf on the display (render) the watermark is still SANDBOX, and the downloaded pdf has no watermark (should be Apollo). The Approve and proceed to P2 Introduction is not present in the UI and hence cant check the P2 step.
+
+---
+
+[Image source: REDACTED 2026-02-21 at 7.37.05 PM.png]
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Plan Implementation** - User provided a detailed plan to fix the setup flow (S1→S5→P0) with 5 changes across 3 files.
+
+2. **Change 1: PDF Text Extraction** - Added `isPdfFile()` and `readPdfFile()` to `file-uploader.tsx`. Had to reorder hooks because `readPdfFile` referenced `uploadToR2` which was defined after it. Also hit a TypeScript error with type predicates for pdfjs TextItem types.
+
+3. **Change 2: Remove "Future Update" Warning** - Removed `uploadedPdf` state and amber warning from `synopsis-upload-step.tsx`.
+
+4. **Change 3-5: Wizard Validation** - Added synopsis text min 20 char validation, parsed data gate for S3, and contextual Next button disabled state in `setup-wizard.tsx`. Fixed a redundant `if (parsedData)` check after early return.
+
+5. **First Push & CI** - Pushed commit `3f5b5e8`, CI passed all 4 jobs.
+
+6. **User reported can't delete sandbox project or create new one** - Investigated and found:
+   - `DeleteProjectButton` nested inside `<Link>` needed `e.stopPropagation()` 
+   - Delete failures were completely silent (no toast)
+   - `/projects/new` silently redirected on sandbox limit error
+
+7. **Second Push & CI** - Commit `574082c`, CI passed all 4 jobs.
+
+8. **User reported "exact same behaviour"** - Screenshots showed:
+   - DELETE returning 500 (actually 409 from Supabase)
+   - Build never ran on VPS because `pnpm --filter web build` should be `pnpm --filter apollo-web build` (package name is `apollo-web`)
+   
+9. **Root cause of DELETE 500** - Found in Postgres logs: `insert or update on table "audit_log" violates foreign key constraint "audit_log_project_id_fkey"`. The AFTER DELETE trigger on projects tried to INSERT a new audit_log row with `project_id = OLD.id`, but the project was already deleted. Fixed by setting `project_id = NULL` for project DELETE audit entries. Applied migration via MCP and created local file.
+
+10. **Third Push** - Commit `ccbe73b` with migration file.
+
+11. **User reported ChunkLoadError on /setup page** - Stale webpack chunks after rebuild. Advised hard refresh (Cmd+Shift+R).
+
+12. **User reported setup flow works but has new issues:**
+    - Watermark shows "SANDBOX" in preview, no watermark in downloaded PDF (should be "Apollo")
+    - "Approve & Advance" button missing for Phase 1
+
+13. **Investigation started** - Explored watermark and approve button code:
+    - PDF viewer has client-side "SANDBOX" overlay (red text) separate from LaTeX watermark
+    - LaTeX compile injects "Apollo" watermark via draftwatermark package for sandbox projects
+    - Approve button shows when: `isCurrentPhase && viewingPhase !== 11 && (status === "review" || status === "draft") && latex_content`
+    - Was about to dig deeper into why the button isn't showing and why the watermark isn't working
+
+Key files modified:
+- `apps/web/components/upload/file-uploader.tsx` - PDF text extraction
+- `apps/web/components/wizard/steps/synopsis-upload-step.tsx` - Removed future update warning
+- `apps/web/components/wizard/setup-wizard.tsx` - Validation gates
+- `apps/web/components/project/delete-project-button.tsx` - stopPropagation + toast
+- `apps/web/app/(dashboard)/projects/new/page.tsx` - Sandbox limit error toast
+- `apps/web/supabase/migrations/033_fix_audit_trigger_project_delete.sql` - Audit trigger fix
+
+Key files read but not modified (relevant to pending work):
+- `apps/web/components/viewer/pdf-viewer.tsx` - Shows "SANDBOX" overlay
+- `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` - Approve button conditions
+- `apps/web/lib/latex/compile.ts` - Watermark injection
+- `apps/web/app/api/projects/[id]/compile/route.ts` - Watermark mode determination
+- `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts` - Approve logic
+
+Summary:
+1. Primary Request and Intent:
+   The user initially asked to implement a detailed plan to fix the setup wizard flow (S1→S5→P0) where PDF uploads weren't extracting text, empty synopses were allowed, and the pipeline broke. After that was deployed, the user discovered they couldn't delete sandbox projects or create new ones. After fixing those issues, the user now reports two remaining issues on the workspace page: (1) the PDF viewer shows "SANDBOX" watermark instead of "Apollo", and the downloaded PDF has no watermark at all, and (2) the "Approve & Advance" button is missing from Phase 1 (Front Matter), preventing progression to Phase 2.
+
+2. Key Technical Concepts:
+   - Next.js 15 App Router with `params` as Promise
+   - pdfjs-dist v5.4.624 for client-side PDF text extraction (dynamic import to avoid SSR)
+   - Supabase RLS policies and FK constraints (CASCADE vs NO ACTION)
+   - PostgreSQL AFTER DELETE triggers and FK constraint conflicts
+   - Event propagation in React (`stopPropagation` needed for buttons inside Next.js `<Link>`)
+   - LaTeX watermark injection via `draftwatermark` package (`\SetWatermarkText`)
+   - Client-side PDF viewer overlay (separate from LaTeX-compiled watermark)
+   - Phase advancement gating: section status must be "draft" or "review" with `latex_content` present
+   - pnpm workspace filtering: package name is `apollo-web` not `web`
+   - Sandbox project limit: max 1 per user (enforced in POST /api/projects)
+
+3. Files and Code Sections:
+
+   - **`apps/web/components/upload/file-uploader.tsx`** (MODIFIED)
+     - Added PDF text extraction using pdfjs-dist before R2 upload
+     - Added `isPdfFile()` helper and `readPdfFile()` callback
+     - `readPdfFile` extracts text via `getDocument()` → `getTextContent()`, calls `onFileRead()`, then `uploadToR2()` for archival
+     - Falls back to R2-only upload on extraction failure
+     ```typescript
+     const isPdfFile = useCallback((file: File): boolean => {
+       return (
+         file.type === "application/pdf" ||
+         file.name.toLowerCase().endsWith(".pdf")
+       );
+     }, []);
+
+     const readPdfFile = useCallback(
+       async (file: File) => {
+         try {
+           setState("uploading");
+           setProgress(20);
+           const pdfjsLib = await import("pdfjs-dist");
+           pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+           const arrayBuffer = await file.arrayBuffer();
+           const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+           setProgress(50);
+           const pageTexts: string[] = [];
+           for (let i = 1; i <= pdf.numPages; i++) {
+             const page = await pdf.getPage(i);
+             const content = await page.getTextContent();
+             const text = content.items
+               .filter((item) => "str" in item)
+               .map((item) => (item as { str: string }).str)
+               .join(" ");
+             pageTexts.push(text);
+           }
+           const fullText = pageTexts.join("\n\n").trim();
+           setProgress(70);
+           if (fullText && onFileRead) { onFileRead(fullText); }
+           await uploadToR2(file);
+         } catch {
+           await uploadToR2(file);
+         }
+       },
+       [onFileRead, uploadToR2]
+     );
+     ```
+     - Updated `processFile` dispatch to check `isPdfFile` before the `else` (uploadToR2) branch
+
+   - **`apps/web/components/wizard/steps/synopsis-upload-step.tsx`** (MODIFIED)
+     - Removed `useState` import (no longer needed), `uploadedPdf` state, and amber "Text extraction will be available in a future update" warning block
+     - `handleUploadComplete` is now a no-op (kept for FileUploader prop)
+
+   - **`apps/web/components/wizard/setup-wizard.tsx`** (MODIFIED)
+     - S2 validation: Added `synopsisText.trim().length < 20` check matching API's `z.string().min(20)`
+     - S3 gate: Added `!parsedData` early return preventing advancement without AI-parsed data
+     - Next button: Added contextual disabled state per step
+     ```typescript
+     disabled={
+       saving ||
+       (currentStep === 1 && !universityType) ||
+       (currentStep === 2 && (!aiConsentAccepted || !synopsisText || synopsisText.trim().length < 20)) ||
+       (currentStep === 3 && !parsedData)
+     }
+     ```
+
+   - **`apps/web/components/project/delete-project-button.tsx`** (MODIFIED)
+     - Added `e.stopPropagation()` to ALL click handlers (trash icon, Yes button, No button, wrapper div)
+     - Added `toast` import from sonner
+     - Added success toast on delete, error toast with message on failure, catch block for network errors
+     ```typescript
+     async function handleDelete() {
+       setDeleting(true);
+       try {
+         const resp = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+         if (resp.ok) {
+           toast.success("Project deleted.");
+           router.refresh();
+         } else {
+           const body = await resp.json().catch(() => null);
+           toast.error(body?.error?.message ?? "Failed to delete project. Please try again.");
+         }
+       } catch {
+         toast.error("Failed to delete project. Please try again.");
+       } finally {
+         setDeleting(false);
+         setConfirming(false);
+       }
+     }
+     ```
+
+   - **`apps/web/app/(dashboard)/projects/new/page.tsx`** (MODIFIED)
+     - Added `toast` import from sonner
+     - On API error (including 402 sandbox limit), shows `toast.error(message)` instead of silent `console.error`
+
+   - **`apps/web/supabase/migrations/033_fix_audit_trigger_project_delete.sql`** (CREATED)
+     - Fixes audit trigger FK violation on project DELETE
+     - Sets `project_id = NULL` for project DELETE audit entries (OLD.id still captured in entity_id and old_value_json)
+     - Applied live to Supabase via MCP + local migration file created
+     ```sql
+     IF TG_TABLE_NAME = 'projects' THEN
+       IF TG_OP = 'DELETE' THEN
+         v_project_id := NULL;
+       ELSE
+         v_project_id := COALESCE(NEW.id, OLD.id);
+       END IF;
+     ```
+
+   - **`apps/web/components/viewer/pdf-viewer.tsx`** (READ, not modified yet)
+     - Lines 103-110: Client-side "SANDBOX" overlay in red at 7% opacity, separate from LaTeX watermark
+     ```typescript
+     {isSandbox && (
+       <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+         <div className="rotate-[-30deg] select-none text-6xl font-bold tracking-[0.3em] text-red-500/[0.07]">
+           SANDBOX
+         </div>
+       </div>
+     )}
+     ```
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (READ, not modified yet)
+     - Lines 465-478: Approve button rendering conditions
+     ```typescript
+     {isCurrentPhase &&
+       viewingPhase !== 11 &&
+       (currentSection?.status === "review" ||
+         currentSection?.status === "draft") &&
+       currentSection?.latex_content && (
+         <Button onClick={handleApprove} size="sm" variant="default" disabled={isApproving}>
+           {isApproving ? "Approving..." : "Approve & Advance"}
+         </Button>
+       )}
+     ```
+     - `isCurrentPhase` = `viewingPhase === project.current_phase`
+     - `currentSection` = `sections.find((s) => s.phase_number === viewingPhase)`
+
+   - **`apps/web/lib/latex/compile.ts`** (READ, not modified)
+     - `injectWatermarkPackage()` injects `\SetWatermarkText{\fontfamily{ppl}\selectfont\itshape Apollo}` for sandbox watermark
+     - Uses `draftwatermark` package commands
+
+   - **`apps/web/app/api/projects/[id]/compile/route.ts`** (READ, not modified)
+     - `getWatermarkMode()`: sandbox→"sandbox", completed→"none", licensed+phase≥6→"draft_footer", else→"none"
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (READ, not modified)
+     - Phase advancement checks: section must be "review" or "draft" with content, verifies current phase matches, licence required for Phase 2+
+
+4. Errors and fixes:
+   - **TypeScript error TS2677**: Type predicate `item is { str: string }` not assignable to `TextItem | TextMarkedContent`. Fixed by using `.filter((item) => "str" in item).map((item) => (item as { str: string }).str)` instead.
+   - **useCallback ordering**: `readPdfFile` referenced `uploadToR2` before it was defined. Fixed by moving `readPdfFile` after `uploadToR2`.
+   - **Redundant if check**: After adding `!parsedData` early return in S3, the existing `if (parsedData)` block was always true. Removed the redundant wrapper.
+   - **DeleteProjectButton not working**: `e.stopPropagation()` was missing — clicks bubbled up to parent `<Link>` and navigated away. Fixed by adding `e.stopPropagation()` to all click handlers.
+   - **Silent error on delete/create failures**: No toast messages shown to user. Fixed by adding toast.error() calls.
+   - **VPS build command wrong**: `pnpm --filter web build` failed silently because package name is `apollo-web`. User needs `pnpm --filter apollo-web build`.
+   - **Audit trigger FK violation on project DELETE**: AFTER DELETE trigger inserted new audit_log row referencing deleted project. Postgres logs showed `ERROR: insert or update on table "audit_log" violates foreign key constraint "audit_log_project_id_fkey"`. Fixed by setting `project_id = NULL` for project DELETE audit entries in the trigger function.
+   - **ChunkLoadError after deploy**: Stale webpack chunks after rebuild. Advised hard refresh (Cmd+Shift+R).
+
+5. Problem Solving:
+   - Setup flow S1→S5→P0 is now fully working (PDF parsing, validation, wizard gates)
+   - Project deletion now works (audit trigger fixed, stopPropagation added, error feedback added)
+   - Sandbox limit error now shown to user via toast
+   - Two remaining issues being investigated: watermark display and missing approve button
+
+6. All user messages:
+   - "Implement the following plan: [detailed S1→S5→P0 fix plan with 5 changes across 3 files]"
+   - "now push to remote and watch the CI. when CI is green give the commands to run on the VPS"
+   - "I cannot delete the sandbox project already created, nor can i start a new one (capped at one sandbox project?)"
+   - "Its the exact same behaviour!, why? I did the pull and restart! [screenshots showing DELETE 500 and VPS terminal with failed build]"
+   - "when i try to go back to setup from pipeline as it was untitled first time. (no pdf parse) [screenshot showing ChunkLoadError]"
+   - "ok, so now Setup step works, parses pdf, gives prefilled details panel, allows to go to workspace, P0 orientation generation works. P1 Front matter is injected. Pdf compile works here. But now the issues, In the compiled pdf on the display (render) the watermark is still SANDBOX, and the downloaded pdf has no watermark (should be Apollo). The Approve and proceed to P2 Introduction is not present in the UI and hence cant check the P2 step. [screenshot of workspace]"
+
+7. Pending Tasks:
+   - **Fix watermark**: PDF viewer overlay shows "SANDBOX" but should show "Apollo"; downloaded PDF has no watermark (should have "Apollo")
+   - **Fix missing "Approve & Advance" button**: Button not showing for Phase 1 (Front Matter) — need to determine why (likely section status or missing latex_content condition not met)
+   - Note: Dashboard and landing page files are LOCKED — do NOT modify without explicit approval
+
+8. Current Work:
+   Was investigating two issues reported by user in their most recent message:
+   
+   **Issue 1 - Watermark**: Read `pdf-viewer.tsx` lines 103-110 showing "SANDBOX" client-side overlay. The LaTeX compile pipeline injects "Apollo" watermark via `injectWatermarkPackage()` but the downloaded PDF apparently has no watermark. Need to check if `draftwatermark` package is loaded in the template and if watermark injection is working.
+   
+   **Issue 2 - Missing Approve Button**: Read `project-workspace.tsx` lines 465-478 showing the button conditions: `isCurrentPhase && viewingPhase !== 11 && (currentSection?.status === "review" || currentSection?.status === "draft") && currentSection?.latex_content`. Need to determine which condition is failing — likely the section status is not "draft" or "review", or `latex_content` is empty for Phase 1. The Phase 0 approve auto-advance creates Phase 1 sections, and their initial status needs to be checked.
+
+9. Optional Next Step:
+   Continue investigating and fixing both issues from the user's most recent message: "the watermark is still SANDBOX, and the downloaded pdf has no watermark (should be Apollo). The Approve and proceed to P2 Introduction is not present in the UI"
+   
+   Specifically:
+   1. For the watermark: Check the template `main.tex` for `draftwatermark` package loading, verify the compile route passes watermark options correctly, and change the PDF viewer overlay from "SANDBOX" to "Apollo" (or remove it since LaTeX watermark handles it)
+   2. For the approve button: Query the database or check the approve route's Phase 0→1 auto-advance code to see what status Phase 1 sections are created with, and check if `latex_content` is being populated
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+did you push to remote?

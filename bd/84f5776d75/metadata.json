@@ -21,6 +21,7 @@
     "apps/web/app/(dashboard)/licences/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
+    "apps/web/app/(dashboard)/projects/new/page.tsx",
     "apps/web/app/(dashboard)/projects/page.tsx",
     "apps/web/app/(dashboard)/projects/project-card.tsx",
     "apps/web/app/(dashboard)/settings/page.tsx",
@@ -604,10 +605,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 111636,
-    "cache_creation_tokens": 8247025,
-    "cache_read_tokens": 280958390,
-    "output_tokens": 600026,
-    "api_call_count": 2905
+    "input_tokens": 112180,
+    "cache_creation_tokens": 8264795,
+    "cache_read_tokens": 281819626,
+    "output_tokens": 594385,
+    "api_call_count": 2921
   }
 }
