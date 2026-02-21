@@ -270,20 +270,20 @@ function injectWatermarkPackage(
 
   let cmds: string;
   if (options.watermark) {
-    // Sandbox: elegant centred "Apollo" in Palatino italic — stealth branding
+    // Sandbox: diagonal "Apollo" watermark in Palatino italic
     cmds = "\n" + [
       "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont\\itshape Apollo}",
-      "\\SetWatermarkColor[gray]{0.92}",
+      "\\SetWatermarkColor[gray]{0.85}",
       "\\SetWatermarkScale{2.5}",
-      "\\SetWatermarkAngle{0}",
+      "\\SetWatermarkAngle{45}",
     ].join("\n") + "\n";
   } else {
-    // Licensed draft: subtle bottom footer
+    // Licensed draft: diagonal "Generated with Apollo" watermark
     cmds = "\n" + [
       "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont Generated with Apollo}",
       "\\SetWatermarkColor[gray]{0.88}",
-      "\\SetWatermarkScale{0.3}",
-      "\\SetWatermarkAngle{0}",
+      "\\SetWatermarkScale{0.5}",
+      "\\SetWatermarkAngle{45}",
     ].join("\n") + "\n";
   }
 

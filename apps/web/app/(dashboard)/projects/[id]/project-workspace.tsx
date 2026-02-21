@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
@@ -118,6 +118,16 @@ export function ProjectWorkspace({
   const { setExpanded, isMobile } = useGlassSidebar();
   const supabase = useSupabaseClient();
   const [viewingPhase, setViewingPhase] = useState(project.current_phase);
+
+  // Auto-advance viewingPhase when project.current_phase changes (e.g. after approval)
+  const prevPhaseRef = useRef(project.current_phase);
+  useEffect(() => {
+    if (project.current_phase !== prevPhaseRef.current) {
+      setViewingPhase(project.current_phase);
+      prevPhaseRef.current = project.current_phase;
+    }
+  }, [project.current_phase]);
+
   const [streamingContent, setStreamingContent] = useState("");
   const [mobileTab, setMobileTab] = useState<MobileTab>("edit");
   const [pdfUrl, setPdfUrl] = useState(latestPdfUrl ?? null);

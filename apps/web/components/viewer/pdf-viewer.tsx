@@ -104,7 +104,7 @@ export function PdfViewer({ url, isSandbox, projectId }: PdfViewerProps) {
       {isSandbox && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <div className="rotate-[-30deg] select-none text-6xl font-bold tracking-[0.3em] text-red-500/[0.07]">
-            SANDBOX
+            Apollo
           </div>
         </div>
       )}
