@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import Link from "next/link";
 import { FileUploader } from "@/components/upload/file-uploader";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,8 +21,6 @@ export function SynopsisUploadStep({
   aiConsentAccepted = false,
   onAiConsentChange,
 }: SynopsisUploadStepProps) {
-  const [uploadedPdf, setUploadedPdf] = useState(false);
-
   const handleFileRead = useCallback(
     (text: string) => {
       onSynopsisChange(text);
@@ -31,7 +29,7 @@ export function SynopsisUploadStep({
   );
 
   const handleUploadComplete = useCallback(() => {
-    setUploadedPdf(true);
+    // PDF is archived to R2; text extraction handled in FileUploader
   }, []);
 
   return (
@@ -87,15 +85,6 @@ export function SynopsisUploadStep({
           onUploadComplete={handleUploadComplete}
           onFileRead={handleFileRead}
         />
-
-        {uploadedPdf && (
-          <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-            <p className="text-sm text-amber-400">
-              PDF uploaded. Text extraction will be available in a future update.
-              Please paste the synopsis text manually below.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Divider */}

@@ -94,26 +94,32 @@ export function SetupWizard({ project }: SetupWizardProps) {
           toast.error("Please accept the AI processing consent to continue.");
           return;
         }
-        await patchProject({ synopsis_text: synopsisText ?? "" });
+        if (!synopsisText || synopsisText.trim().length < 20) {
+          toast.error("Please provide your synopsis text (at least 20 characters) to continue.");
+          return;
+        }
+        await patchProject({ synopsis_text: synopsisText });
       }
 
       if (currentStep === 3) {
-        if (parsedData) {
-          await patchProject({
-            title: parsedData.title ?? project.title,
-            study_type: parsedData.study_type ?? undefined,
-          });
-
-          // Auto-fill metadata from parsed synopsis (only fill empty fields)
-          const seeded = { ...metadata };
-          if (!seeded.candidate_name && parsedData.candidate_name) seeded.candidate_name = parsedData.candidate_name;
-          if (!seeded.registration_no && parsedData.registration_no) seeded.registration_no = parsedData.registration_no;
-          if (!seeded.guide_name && parsedData.guide_name) seeded.guide_name = parsedData.guide_name;
-          if (!seeded.co_guide_name && parsedData.co_guide_name) seeded.co_guide_name = parsedData.co_guide_name;
-          if (!seeded.department && parsedData.department) seeded.department = parsedData.department;
-          if (!seeded.institute_name && parsedData.institute_name) seeded.institute_name = parsedData.institute_name;
-          setMetadata(seeded);
+        if (!parsedData) {
+          toast.error("Please wait for synopsis parsing to complete before continuing.");
+          return;
         }
+        await patchProject({
+          title: parsedData.title ?? project.title,
+          study_type: parsedData.study_type ?? undefined,
+        });
+
+        // Auto-fill metadata from parsed synopsis (only fill empty fields)
+        const seeded = { ...metadata };
+        if (!seeded.candidate_name && parsedData.candidate_name) seeded.candidate_name = parsedData.candidate_name;
+        if (!seeded.registration_no && parsedData.registration_no) seeded.registration_no = parsedData.registration_no;
+        if (!seeded.guide_name && parsedData.guide_name) seeded.guide_name = parsedData.guide_name;
+        if (!seeded.co_guide_name && parsedData.co_guide_name) seeded.co_guide_name = parsedData.co_guide_name;
+        if (!seeded.department && parsedData.department) seeded.department = parsedData.department;
+        if (!seeded.institute_name && parsedData.institute_name) seeded.institute_name = parsedData.institute_name;
+        setMetadata(seeded);
       }
 
       if (currentStep === 4) {
@@ -271,7 +277,12 @@ export function SetupWizard({ project }: SetupWizardProps) {
           <button
             type="button"
             onClick={handleNext}
-            disabled={saving}
+            disabled={
+              saving ||
+              (currentStep === 1 && !universityType) ||
+              (currentStep === 2 && (!aiConsentAccepted || !synopsisText || synopsisText.trim().length < 20)) ||
+              (currentStep === 3 && !parsedData)
+            }
             className={cn(
               "rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             )}

@@ -75,6 +75,13 @@ export function FileUploader({
     );
   }, []);
 
+  const isPdfFile = useCallback((file: File): boolean => {
+    return (
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf")
+    );
+  }, []);
+
   const readTextFile = useCallback(
     (file: File) => {
       const reader = new FileReader();
@@ -168,6 +175,47 @@ export function FileUploader({
     [projectId, onUploadComplete]
   );
 
+  const readPdfFile = useCallback(
+    async (file: File) => {
+      try {
+        setState("uploading");
+        setProgress(20);
+
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        setProgress(50);
+
+        const pageTexts: string[] = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const text = content.items
+            .filter((item) => "str" in item)
+            .map((item) => (item as { str: string }).str)
+            .join(" ");
+          pageTexts.push(text);
+        }
+
+        const fullText = pageTexts.join("\n\n").trim();
+        setProgress(70);
+
+        if (fullText && onFileRead) {
+          onFileRead(fullText);
+        }
+
+        // Also upload to R2 for archival
+        await uploadToR2(file);
+      } catch {
+        // Fall back to R2-only upload — user can paste text manually
+        await uploadToR2(file);
+      }
+    },
+    [onFileRead, uploadToR2]
+  );
+
   const processFile = useCallback(
     (file: File) => {
       const validationError = validateFile(file);
@@ -187,11 +235,13 @@ export function FileUploader({
         setState("uploading");
         setProgress(30);
         void readDocxFile(file);
+      } else if (isPdfFile(file)) {
+        void readPdfFile(file);
       } else {
         uploadToR2(file);
       }
     },
-    [validateFile, isTextFile, isDocxFile, readTextFile, readDocxFile, uploadToR2]
+    [validateFile, isTextFile, isDocxFile, isPdfFile, readTextFile, readDocxFile, readPdfFile, uploadToR2]
   );
 
   const handleDrop = useCallback(
