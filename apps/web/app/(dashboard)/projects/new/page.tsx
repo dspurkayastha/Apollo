@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -24,16 +25,17 @@ export default function NewProjectPage() {
         });
 
         if (!res.ok) {
-          const err = await res.json();
-          console.error("Failed to create project:", err);
+          const body = await res.json().catch(() => null);
+          const message = body?.error?.message ?? "Failed to create project.";
+          toast.error(message);
           router.push("/projects");
           return;
         }
 
         const { data } = await res.json();
         router.push(`/projects/${data.id}/setup`);
-      } catch (err) {
-        console.error("Failed to create project:", err);
+      } catch {
+        toast.error("Failed to create project. Please try again.");
         router.push("/projects");
       }
     }

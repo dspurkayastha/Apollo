@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface DeleteProjectButtonProps {
   projectId: string;
@@ -24,8 +25,14 @@ export function DeleteProjectButton({
         method: "DELETE",
       });
       if (resp.ok) {
+        toast.success("Project deleted.");
         router.refresh();
+      } else {
+        const body = await resp.json().catch(() => null);
+        toast.error(body?.error?.message ?? "Failed to delete project. Please try again.");
       }
+    } catch {
+      toast.error("Failed to delete project. Please try again.");
     } finally {
       setDeleting(false);
       setConfirming(false);
@@ -36,13 +43,17 @@ export function DeleteProjectButton({
     return (
       <div
         className="flex items-center gap-2"
-        onClick={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
       >
         <span className="text-xs text-destructive">Delete?</span>
         <button
           type="button"
           onClick={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             void handleDelete();
           }}
           disabled={deleting}
@@ -54,6 +65,7 @@ export function DeleteProjectButton({
           type="button"
           onClick={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             setConfirming(false);
           }}
           className="rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80"
@@ -69,6 +81,7 @@ export function DeleteProjectButton({
       type="button"
       onClick={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         setConfirming(true);
       }}
       className="rounded p-1 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
