@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 202,
+  "checkpoints_count": 203,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -338,6 +338,8 @@
     "docs/mitigation_implementation.md",
     "package.json",
     "pnpm-workspace.yaml",
+    "sciscribe-ssh",
+    "sciscribe-ssh.pub",
     "scripts/backfill-latex-content.ts",
     "scripts/deploy-conformance.sh",
     "scripts/load-test.js",
@@ -593,13 +595,20 @@
       "context": "/bd/84f5776d75/34/context.md",
       "content_hash": "/bd/84f5776d75/34/content_hash.txt",
       "prompt": "/bd/84f5776d75/34/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/35/metadata.json",
+      "transcript": "/bd/84f5776d75/35/full.jsonl",
+      "context": "/bd/84f5776d75/35/context.md",
+      "content_hash": "/bd/84f5776d75/35/content_hash.txt",
+      "prompt": "/bd/84f5776d75/35/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 111615,
-    "cache_creation_tokens": 8197526,
-    "cache_read_tokens": 279054774,
-    "output_tokens": 593046,
-    "api_call_count": 2890
+    "input_tokens": 111648,
+    "cache_creation_tokens": 8305719,
+    "cache_read_tokens": 280730246,
+    "output_tokens": 594820,
+    "api_call_count": 2919
   }
 }

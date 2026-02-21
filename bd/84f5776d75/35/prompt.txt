@@ -1,0 +1,157 @@
+Implement the following plan:
+
+# Fix Setup Flow: S1 → S5 → P0
+
+## Context
+
+The setup wizard (S1–S5) has critical data flow gaps that break the entire thesis pipeline. When a user uploads a PDF synopsis:
+
+1. **No text extraction** — PDF is uploaded to R2 but no text is extracted. User sees "Text extraction will be available in a future update"
+2. **Empty synopsis allowed** — S2 saves `synopsis_text: ""` (empty string) with no validation
+3. **S3 shows dead end** — "No synopsis text available" message, but Next button still works
+4. **No AI parse triggers** — `parsed-data-review-step.tsx` skips AI call when `synopsisText` is empty
+5. **Title stays "Untitled Thesis"** — No parsed data → no title extraction → project.title never updated
+6. **P0 generation fails** — Phase 0 generate route checks `if (!project.synopsis_text)` and returns error
+
+Result: A user who uploads a PDF gets stuck with "Untitled Thesis", no metadata, and a broken pipeline.
+
+---
+
+## Change 1: PDF Text Extraction in FileUploader
+
+**File**: `apps/web/components/upload/file-uploader.tsx`
+
+**Problem**: `processFile()` dispatches TXT → `readTextFile`, DOCX → `readDocxFile`, PDF → `uploadToR2` (no text extraction). `pdfjs-dist` v5.4.624 is already installed but only used for rendering in `pdf-viewer.tsx`.
+
+**Fix**: Add `isPdfFile()` check and `readPdfFile()` that uses `pdfjs-dist` for client-side text extraction, then also uploads to R2 for archival.
+
+- Add `isPdfFile` helper (matches `readTextFile`/`readDocxFile` pattern)
+- Add `readPdfFile` callback:
+  - Dynamic `import("pdfjs-dist")` to avoid SSR issues
+  - Set `GlobalWorkerOptions.workerSrc` same as `pdf-viewer.tsx`
+  - `getDocument({ data: arrayBuffer })` → iterate pages → `getTextContent()` → join text
+  - Call `onFileRead(fullText)` if text found
+  - Then call `uploadToR2(file)` for archival storage
+  - On failure: fall back to `uploadToR2` only (user can paste manually)
+- Update `processFile` dispatch to check `isPdfFile` before the `else` (uploadToR2) branch
+- Add `isPdfFile` and `readPdfFile` to `processFile` dependency array
+
+**Note**: `uploadToR2` already sets `state` to `"complete"`, so no double-setState needed.
+
+---
+
+## Change 2: Remove "Future Update" Warning
+
+**File**: `apps/web/components/wizard/steps/synopsis-upload-step.tsx`
+
+**Problem**: Shows "Text extraction will be available in a future update" amber box when `uploadedPdf === true`.
+
+**Fix**:
+- Remove `uploadedPdf` state and `setUploadedPdf(true)` in `handleUploadComplete`
+- Remove the `{uploadedPdf && ...}` amber warning JSX block (lines 91–98)
+- After Change 1, PDF upload extracts text automatically → textarea populates via `onSynopsisChange`
+- `handleUploadComplete` still needed for R2 key tracking but can be simplified to a no-op or removed if not used elsewhere
+
+---
+
+## Change 3: Require Synopsis Text in S2 Validation
+
+**File**: `apps/web/components/wizard/setup-wizard.tsx` (lines 92–98)
+
+**Problem**: S2 only validates `aiConsentAccepted`. Saves `synopsis_text: synopsisText ?? ""` (empty allowed).
+
+**Fix**: Add text length check before advancing from S2:
+```typescript
+if (currentStep === 2) {
+  if (!aiConsentAccepted) {
+    toast.error("Please accept the AI processing consent to continue.");
+    return;
+  }
+  if (!synopsisText || synopsisText.trim().length < 20) {
+    toast.error("Please provide your synopsis text (at least 20 characters) to continue.");
+    return;
+  }
+  await patchProject({ synopsis_text: synopsisText });
+}
+```
+
+The 20-char minimum matches the API's `z.string().min(20)` in `/api/synopsis/parse/route.ts:12`.
+
+---
+
+## Change 4: Block S3 Advancement Without Parsed Data
+
+**File**: `apps/web/components/wizard/setup-wizard.tsx` (lines 100–116)
+
+**Problem**: S3 advances even if `parsedData` is null (user can skip review).
+
+**Fix**: Gate advancement on parsedData being available:
+```typescript
+if (currentStep === 3) {
+  if (!parsedData) {
+    toast.error("Please wait for synopsis parsing to complete before continuing.");
+    return;
+  }
+  // ... existing patchProject and metadata seeding
+}
+```
+
+---
+
+## Change 5: Contextual Next Button Disabled State
+
+**File**: `apps/web/components/wizard/setup-wizard.tsx` (lines 270–281)
+
+**Problem**: Next button only disables when `saving`. User can click Next on incomplete steps.
+
+**Fix**: Compute step-specific disabled state:
+```typescript
+const isNextDisabled = saving || (() => {
+  if (currentStep === 1) return !universityType;
+  if (currentStep === 2) return !aiConsentAccepted || !synopsisText || synopsisText.trim().length < 20;
+  if (currentStep === 3) return !parsedData;
+  return false;
+})();
+```
+
+Apply: `disabled={isNextDisabled}` on the Next button.
+
+---
+
+## Files Modified (Summary)
+
+| # | File | What Changes |
+|---|------|-------------|
+| 1 | `apps/web/components/upload/file-uploader.tsx` | Add `isPdfFile()`, `readPdfFile()` using pdfjs-dist; update `processFile` dispatch |
+| 2 | `apps/web/components/wizard/steps/synopsis-upload-step.tsx` | Remove `uploadedPdf` state and "future update" amber warning |
+| 3 | `apps/web/components/wizard/setup-wizard.tsx` | Add synopsis text validation (S2), parsed data gate (S3), contextual Next button disable |
+
+---
+
+## Implementation Order
+
+1. **FileUploader PDF extraction** (Change 1) — biggest fix, enables the whole flow
+2. **Synopsis upload step cleanup** (Change 2) — remove dead-end messaging
+3. **Wizard validation gates** (Changes 3, 4, 5) — prevent empty data from flowing through
+
+---
+
+## Verification
+
+1. **TypeScript**: `npx tsc --noEmit` — 0 errors
+2. **Lint**: `npx next lint` — 0 warnings
+3. **PDF upload flow**: Upload a PDF synopsis → text auto-populates in textarea → "Synopsis Preview" shows extracted text
+4. **S2 validation**: Click Next with empty textarea → toast: "Please provide your synopsis text..."
+5. **S3 AI parse**: Advancing to S3 with valid text → "AI is analysing your synopsis..." → fields populate
+6. **S3 gate**: Next button disabled while parsing; enabled once parsedData populated
+7. **Title flow**: After S3, `parsedData.title` is set → S5 preview shows correct title
+8. **P0 workspace**: Project title matches AI-extracted title; Phase 0 generate works because `synopsis_text` is populated
+9. **Fallback**: Scanned/image PDF → text extraction returns empty → user pastes manually → Next stays disabled until text entered
+10. **TXT/DOCX**: Existing paths unchanged — still work as before
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+now psuh to remote and watch the CI. when CI is green give the commands to run on the VPS

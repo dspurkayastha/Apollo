@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "4b376937-b366-4485-a2a2-155423694c62",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-21T13:15:12.75423Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/components/upload/file-uploader.tsx",
+    "apps/web/components/wizard/setup-wizard.tsx",
+    "apps/web/components/wizard/steps/synopsis-upload-step.tsx",
+    "apps/web/supabase/.temp/cli-latest",
+    "sciscribe-ssh",
+    "sciscribe-ssh.pub"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 33,
+    "cache_creation_tokens": 108193,
+    "cache_read_tokens": 1675472,
+    "output_tokens": 1774,
+    "api_call_count": 29
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-21T13:15:12.615777Z",
+    "agent_lines": 81,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 10,
+    "total_committed": 81,
+    "agent_percentage": 100
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/4b376937-b366-4485-a2a2-155423694c62.jsonl"
+}
