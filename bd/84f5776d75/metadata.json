@@ -21,6 +21,7 @@
     "apps/web/app/(dashboard)/licences/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
+    "apps/web/app/(dashboard)/projects/new/page.tsx",
     "apps/web/app/(dashboard)/projects/page.tsx",
     "apps/web/app/(dashboard)/projects/project-card.tsx",
     "apps/web/app/(dashboard)/settings/page.tsx",
@@ -338,8 +339,6 @@
     "docs/mitigation_implementation.md",
     "package.json",
     "pnpm-workspace.yaml",
-    "sciscribe-ssh",
-    "sciscribe-ssh.pub",
     "scripts/backfill-latex-content.ts",
     "scripts/deploy-conformance.sh",
     "scripts/load-test.js",
@@ -605,10 +604,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 111648,
-    "cache_creation_tokens": 8305719,
-    "cache_read_tokens": 280730246,
-    "output_tokens": 594820,
-    "api_call_count": 2919
+    "input_tokens": 111636,
+    "cache_creation_tokens": 8223219,
+    "cache_read_tokens": 280617683,
+    "output_tokens": 594880,
+    "api_call_count": 2907
   }
 }

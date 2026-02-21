@@ -20,3 +20,7 @@ The setup wizard (S1–S5) has critical data flow gaps that break the entire the
 
 now psuh to remote and watch the CI. when CI is green give the commands to run on the VPS
 
+### Prompt 3
+
+I cannot delete the sandbox project already created, nor can i strt a new one (capped at one sandbox project?)
+
