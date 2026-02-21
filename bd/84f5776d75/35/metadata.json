@@ -3,34 +3,30 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "4b376937-b366-4485-a2a2-155423694c62",
   "strategy": "manual-commit",
-  "created_at": "2026-02-21T13:26:55.074387Z",
+  "created_at": "2026-02-21T13:50:32.761999Z",
   "branch": "main",
   "checkpoints_count": 1,
   "files_touched": [
-    "apps/web/app/(dashboard)/projects/new/page.tsx",
-    "apps/web/components/project/delete-project-button.tsx",
-    "apps/web/components/upload/file-uploader.tsx",
-    "apps/web/components/wizard/setup-wizard.tsx",
-    "apps/web/components/wizard/steps/synopsis-upload-step.tsx"
+    "apps/web/supabase/migrations/033_fix_audit_trigger_project_delete.sql"
   ],
   "agent": "Claude Code",
-  "transcript_identifier_at_start": "66717d09-693e-4f62-9843-07da56829024",
-  "checkpoint_transcript_start": 257,
-  "transcript_lines_at_start": 257,
+  "transcript_identifier_at_start": "46b076da-46f4-4c6f-82eb-1e4165625480",
+  "checkpoint_transcript_start": 496,
+  "transcript_lines_at_start": 496,
   "token_usage": {
     "input_tokens": 21,
-    "cache_creation_tokens": 25693,
-    "cache_read_tokens": 1562909,
-    "output_tokens": 1834,
-    "api_call_count": 17
+    "cache_creation_tokens": 49499,
+    "cache_read_tokens": 1903616,
+    "output_tokens": 6980,
+    "api_call_count": 15
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-21T13:26:54.349735Z",
+    "calculated_at": "2026-02-21T13:50:31.467973Z",
     "agent_lines": 0,
-    "human_added": 15,
-    "human_modified": 5,
+    "human_added": 64,
+    "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 15,
+    "total_committed": 64,
     "agent_percentage": 0
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/4b376937-b366-4485-a2a2-155423694c62.jsonl"

@@ -21,7 +21,6 @@
     "apps/web/app/(dashboard)/licences/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/page.tsx",
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
-    "apps/web/app/(dashboard)/projects/new/page.tsx",
     "apps/web/app/(dashboard)/projects/page.tsx",
     "apps/web/app/(dashboard)/projects/project-card.tsx",
     "apps/web/app/(dashboard)/settings/page.tsx",
@@ -308,6 +307,7 @@
     "apps/web/supabase/migrations/030_privacy_compliance.sql",
     "apps/web/supabase/migrations/031_database_audit_fixes.sql",
     "apps/web/supabase/migrations/032_missing_rls_policies.sql",
+    "apps/web/supabase/migrations/033_fix_audit_trigger_project_delete.sql",
     "apps/web/tailwind.config.ts",
     "apps/web/tests/citations-e2e.test.ts",
     "apps/web/tests/compile.test.ts",
@@ -605,9 +605,9 @@
   ],
   "token_usage": {
     "input_tokens": 111636,
-    "cache_creation_tokens": 8223219,
-    "cache_read_tokens": 280617683,
-    "output_tokens": 594880,
-    "api_call_count": 2907
+    "cache_creation_tokens": 8247025,
+    "cache_read_tokens": 280958390,
+    "output_tokens": 600026,
+    "api_call_count": 2905
   }
 }

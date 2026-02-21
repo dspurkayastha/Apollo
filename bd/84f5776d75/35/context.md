@@ -24,3 +24,23 @@ now psuh to remote and watch the CI. when CI is green give the commands to run o
 
 I cannot delete the sandbox project already created, nor can i strt a new one (capped at one sandbox project?)
 
+### Prompt 4
+
+<task-notification>
+<task-id>befbaac</task-id>
+<output-file>/private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/befbaac.output</output-file>
+<status>completed</status>
+<summary>Background command "Commit and push deletion fix" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-devs-Downloads-Apollo/tasks/befbaac.output
+
+### Prompt 5
+
+Its the exact same behaviour!, why? I did  the pull and restart!
+
+### Prompt 6
+
+[Image source: /Users/devs/Desktop/Screenshot 2026-02-21 at 7.12.34 PM.png]
+
+[Image source: REDACTED 2026-02-21 at 7.13.40 PM.png]
+
