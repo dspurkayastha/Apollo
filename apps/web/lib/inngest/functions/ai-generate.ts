@@ -42,7 +42,8 @@ export const aiGenerateFn = inngest.createFunction(
 
     const supabase = createAdminSupabaseClient();
 
-    // Step 1: Stream AI response, writing chunks to streaming_content
+    // Step 1: Stream AI response, writing chunks to streaming_content.
+    // DB writes are fire-and-forget — the stream never blocks on Mumbai RTT.
     const result = await step.run("stream-ai-response", async () => {
       const client = getAnthropicClient();
       let fullResponse = "";
@@ -60,25 +61,34 @@ export const aiGenerateFn = inngest.createFunction(
         messages: [{ role: "user", content: userMessage }],
       });
 
-      // Batch Realtime updates every ~500 chars to avoid excessive DB writes
+      // Fire-and-forget streaming updates. The stream runs at LLM speed —
+      // DB writes (~600ms Helsinki→Mumbai) happen asynchronously in the
+      // background. We track pending promises to drain them before returning.
+      const pendingWrites: Promise<unknown>[] = [];
       let lastFlushed = 0;
-      const FLUSH_INTERVAL = 500;
+      const FLUSH_INTERVAL = 150;
 
       messageStream.on("text", (text) => {
         fullResponse += text;
         if (fullResponse.length - lastFlushed >= FLUSH_INTERVAL) {
-          // Fire-and-forget partial update for Realtime subscribers
-          void supabase
+          const content = fullResponse; // Capture snapshot
+          const write = supabase
             .from("sections")
-            .update({ streaming_content: fullResponse })
+            .update({ streaming_content: content })
             .eq("project_id", projectId)
             .eq("phase_number", phaseNumber)
             .then(() => {});
+          // Non-fatal — next write will overwrite any missed update
+          pendingWrites.push(Promise.resolve(write).catch(() => {}));
           lastFlushed = fullResponse.length;
         }
       });
 
       const finalMessage = await messageStream.finalMessage();
+
+      // Drain any in-flight DB writes before the step returns.
+      // This prevents orphaned promises after the step completes.
+      await Promise.allSettled(pendingWrites);
 
       return {
         fullResponse,

@@ -18,18 +18,12 @@ export const thesisPhaseWorkflow = inngest.createFunction(
       return { status: "completed", message: "All phases done" };
     }
 
-    // Create the next section as draft (only if it doesn't already exist)
+    // Create the next section as draft (skip if already exists).
+    // Uses upsert with onConflict to avoid a separate SELECT round-trip (~600ms).
     await step.run("create-next-section", async () => {
       const supabase = createAdminSupabaseClient();
-      const { data: existing } = await supabase
-        .from("sections")
-        .select("id")
-        .eq("project_id", projectId)
-        .eq("phase_number", nextPhase)
-        .maybeSingle();
-
-      if (!existing) {
-        await supabase.from("sections").insert({
+      await supabase.from("sections").upsert(
+        {
           project_id: projectId,
           phase_number: nextPhase,
           phase_name: nextPhaseDef.name,
@@ -37,8 +31,9 @@ export const thesisPhaseWorkflow = inngest.createFunction(
           word_count: 0,
           citation_keys: [],
           status: "draft",
-        });
-      }
+        },
+        { onConflict: "project_id,phase_number", ignoreDuplicates: true }
+      );
     });
 
     // Wait for the next phase approval (timeout: 90 days)
