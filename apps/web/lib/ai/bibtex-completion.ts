@@ -57,13 +57,12 @@ export function checkBibtexIntegrity(fullResponse: string): BibtexIntegrityResul
 export async function requestMissingBibtexEntries(
   missingKeys: string[],
   originalBody: string,
-  model: string,
 ): Promise<string> {
   if (missingKeys.length === 0) return "";
 
   const client = getAnthropicClient();
   const response = await client.messages.create({
-    model,
+    model: "claude-haiku-4-5-20251001",
     max_tokens: Math.max(2000, missingKeys.length * 200),
     system: `You are a bibliographer. Generate complete BibTeX entries for the given citation keys based on the chapter context. Output ONLY valid BibTeX entries --- no explanation, no markdown fences. Use ASCII only (no Unicode). Each entry must have: author, title, journal/publisher, year. Use realistic but plausible bibliographic data consistent with the chapter content.`,
     messages: [{

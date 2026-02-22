@@ -461,7 +461,6 @@ async function runInlineGeneration(
         const missingBibtex = await requestMissingBibtexEntries(
           integrity.missingKeys,
           splitBibtex(response).body,
-          model,
         );
         if (missingBibtex.trim()) {
           const { body, bib } = splitBibtex(response);

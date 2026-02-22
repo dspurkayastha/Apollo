@@ -25,7 +25,7 @@ import { ReviewDialog } from "@/components/project/review-dialog";
 import { Button } from "@/components/ui/button";
 import { useGlassSidebar } from "@/components/layout/glass-sidebar-provider";
 import { useSupabaseClient } from "@/lib/supabase/client";
-import { FileText, Eye, CheckCircle2, Loader2, X } from "lucide-react";
+import { FileText, Eye, CheckCircle2, Loader2, X, Wand2, AlertTriangle, Search } from "lucide-react";
 import { CitationListPanel } from "@/components/project/citation-list-panel";
 import { ThesisCompletion } from "@/components/project/thesis-completion";
 import { ExportMenu } from "@/components/project/export-menu";
@@ -146,6 +146,17 @@ export function ProjectWorkspace({
   const [compileResult, setCompileResult] = useState<CompileResultInfo | null>(null);
   const [compileError, setCompileError] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [isFixingLatex, setIsFixingLatex] = useState(false);
+
+  // QA checkpoint state
+  const [qaReport, setQaReport] = useState<QCReport | null>(null);
+  const [qaDialogOpen, setQaDialogOpen] = useState(false);
+  const [verifyProgress, setVerifyProgress] = useState<{
+    step: string;
+    current: number;
+    total: number;
+    items: { key: string; status: "done" | "active" | "pending" }[];
+  } | null>(null);
 
   // Auto-dismiss success messages after 8s
   useEffect(() => {
@@ -248,11 +259,27 @@ export function ProjectWorkspace({
         { method: "POST" }
       );
       if (response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const nextPhase = (body as { data?: { advanced_to_phase?: number } })?.data?.advanced_to_phase;
+        if (typeof nextPhase === "number") {
+          setViewingPhase(nextPhase);
+          prevPhaseRef.current = nextPhase;
+        }
         router.refresh();
         void compileAndRefreshPdf();
       } else if (response.status === 409) {
         // Section already approved or phase already advanced — just refresh
         router.refresh();
+      } else {
+        // Handle 400 and other errors — check for QA_BLOCKED
+        const body = await response.json().catch(() => ({}));
+        const err = (body as { error?: { code?: string; message?: string; details?: { report?: QCReport } } })?.error;
+        if (err?.code === "QA_BLOCKED" && err?.details?.report) {
+          setQaReport(err.details.report);
+          setQaDialogOpen(true);
+        } else {
+          setCompileError(err?.message ?? "Approval failed");
+        }
       }
     } catch {
       // Network error — refresh to show current state
@@ -262,8 +289,134 @@ export function ProjectWorkspace({
     }
   }, [project.id, viewingPhase, router, compileAndRefreshPdf, isApproving]);
 
+  const doFixLatex = useCallback(async () => {
+    if (isFixingLatex || !compileError) return;
+    setIsFixingLatex(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${project.id}/sections/${viewingPhase}/fix-latex`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ errors: compileError }),
+        }
+      );
+      if (res.ok) {
+        setCompileError(null);
+        router.refresh();
+        void compileAndRefreshPdf();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setCompileError((body as { error?: { message?: string } })?.error?.message ?? "Failed to fix LaTeX errors");
+      }
+    } catch {
+      setCompileError("Failed to fix LaTeX errors — please try again");
+    } finally {
+      setIsFixingLatex(false);
+    }
+  }, [project.id, viewingPhase, compileError, isFixingLatex, router, compileAndRefreshPdf]);
+
   const handleApprove = useCallback(async () => {
-    // Run review check before approving
+    if (isApproving) return;
+
+    // Phase 9: Run reference verification SSE first, then approve
+    if (viewingPhase === 9) {
+      setIsApproving(true);
+      setVerifyProgress({ step: "Starting verification...", current: 0, total: 0, items: [] });
+      try {
+        const res = await fetch(
+          `/api/projects/${project.id}/sections/9/verify-references`,
+          { method: "POST" },
+        );
+        if (!res.ok || !res.body) {
+          setVerifyProgress(null);
+          setIsApproving(false);
+          setCompileError("Reference verification failed");
+          return;
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finalReport: QCReport | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const evt = JSON.parse(line.slice(6)) as {
+                type: string;
+                step?: string;
+                current?: number;
+                total?: number;
+                report?: QCReport;
+                message?: string;
+              };
+              if (evt.type === "progress" && evt.step !== undefined) {
+                setVerifyProgress((prev) => {
+                  const items = [...(prev?.items ?? [])];
+                  // Parse cite key from step text
+                  const keyMatch = evt.step!.match(/^(?:Verifying|Re-resolving)\s+(\S+)/);
+                  const key = keyMatch?.[1] ?? evt.step!;
+                  // Mark previous active as done
+                  for (const item of items) {
+                    if (item.status === "active") item.status = "done";
+                  }
+                  // Add new active item if not already present
+                  if (!items.some((i) => i.key === key)) {
+                    items.push({ key, status: "active" });
+                  } else {
+                    const existing = items.find((i) => i.key === key);
+                    if (existing) existing.status = "active";
+                  }
+                  return {
+                    step: evt.step!,
+                    current: evt.current ?? prev?.current ?? 0,
+                    total: evt.total ?? prev?.total ?? 0,
+                    items,
+                  };
+                });
+              } else if (evt.type === "complete" && evt.report) {
+                finalReport = evt.report;
+              } else if (evt.type === "error") {
+                setVerifyProgress(null);
+                setIsApproving(false);
+                setCompileError(evt.message ?? "Reference verification failed");
+                return;
+              }
+            } catch {
+              // Skip malformed SSE lines
+            }
+          }
+        }
+
+        setVerifyProgress(null);
+
+        if (finalReport && !finalReport.overallPass) {
+          setQaReport(finalReport);
+          setQaDialogOpen(true);
+          setIsApproving(false);
+          return;
+        }
+
+        // Verification passed — call regular approve (fast DB check)
+        setIsApproving(false);
+        await doApprove();
+      } catch {
+        setVerifyProgress(null);
+        setIsApproving(false);
+        setCompileError("Reference verification failed");
+      }
+      return;
+    }
+
+    // All other phases: Run review check before approving
     try {
       const res = await fetch(
         `/api/projects/${project.id}/sections/${viewingPhase}/review`,
@@ -283,7 +436,7 @@ export function ProjectWorkspace({
       // Review is non-blocking — if it fails, approve directly
       await doApprove();
     }
-  }, [project.id, viewingPhase, doApprove]);
+  }, [project.id, viewingPhase, doApprove, isApproving]);
 
   // Parse stored QC report for Phase 11
   const storedQCReport: QCReport | null = (() => {
@@ -435,13 +588,38 @@ export function ProjectWorkspace({
             </div>
           )}
           {compileError && (
-            <div
-              className="flex items-center justify-between rounded-2xl bg-destructive/10 p-3 text-sm text-destructive cursor-pointer"
-              onClick={() => setCompileError(null)}
-              title="Click to dismiss"
-            >
-              <span>{compileError}</span>
-              <X className="h-3.5 w-3.5 opacity-50" />
+            <div className="flex items-center justify-between gap-2 rounded-2xl bg-destructive/10 p-3 text-sm text-destructive">
+              <span className="min-w-0 flex-1 break-words">{compileError}</span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {compileError.startsWith("Compilation failed:") && currentSection && (
+                  <button
+                    type="button"
+                    onClick={doFixLatex}
+                    disabled={isFixingLatex}
+                    className="inline-flex items-center gap-1 rounded-lg bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+                  >
+                    {isFixingLatex ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Fixing...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-3 w-3" />
+                        Fix with AI
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCompileError(null)}
+                  className="rounded p-0.5 transition-colors hover:bg-destructive/10"
+                  title="Dismiss"
+                >
+                  <X className="h-3.5 w-3.5 opacity-50" />
+                </button>
+              </div>
             </div>
           )}
           {generateError && (
@@ -843,6 +1021,153 @@ export function ProjectWorkspace({
           doApprove();
         }}
       />
+
+      {/* QA Failure Dialog — shown when approve returns QA_BLOCKED */}
+      {qaDialogOpen && qaReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <h3 className="font-serif text-lg font-semibold text-[#2F2F2F]">
+                Quality Check Failed
+              </h3>
+            </div>
+            <p className="mb-4 text-sm text-[#6B6B6B]">
+              {qaReport.blockingCount} blocking issue(s) must be resolved before advancing.
+              {qaReport.warningCount > 0 && ` ${qaReport.warningCount} warning(s) noted.`}
+            </p>
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {qaReport.checks
+                .filter((c) => c.status !== "pass")
+                .map((check, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg border p-3 ${
+                      check.status === "fail"
+                        ? "border-red-200 bg-red-50"
+                        : "border-amber-200 bg-amber-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-medium ${
+                          check.status === "fail" ? "text-red-800" : "text-amber-800"
+                        }`}>
+                          {check.status === "fail" ? "Blocking" : "Warning"}: {check.message}
+                        </p>
+                        {check.details.length > 0 && (
+                          <ul className="mt-1 space-y-0.5">
+                            {check.details.slice(0, 3).map((d, j) => (
+                              <li key={j} className="text-xs text-[#6B6B6B]">
+                                {d.item}: {d.message}
+                              </li>
+                            ))}
+                            {check.details.length > 3 && (
+                              <li className="text-xs text-[#6B6B6B] italic">
+                                ...and {check.details.length - 3} more
+                              </li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                      {check.fixAction && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQaDialogOpen(false);
+                            setQaReport(null);
+                            // Map fixAction to refine instructions
+                            const actionMap: Record<string, string> = {
+                              "refine:expand": "Expand the content to meet the minimum word count. Add more detail and depth.",
+                              "refine:complete": "The chapter appears truncated. Complete the chapter ensuring all sections are finished.",
+                              "refine:add-summary-table": "Add a chronological summary longtable at the end of the Review of Literature.",
+                              "refine:add-citations": "Add more citations from recent literature to support the claims.",
+                              "refine:add-demographics": "Add a demographics/baseline characteristics table.",
+                              "refine:add-limitations": "Add a dedicated Strengths and Limitations subsection.",
+                              "refine:fix-crossrefs": "Add cross-references (\\ref) for all figures and tables that have labels.",
+                              "refine:cover-analyses": "Ensure all analysis results are discussed in the chapter text.",
+                              "refine:remove-citations": "Remove citations from the Conclusion chapter.",
+                            };
+                            const instructions = check.fixAction === "refine:ai-suggestion"
+                              ? check.details.map((d) => d.message).join("\n")
+                              : actionMap[check.fixAction!] ?? check.message;
+                            setRefineInstructions(instructions);
+                            setRefineDialogOpen(true);
+                          }}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[#8B9D77]/10 px-2.5 py-1 text-xs font-medium text-[#6B7D57] transition-colors hover:bg-[#8B9D77]/20"
+                        >
+                          <Wand2 className="h-3 w-3" />
+                          Fix with AI
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQaDialogOpen(false);
+                  setQaReport(null);
+                }}
+              >
+                Go Back
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 9 Reference Verification Overlay */}
+      {verifyProgress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center gap-2">
+              <Search className="h-5 w-5 text-[#8B9D77]" />
+              <h3 className="font-serif text-lg font-semibold text-[#2F2F2F]">
+                Verifying References
+              </h3>
+            </div>
+            <div className="max-h-48 space-y-1 overflow-y-auto">
+              {verifyProgress.items.map((item) => (
+                <div key={item.key} className="flex items-center gap-2 text-sm">
+                  {item.status === "done" ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                  ) : item.status === "active" ? (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#8B9D77]" />
+                  ) : (
+                    <div className="h-3.5 w-3.5 shrink-0 rounded-full border border-[#D1D1D1]" />
+                  )}
+                  <span className={item.status === "active" ? "text-[#2F2F2F]" : "text-[#6B6B6B]"}>
+                    {item.key}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {verifyProgress.total > 0 && (
+              <div className="mt-4">
+                <div className="mb-1 flex justify-between text-xs text-[#6B6B6B]">
+                  <span>{verifyProgress.step}</span>
+                  <span>{Math.min(100, Math.round((verifyProgress.current / verifyProgress.total) * 100))}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-[#F0F0F0]">
+                  <div
+                    className="h-full rounded-full bg-[#8B9D77] transition-all duration-300"
+                    style={{
+                      width: `${Math.min(100, Math.round((verifyProgress.current / verifyProgress.total) * 100))}%`,
+                    }}
+                  />
+                </div>
+                <div className="mt-2 text-center text-xs text-[#6B6B6B]">
+                  Verified: {verifyProgress.current}/{verifyProgress.total}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       </>}
 

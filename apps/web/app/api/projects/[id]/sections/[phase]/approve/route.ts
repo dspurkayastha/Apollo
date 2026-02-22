@@ -14,10 +14,14 @@ import { getPhase } from "@/lib/phases/constants";
 import { generateFrontMatterLatex } from "@/lib/latex/front-matter";
 import { auditCitations } from "@/lib/citations/audit";
 import { aiReviewSection } from "@/lib/ai/review-section";
-import type { Project, Section } from "@/lib/types/database";
-import type { PlannedAnalysis } from "@/lib/validation/analysis-plan-schemas";
+import type { Project, Section, Citation } from "@/lib/types/database";
 import { inngest } from "@/lib/inngest/client";
 import { getPlanConfig } from "@/lib/pricing/config";
+import { checkpointROL } from "@/lib/qc/checkpoint-rol";
+import { checkpointResults } from "@/lib/qc/checkpoint-results";
+import { checkpointConclusions } from "@/lib/qc/checkpoint-conclusions";
+import { quickTierDCheck } from "@/lib/qc/checkpoint-references";
+import type { QCReport } from "@/lib/qc/final-qc";
 
 export async function POST(
   _request: NextRequest,
@@ -109,74 +113,126 @@ export async function POST(
       }
     }
 
-    // Phase 6: Figure/table QC gates (DECISIONS.md 5.3)
+    // ── Pipeline QA checkpoints — MUST run BEFORE section status change ────
+    // Each checkpoint returns a QCReport. If blocking issues found, return
+    // QA_BLOCKED error with the full report so the client can show details.
+    let qaWarnings: string[] = [];
+
+    if (phaseNumber === 4) {
+      const { data: allSections } = await supabase
+        .from("sections")
+        .select("*")
+        .eq("project_id", id);
+      const { data: allCitations } = await supabase
+        .from("citations")
+        .select("*")
+        .eq("project_id", id);
+
+      const qcReport = await checkpointROL(
+        (allSections ?? []) as Section[],
+        (allCitations ?? []) as Citation[],
+        id,
+      );
+
+      if (!qcReport.overallPass) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "QA_BLOCKED",
+              message: `Quality check failed: ${qcReport.blockingCount} blocking issue(s)`,
+              details: { report: qcReport, phase: phaseNumber },
+            },
+          },
+          { status: 400 },
+        );
+      }
+      qaWarnings = qcReport.checks
+        .filter((c) => c.status === "warn")
+        .map((c) => c.message);
+    }
+
     if (phaseNumber === 6) {
-      const MIN_FIGURES = 5;
-      const MIN_TABLES = 7;
+      const { data: allSections } = await supabase
+        .from("sections")
+        .select("*")
+        .eq("project_id", id);
 
-      const [{ count: figureCount }, { data: completedWithTables }] =
-        await Promise.all([
-          supabase
-            .from("figures")
-            .select("id", { count: "exact", head: true })
-            .eq("project_id", id),
-          supabase
-            .from("analyses")
-            .select("results_json")
-            .eq("project_id", id)
-            .eq("status", "completed"),
-        ]);
+      const qcReport = await checkpointResults(
+        (allSections ?? []) as Section[],
+        typedProject,
+        id,
+      );
 
-      // Count actual tables: analyses with table_latex in results_json
-      const analysisTableCount = (completedWithTables ?? []).filter(
-        (a) => (a.results_json as Record<string, unknown>)?.table_latex
-      ).length;
-
-      if ((figureCount ?? 0) < MIN_FIGURES) {
-        return badRequest(
-          `Results requires at least ${MIN_FIGURES} figures (currently ${figureCount ?? 0}). ` +
-            "Run additional analyses or upload figures."
+      if (!qcReport.overallPass) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "QA_BLOCKED",
+              message: `Quality check failed: ${qcReport.blockingCount} blocking issue(s)`,
+              details: { report: qcReport, phase: phaseNumber },
+            },
+          },
+          { status: 400 },
         );
       }
+      qaWarnings = qcReport.checks
+        .filter((c) => c.status === "warn")
+        .map((c) => c.message);
+    }
 
-      // Count tables: use the HIGHER of analysis-produced tables vs LaTeX table
-      // environments in content. These overlap (AI embeds analysis tables verbatim),
-      // so summing would double-count.
-      const tableLatexCount = (
-        typedSection.latex_content?.match(
-          /\\begin\{(table|longtable|tabular)\}/g
-        ) ?? []
-      ).length;
-      const totalTables = Math.max(analysisTableCount ?? 0, tableLatexCount);
+    if (phaseNumber === 8) {
+      const { data: allSections } = await supabase
+        .from("sections")
+        .select("*")
+        .eq("project_id", id);
+      const { data: allCitations } = await supabase
+        .from("citations")
+        .select("*")
+        .eq("project_id", id);
 
-      if (totalTables < MIN_TABLES) {
-        return badRequest(
-          `Results requires at least ${MIN_TABLES} tables (currently ${totalTables}). ` +
-            "Run additional analyses to generate more tables."
+      const qcReport = await checkpointConclusions(
+        (allSections ?? []) as Section[],
+        (allCitations ?? []) as Citation[],
+        id,
+      );
+
+      if (!qcReport.overallPass) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "QA_BLOCKED",
+              message: `Quality check failed: ${qcReport.blockingCount} blocking issue(s)`,
+              details: { report: qcReport, phase: phaseNumber },
+            },
+          },
+          { status: 400 },
         );
       }
+      qaWarnings = qcReport.checks
+        .filter((c) => c.status === "warn")
+        .map((c) => c.message);
+    }
 
-      // Analysis plan match: every non-skipped planned analysis must have a completed result
-      const plan = (typedProject.analysis_plan_json ?? []) as unknown as PlannedAnalysis[];
-      if (plan.length > 0) {
-        const { data: completedAnalyses } = await supabase
-          .from("analyses")
-          .select("analysis_type")
-          .eq("project_id", id)
-          .eq("status", "completed");
+    if (phaseNumber === 9) {
+      // Client calls verify-references SSE first; approve route just validates DB state
+      const { data: allCitations } = await supabase
+        .from("citations")
+        .select("*")
+        .eq("project_id", id);
 
-        const completedSet = new Set(
-          (completedAnalyses ?? []).map((a) => a.analysis_type)
+      const qcReport = quickTierDCheck((allCitations ?? []) as Citation[]);
+
+      if (!qcReport.overallPass) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "QA_BLOCKED",
+              message: `Quality check failed: ${qcReport.blockingCount} blocking issue(s)`,
+              details: { report: qcReport, phase: phaseNumber },
+            },
+          },
+          { status: 400 },
         );
-        const missingPlanned = plan.filter(
-          (p) => p.status !== "skipped" && !completedSet.has(p.analysis_type)
-        );
-
-        if (missingPlanned.length > 0) {
-          return badRequest(
-            `Analysis plan incomplete: ${missingPlanned.map((p) => p.analysis_type).join(", ")} not yet completed.`
-          );
-        }
       }
     }
 
@@ -442,6 +498,7 @@ export async function POST(
         project: projectResult.data,
         advanced_to_phase: newPhase,
         ai_review: aiReviewIssues.length > 0 ? aiReviewIssues : undefined,
+        qa_warnings: qaWarnings.length > 0 ? qaWarnings : undefined,
       },
     });
   } catch (err) {

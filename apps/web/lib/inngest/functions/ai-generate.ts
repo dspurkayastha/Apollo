@@ -100,7 +100,6 @@ export const aiGenerateFn = inngest.createFunction(
           const missingBibtex = await requestMissingBibtexEntries(
             integrity.missingKeys,
             splitBibtex(response).body,
-            model,
           );
           if (missingBibtex.trim()) {
             const { body, bib } = splitBibtex(response);
