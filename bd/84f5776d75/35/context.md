@@ -85,3 +85,15 @@ Let me chronologically analyze the conversation:
 
 did you push to remote?
 
+### Prompt 14
+
+Now i can go to p3 Introduction in the pipeline. Generation works (slow but works..maybe inngest round trip is taking time? I cam show you inngen logs, if you show me how, or i can give you my inngen creds, or you to check directly) But the compile fails with an error. I think we need a dedicated AI call to find every latex error on compile, and fix them. Every such re compile (or errors found should be communicated to the user, so that they dont feel stuck. Also one more UI bug. When I move fro...
+
+### Prompt 15
+
+[Image source: REDACTED 2026-02-21 at 10.51.06 PM.png]
+
+### Prompt 16
+
+[Request interrupted by user for tool use]
+
