@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 204,
+  "checkpoints_count": 206,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -68,6 +68,7 @@
     "apps/web/app/api/projects/[id]/qc/route.ts",
     "apps/web/app/api/projects/[id]/reset/route.ts",
     "apps/web/app/api/projects/[id]/route.ts",
+    "apps/web/app/api/projects/[id]/sections/9/verify-references/route.ts",
     "apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts",
     "apps/web/app/api/projects/[id]/sections/[phase]/fix-latex/route.ts",
     "apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts",
@@ -254,6 +255,11 @@
     "apps/web/lib/phases/word-count-targets.ts",
     "apps/web/lib/preview/title-page.ts",
     "apps/web/lib/pricing/config.ts",
+    "apps/web/lib/qc/checkpoint-conclusions.ts",
+    "apps/web/lib/qc/checkpoint-references.ts",
+    "apps/web/lib/qc/checkpoint-results.ts",
+    "apps/web/lib/qc/checkpoint-rol.ts",
+    "apps/web/lib/qc/checkpoint-utils.ts",
     "apps/web/lib/qc/final-qc.test.ts",
     "apps/web/lib/qc/final-qc.ts",
     "apps/web/lib/r-plumber/analysis-runner.test.ts",
@@ -612,13 +618,20 @@
       "context": "/bd/84f5776d75/36/context.md",
       "content_hash": "/bd/84f5776d75/36/content_hash.txt",
       "prompt": "/bd/84f5776d75/36/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/37/metadata.json",
+      "transcript": "/bd/84f5776d75/37/full.jsonl",
+      "context": "/bd/84f5776d75/37/context.md",
+      "content_hash": "/bd/84f5776d75/37/content_hash.txt",
+      "prompt": "/bd/84f5776d75/37/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 121589,
-    "cache_creation_tokens": 8463191,
-    "cache_read_tokens": 285628429,
-    "output_tokens": 622244,
-    "api_call_count": 2961
+    "input_tokens": 126087,
+    "cache_creation_tokens": 8691512,
+    "cache_read_tokens": 293889104,
+    "output_tokens": 642644,
+    "api_call_count": 3038
   }
 }

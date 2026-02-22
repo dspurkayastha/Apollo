@@ -1,0 +1,540 @@
+Implement the following plan:
+
+# BibTeX Model Fix + 4 Pipeline QA Checkpoints
+
+## Context
+
+1. `bibtex-completion.ts` inherits the parent generation model (can be Opus) for formulaic BibTeX entries — should always use Haiku
+2. The pipeline lacks intermediate QA gates. Content issues (truncation, misalignment with objectives, bad citations) aren't caught until Phase 11 Final QC. Need 4 blocking QA checkpoints at critical phase transitions.
+3. Pre-existing bug: approve route 400 errors (QA blocks) are silently swallowed by the client — student clicks approve, nothing visible happens.
+
+**Design decisions:**
+- All AI QA uses **Haiku** (~$0.03 total per thesis for all 4 checkpoints)
+- Deterministic checks AND AI content checks are **blocking** — student must fix before advancing
+- **AI help is readily available**: QA failures show a dialog with issues + "Fix with AI" button per issue that pre-fills the refine dialog
+- Phase 9 verification runs **synchronously with SSE progress** — a live checklist overlay shows citation-by-citation progress
+- Phase 11 Final QC remains unchanged
+
+---
+
+## Change 0: BibTeX Completion → Haiku
+
+**File**: `apps/web/lib/ai/bibtex-completion.ts` (line 60)
+- Remove `model` parameter from `requestMissingBibtexEntries()`
+- Hardcode `claude-haiku-4-5-20251001` inside
+
+**Callers to update** (remove model arg):
+- `apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts:461-464`
+- `apps/web/lib/inngest/functions/ai-generate.ts:100-103`
+
+---
+
+## Change 1: Shared QA Utilities
+
+**File (NEW)**: `apps/web/lib/qc/checkpoint-utils.ts`
+
+### 1a. Truncation Detection
+```typescript
+export function detectTruncation(latex: string, phaseNumber: number): QCDetail[]
+```
+- Abrupt ending: last non-whitespace line doesn't end properly (`.`, `}`, BibTeX marker)
+- Incomplete BibTeX trailer: has `---BIBTEX---` but last entry lacks closing `}`
+- Mid-sentence cutoff: final paragraph < 20 chars without sentence-ending punctuation
+- Word count < 50% of `WORD_COUNT_CONFIG[phase].hardFloor` → "likely truncated"
+
+### 1b. AI Content QA Helper
+```typescript
+export async function aiContentQA(
+  systemPrompt: string,
+  context: string,
+  projectId: string,
+  phaseNumber: number,
+): Promise<{ blocking: string[]; warnings: string[] }>
+```
+- Model: `claude-haiku-4-5-20251001`, max_tokens: 3000
+- Records token usage via `recordTokenUsage()`
+- Parses JSON: `{ blocking_issues: string[], warnings: string[] }`
+- Non-fatal on AI failure (returns empty arrays)
+
+### 1c. Re-export QCReport/QCCheck types from `lib/qc/final-qc.ts`
+
+Reuses existing types. Also export a `buildReport(checks: QCCheck[]): QCReport` helper.
+
+---
+
+## Change 2: Checkpoint — Post-ROL (Phase 4)
+
+**File (NEW)**: `apps/web/lib/qc/checkpoint-rol.ts`
+
+```typescript
+export async function checkpointROL(
+  sections: Section[], citations: Citation[], projectId: string
+): Promise<QCReport>
+```
+
+| # | Check | Blocking? | Fix Action |
+|---|-------|-----------|------------|
+| 1 | Word count bounds (phases 2, 3, 4 vs hardFloor/hardCeiling) | YES below floor | `refine:expand` |
+| 2 | Truncation detection (phases 2, 3, 4) | YES | `refine:complete` |
+| 3 | ROL must contain `\begin{longtable}` | YES | `refine:add-summary-table` |
+| 4 | ROL ≥15 unique `\cite{}` keys | YES <15 | `refine:add-citations` |
+| 5 | AI: coherence, completeness, alignment with synopsis | YES blocking / WARN warnings | `refine:ai-suggestion` |
+
+AI context: synopsis (2K), Phase 2 (2K), Phase 3 (1K), Phase 4 (3K). Total ~8K input.
+
+---
+
+## Change 3: Checkpoint — Post-Results (Phase 6)
+
+**File (NEW)**: `apps/web/lib/qc/checkpoint-results.ts`
+
+```typescript
+export async function checkpointResults(
+  sections: Section[],
+  analyses: Analysis[],
+  figures: Figure[],
+  project: Project,         // needs analysis_plan_json
+  projectId: string,
+): Promise<QCReport>
+```
+
+**CONSOLIDATES** the existing Phase 6 gates from approve route (lines 112-181). The approve route's Phase 6 `if` block gets **replaced** by a single `checkpointResults()` call. This means the checkpoint needs DB access — receives `supabase` or fetches data itself.
+
+**Needs `createAdminSupabaseClient`** internally to query figures count and completed analyses (same queries currently in approve route lines 117-128).
+
+| # | Check | Blocking? | Fix Action |
+|---|-------|-----------|------------|
+| 1 | **≥5 figures** (moved from approve route) | YES | — |
+| 2 | **≥7 tables** using `Math.max(analysisTableCount, latexTableCount)` (moved from approve route) | YES | — |
+| 3 | **Analysis plan completeness**: all non-skipped `PlannedAnalysis` have completed results (moved from approve route) | YES | — |
+| 4 | Demographics/baseline table exists (caption/text near `\begin{table}` matches "demographic" or "baseline") | WARN | `refine:add-demographics` |
+| 5 | Figure/table cross-refs: every `\label{X}` inside `\begin{figure}` or `\begin{table}` has a matching `\ref{X}` | WARN | `refine:fix-crossrefs` |
+| 6 | Truncation detection (Phase 6) | YES | `refine:complete` |
+| 7 | Every completed analysis `results_json.summary` has key terms appearing in chapter text | WARN | `refine:cover-analyses` |
+| 8 | AI: results answer each Phase 3 objective, demographics present, primary+secondary outcomes present | YES blocking / WARN warnings | `refine:ai-suggestion` |
+
+AI context: Phase 3 objectives (full), Phase 6 body (4K), analysis summaries (1K), figure captions.
+
+**Import**: `PlannedAnalysis` from `@/lib/validation/analysis-plan-schemas` (same as approve route line 18).
+
+---
+
+## Change 4: Checkpoint — Post-Conclusions (Phase 8)
+
+**File (NEW)**: `apps/web/lib/qc/checkpoint-conclusions.ts`
+
+```typescript
+export async function checkpointConclusions(
+  sections: Section[], citations: Citation[], projectId: string
+): Promise<QCReport>
+```
+
+| # | Check | Blocking? | Fix Action |
+|---|-------|-----------|------------|
+| 1 | Word count bounds (phases 5, 7, 8) | YES below floor | `refine:expand` |
+| 2 | Truncation detection (phases 5, 7, 8) | YES | `refine:complete` |
+| 3 | Discussion ≥15 unique `\cite{}` keys | WARN <15 | `refine:add-citations` |
+| 4 | Discussion mentions "strength" AND "limitation" | YES | `refine:add-limitations` |
+| 5 | Conclusion has NO `\cite{}` commands | WARN | `refine:remove-citations` |
+| 6 | AI: Discussion aligns with results, Conclusion answers aims, M&M consistent | YES blocking / WARN | `refine:ai-suggestion` |
+
+AI context: Phase 3 aims (full), Phase 5 (2K), Phase 7 (3K), Phase 8 (full).
+
+---
+
+## Change 5: Checkpoint — Post-References (Phase 9)
+
+**File (NEW)**: `apps/web/lib/qc/checkpoint-references.ts`
+
+No AI call — deterministic DOI/PMID verification using existing citation infrastructure.
+
+### 5a. Verification Function (SSE-compatible)
+```typescript
+export async function verifyAllCitations(
+  citations: Citation[],
+  onProgress: (step: string, current: number, total: number) => void,
+): Promise<{ report: QCReport; upgradedCount: number; stillUnresolved: string[] }>
+```
+
+| # | Check | Blocking? |
+|---|-------|-----------|
+| 1 | DOI→title match: for Tier A/B with DOI, CrossRef lookup, Levenshtein compare. Flag <0.80 | YES if ≥3 mismatches |
+| 2 | Tier D re-resolution: `resolveEntry()` for each unresolved citation | YES if >10% still Tier D |
+| 3 | Entry integrity: each BibTeX must have author, title, year, journal/publisher | WARN |
+
+Batches of 5 parallel lookups. Per-request 8s timeout. Total timeout 60s.
+Side effect: updates citation tiers in DB (D→A upgrades).
+
+Reuses: `lookupDOI()` from `lib/citations/crossref.ts`, `resolveEntry()` from `lib/citations/resolve.ts`
+
+### 5b. SSE Endpoint
+**File (NEW)**: `apps/web/app/api/projects/[id]/sections/9/verify-references/route.ts`
+
+Returns SSE stream:
+```
+data: {"type":"progress","step":"Verifying smith2023 (DOI match)","current":3,"total":32}
+data: {"type":"progress","step":"Re-resolving jones2021 via PubMed","current":15,"total":32}
+data: {"type":"complete","report":{...},"upgradedCount":4,"stillUnresolved":["unknown2023"]}
+data: {"type":"error","message":"..."}
+```
+
+Auth + licence + ownership checks (same as approve pattern).
+
+---
+
+## Change 6: Approve Route Integration
+
+**File**: `apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`
+
+Insert checkpoint dispatch BEFORE section status change, AFTER existing AI review.
+
+**REMOVE** the existing Phase 6 `if (phaseNumber === 6) { ... }` block (lines 112-181) — its logic moves into `checkpointResults()`.
+
+```
+~110:   AI review (existing, non-blocking)
+DELETE: Phase 6 inline gates (lines 112-181) — REPLACED by checkpointResults()
+NEW:    if (phaseNumber === 4)  → checkpointROL(sections, citations, projectId)
+NEW:    if (phaseNumber === 6)  → checkpointResults(sections, analyses, figures, project, projectId)
+NEW:    if (phaseNumber === 8)  → checkpointConclusions(sections, citations, projectId)
+NEW:    if (phaseNumber === 9)  → quick Tier D count check (pre-verified by client SSE)
+~183:   Phase 11 Final QC (existing — keep as-is)
+~250:   Section status → "approved" (existing)
+```
+
+**Phase 9 special handling**: Client calls `verify-references` SSE FIRST (Change 5b), then calls regular approve. The approve route for Phase 9 runs a quick re-check (no network calls — just validates DB state: Tier D count ≤ threshold). This avoids duplicating the 30-60s verification.
+
+**Error response enhancement** (all phases):
+```typescript
+// On QA failure:
+return NextResponse.json({
+  error: {
+    code: "QA_BLOCKED",
+    message: "Quality check failed: 2 blocking issues",
+    details: {
+      report: qcReport,         // Full QCReport with checks[]
+      phase: phaseNumber,
+    },
+  },
+}, { status: 400 });
+```
+
+**Success response enhancement**:
+```typescript
+data: {
+  section: ...,
+  project: ...,
+  advanced_to_phase: ...,
+  ai_review: ...,           // existing
+  qa_warnings: string[],    // NEW — non-blocking QA warnings
+}
+```
+
+---
+
+## Change 7: Client-Side QA UX
+
+**File**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+### 7a. QA Failure Dialog
+New state: `qaReport: QCReport | null`, `qaDialogOpen: boolean`
+
+When approve returns 400 with `code: "QA_BLOCKED"`:
+- Parse `details.report` as QCReport
+- Open a dialog showing blocking issues
+- Each issue with `fixAction` gets a **"Fix with AI"** button
+- "Fix with AI" closes dialog, opens refine dialog pre-filled with fix instructions
+- "Go Back" closes dialog, student can manually edit
+
+Fix action → refine instruction mapping:
+- `refine:expand` → "Expand the content to meet the minimum word count. Add more detail and depth."
+- `refine:complete` → "The chapter appears truncated. Complete the chapter ensuring all sections are finished."
+- `refine:add-summary-table` → "Add a chronological summary longtable at the end of the Review of Literature."
+- `refine:add-citations` → "Add more citations from recent literature to support the claims."
+- `refine:add-demographics` → "Add a demographics/baseline characteristics table."
+- `refine:add-limitations` → "Add a dedicated Strengths and Limitations subsection."
+- `refine:ai-suggestion` → use the AI's own suggestion text as refine instructions
+
+### 7b. Phase 9 Verification Overlay
+New state: `verifyProgress: { step: string; current: number; total: number } | null`
+
+When `handleApprove` is called for Phase 9:
+1. Set `verifyProgress` state → triggers overlay render
+2. Call `verify-references` SSE endpoint
+3. Read stream, update `verifyProgress` on each message
+4. Show live checklist overlay:
+   ```
+   ┌─────────────────────────────────────────┐
+   │  🔍 Verifying References                │
+   │                                         │
+   │  ✓ smith2023 — DOI verified             │
+   │  ✓ jones2024 — PMID matched             │
+   │  → kumar2022 — searching CrossRef...    │
+   │  ○ patel2023                             │
+   │  ○ wilson2021                            │
+   │  ...                                    │
+   │  ━━━━━━━━━━━━━━━━━░░░░░░░  47%          │
+   │                                         │
+   │  Verified: 15/32 | Upgraded: 3 | ⚠ 1    │
+   └─────────────────────────────────────────┘
+   ```
+5. On complete: if passed → call regular `doApprove()` (fast, just DB check)
+6. On failure: show blocking issues in overlay with fix options
+
+### 7c. Fix existing approve error handling
+Currently 400 responses from approve are silently swallowed. Add `else` branch:
+```typescript
+} else {
+  const body = await response.json().catch(() => ({}));
+  if (body?.error?.code === "QA_BLOCKED" && body?.error?.details?.report) {
+    setQaReport(body.error.details.report);
+    setQaDialogOpen(true);
+  } else {
+    setCompileError(body?.error?.message ?? "Approval failed");
+  }
+}
+```
+
+---
+
+## Files Summary
+
+| # | File | Action | AI Model |
+|---|------|--------|----------|
+| 0 | `lib/ai/bibtex-completion.ts` | Fix model | Haiku (hardcoded) |
+| 0b | `generate/route.ts` + `ai-generate.ts` | Remove model arg | — |
+| 1 | `lib/qc/checkpoint-utils.ts` | **NEW** | Haiku (shared helper) |
+| 2 | `lib/qc/checkpoint-rol.ts` | **NEW** — 5 checks | Haiku |
+| 3 | `lib/qc/checkpoint-results.ts` | **NEW** — 8 checks (includes moved Phase 6 gates) | Haiku |
+| 4 | `lib/qc/checkpoint-conclusions.ts` | **NEW** — 6 checks | Haiku |
+| 5 | `lib/qc/checkpoint-references.ts` | **NEW** — 3 checks | None (API only) |
+| 6 | `api/.../sections/9/verify-references/route.ts` | **NEW** — SSE progress | None (API only) |
+| 7 | `api/.../sections/[phase]/approve/route.ts` | REMOVE Phase 6 inline gates + add checkpoint dispatch | — |
+| 8 | `project-workspace.tsx` | QA dialog + Phase 9 overlay + error handling | — |
+
+---
+
+## Implementation Order
+
+1. **Change 0**: BibTeX model fix (quick)
+2. **Change 1**: Shared QA utilities (checkpoint-utils.ts)
+3. **Changes 2–4**: Three AI checkpoints (same pattern, fast)
+4. **Change 5**: References checkpoint + SSE endpoint
+5. **Change 6**: Approve route integration
+6. **Change 7**: Client-side QA dialog + Phase 9 overlay + error handling fix
+7. **Verify**: `pnpm --filter apollo-web exec tsc --noEmit` — 0 errors
+
+---
+
+## Verification
+
+1. TypeScript clean: 0 errors
+2. BibTeX completion: `ai_conversations` shows `claude-haiku-4-5-20251001` for bibtex-completion calls
+3. Phase 4 approve with truncated ROL → QA dialog with blocking issues + "Fix with AI"
+4. Phase 6 approve with results missing demographics → QA dialog with warning
+5. Phase 8 approve with conclusion that doesn't address aims → QA dialog blocks
+6. Phase 9 approve → verification overlay with live progress → passes/blocks based on citation state
+7. Phase 6 approve with <5 figs → still blocks (now via checkpointResults, not inline approve code)
+8. Phase 6 approve with <7 tables → still blocks (now via checkpointResults)
+9. Phase 6 approve with incomplete analysis plan → still blocks (now via checkpointResults)
+10. Existing Phase 11 Final QC still works unchanged
+11. "Fix with AI" from QA dialog → opens refine dialog pre-filled → refine completes → re-approve succeeds
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+now audit the changes made, find any and all errors. Fix them.
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Initial Request**: The user provided a detailed implementation plan for "BibTeX Model Fix + 4 Pipeline QA Checkpoints" with 8 changes (Change 0 through Change 7). This was a pre-approved plan from plan mode.
+
+2. **Implementation Phase**: I read key files to understand the codebase, then implemented all 8 changes:
+   - Change 0: BibTeX completion model fix
+   - Change 1: Shared QA utilities (checkpoint-utils.ts)
+   - Change 2: Checkpoint ROL (Phase 4)
+   - Change 3: Checkpoint Results (Phase 6)
+   - Change 4: Checkpoint Conclusions (Phase 8)
+   - Change 5: Checkpoint References (Phase 9) + SSE endpoint
+   - Change 6: Approve route integration
+   - Change 7: Client-side QA UX
+
+3. **Verification**: TypeScript compilation passed with 0 errors.
+
+4. **Audit Request**: The user then asked me to "audit the changes made, find any and all errors. Fix them."
+
+5. **Audit Phase**: I re-read ALL 9 files that were modified/created. I was in the process of analyzing them when the summary was requested.
+
+Let me identify the issues I found during the audit read-through:
+
+**Issue 1: checkpoint-utils.ts - Scattered imports**
+- Line 37 has `import type { QCDetail } from "./final-qc"` AFTER the re-export on line 17 already exports `QCDetail`. The type is already available via the re-export on line 17. Similarly, line 161 has `import type { QCCheck, QCReport } from "./final-qc"` again after line 17 already re-exports them. These are duplicate imports scattered throughout the file rather than consolidated at the top. While TypeScript allows this, it's messy.
+
+**Issue 2: checkpoint-utils.ts - splitBibtex re-exported but also used internally**
+- Line 33 re-exports `splitBibtex` and line 13 imports it. The re-export is used nowhere by any consumer (checkpoint files import from `./checkpoint-utils` but don't use `splitBibtex`).
+
+**Issue 3: checkpoint-references.ts - Unused imports**
+- Line 13 imports `extractHints` and `parseBibtexEntries` from resolve.ts but neither is used anywhere in the file. Only `resolveEntry` is used.
+
+**Issue 4: checkpoint-results.ts - Unused import `Figure`**
+- Line 8 imports `Figure` from database types but the function signature doesn't use it. The `checkpointResults` function signature takes `sections`, `project`, and `projectId` - no `figures` param.
+
+**Issue 5: checkpoint-results.ts - Redundant DB queries**
+- Lines 402-417: Two separate queries for analyses - one selecting `results_json` and another selecting `*`. Both filter by `project_id` and `status=completed`. These could be a single query.
+
+**Issue 6: checkpoint-references.ts - `total` count is wrong**
+- Line 92: `const total = citations.length` - but `current` is incremented in both the DOI check loop AND the Tier D re-resolution loop AND the integrity check loop. So `current` will exceed `total` because it counts `doiCitations.length + tierDCitations.length + citations.length` but `total` is only `citations.length`.
+
+**Issue 7: checkpoint-conclusions.ts - Redundant `.toLowerCase()` then regex with `/i` flag**
+- Line 137: `const content = (discussion?.latex_content ?? "").toLowerCase()` then lines 139-140 use `/strength/i` and `/limitation/i` with case-insensitive flag. The `.toLowerCase()` is unnecessary since the regex already has `/i`. Not a bug but redundant.
+
+**Issue 8: checkpoint-results.ts - `countLatexWords` imported but not used**
+- Line 13 imports `countLatexWords` but it's never called in the file.
+
+**Issue 9: approve route - `QCReport` import unused in certain code paths**
+- Line 24 imports `type QCReport` but it's not directly used as a type annotation in the file. The checkpoints return QCReport but the variable is inferred. Not a real error since TypeScript doesn't error on unused type imports.
+
+**Issue 10: verify-references SSE endpoint - no persistence of upgraded citations**
+- Lines 85-90 in the SSE endpoint have a comment about updating upgraded citations in DB but the code block is empty. The `verifyAllCitations` function resolves citations but doesn't persist upgrades. This means the `upgradedCount` in the response is misleading - it reports upgrades but they aren't saved.
+
+**Issue 11: handleApprove in workspace - Phase 9 calls doApprove which will call handleApprove's parent context**
+- Actually looking more carefully, `handleApprove` for Phase 9 calls `doApprove()` at line 403. `doApprove` calls the approve endpoint. The approve endpoint for Phase 9 runs `quickTierDCheck`. This is correct - the client does SSE verification first, then calls doApprove which hits the approve endpoint.
+
+**Issue 12: handleApprove Phase 9 - isApproving not set during SSE phase**
+- When Phase 9 is being processed, `handleApprove` runs the SSE verification but doesn't set `isApproving(true)` during this phase. The button could be clicked again. Only when `doApprove()` is called does `isApproving` get set.
+
+**Issue 13: QA dialog "Fix with AI" button - fixAction check uses `!` non-null assertion**
+- Line 1085: `actionMap[check.fixAction!]` - the `fixAction` is checked for truthiness on line 1065, so the `!` is correct but could use optional chaining.
+
+These are the key issues I identified during audit. The user asked me to "find any and all errors. Fix them." - I had read all the files but hadn't yet provided my analysis or made fixes when the summary was requested.
+
+Summary:
+1. Primary Request and Intent:
+   The user provided a comprehensive pre-approved implementation plan titled "BibTeX Model Fix + 4 Pipeline QA Checkpoints" with 8 changes (Change 0-7). The plan addresses three problems: (1) BibTeX completion inheriting expensive Opus model instead of always using Haiku, (2) pipeline lacking intermediate QA gates between phases, and (3) approve route 400 errors being silently swallowed by the client. After I implemented all changes, the user then requested: **"now audit the changes made, find any and all errors. Fix them."** I read all 9 files but had not yet reported findings or made fixes.
+
+2. Key Technical Concepts:
+   - **QA Checkpoints**: 4 blocking quality gates at phase transitions (Phase 4 ROL, Phase 6 Results, Phase 8 Conclusions, Phase 9 References)
+   - **AI-powered QA**: Uses Haiku (`claude-haiku-4-5-20251001`) for content review (~$0.03 total per thesis)
+   - **Deterministic + AI checks**: Each checkpoint combines regex/structural checks (blocking) with AI content analysis
+   - **SSE streaming**: Phase 9 reference verification uses Server-Sent Events for live progress
+   - **QCReport/QCCheck types**: Reused from existing `final-qc.ts` - `{ checks, overallPass, blockingCount, warningCount }`
+   - **QA_BLOCKED error code**: New structured error response from approve route with full QCReport in details
+   - **Fix with AI flow**: QA dialog maps `fixAction` strings to refine dialog pre-filled instructions
+   - **Token budget tracking**: AI QA calls record usage via `recordTokenUsage()`
+   - **Truncation detection**: Multi-signal heuristic (abrupt ending, incomplete BibTeX, mid-sentence cutoff, word count < 50% floor)
+   - **Math.max for table counting**: Prevents double-counting when AI embeds analysis tables verbatim in Results chapter
+   - **Levenshtein title similarity**: DOI→title match verification with 0.80 threshold
+
+3. Files and Code Sections:
+
+   - **`apps/web/lib/ai/bibtex-completion.ts`** (Change 0)
+     - Removed `model` parameter from `requestMissingBibtexEntries()`, hardcoded `claude-haiku-4-5-20251001`
+     - Function signature changed from `(missingKeys, originalBody, model)` to `(missingKeys, originalBody)`
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts`** (Change 0)
+     - Removed third `model` argument from `requestMissingBibtexEntries()` call at ~line 461
+
+   - **`apps/web/lib/inngest/functions/ai-generate.ts`** (Change 0)
+     - Removed third `model` argument from `requestMissingBibtexEntries()` call at ~line 100
+
+   - **`apps/web/lib/qc/checkpoint-utils.ts`** (Change 1 - NEW)
+     - Shared utilities: `countLatexWords()`, `extractUniqueCiteKeys()`, `detectTruncation()`, `aiContentQA()`, `buildReport()`
+     - Re-exports `QCDetail, QCCheck, QCReport` from `./final-qc`
+     - **ISSUE**: Has scattered duplicate imports - `import type { QCDetail }` on line 37 and `import type { QCCheck, QCReport }` on line 161, both redundant with the re-export on line 17
+     - **ISSUE**: Re-exports `splitBibtex` but no consumer uses it from here
+
+   - **`apps/web/lib/qc/checkpoint-rol.ts`** (Change 2 - NEW)
+     - 5 checks: word count (phases 2,3,4), truncation, longtable presence, citation density (>=15), AI coherence
+     - Export: `checkpointROL(sections, _citations, projectId): Promise<QCReport>`
+
+   - **`apps/web/lib/qc/checkpoint-results.ts`** (Change 3 - NEW)
+     - 8 checks consolidating old Phase 6 inline gates + new checks
+     - Uses `createAdminSupabaseClient()` internally to query figures/analyses
+     - Export: `checkpointResults(sections, project, projectId): Promise<QCReport>`
+     - **ISSUE**: Imports `Figure` type but never uses it
+     - **ISSUE**: Imports `countLatexWords` but never uses it
+     - **ISSUE**: Makes two redundant DB queries for completed analyses (one `select("results_json")` and one `select("*")`) that could be one query
+
+   - **`apps/web/lib/qc/checkpoint-conclusions.ts`** (Change 4 - NEW)
+     - 6 checks: word count (phases 5,7,8), truncation, discussion citations (>=15 warn), strengths+limitations, conclusion cite-free, AI alignment
+     - Export: `checkpointConclusions(sections, _citations, projectId): Promise<QCReport>`
+     - **ISSUE**: Line 137 `.toLowerCase()` then regex with `/i` flag is redundant
+
+   - **`apps/web/lib/qc/checkpoint-references.ts`** (Change 5 - NEW)
+     - `verifyAllCitations(citations, onProgress)` - SSE-compatible with batched parallel lookups
+     - `quickTierDCheck(citations)` - fast DB-only check for approve route
+     - **ISSUE**: Imports `extractHints` and `parseBibtexEntries` from resolve.ts but neither is used
+     - **CRITICAL ISSUE**: `total = citations.length` but `current` is incremented across DOI check loop + Tier D loop + integrity loop, so `current` will overshoot `total` (could be `doiCitations.length + tierDCitations.length + citations.length`)
+
+   - **`apps/web/app/api/projects/[id]/sections/9/verify-references/route.ts`** (Change 5 - NEW SSE endpoint)
+     - Auth + ownership + phase check, then streams SSE events
+     - **ISSUE**: Lines 85-90 have empty code block where citation tier upgrades should be persisted to DB but aren't
+
+   - **`apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts`** (Change 6)
+     - Removed 70-line Phase 6 inline gate block (old lines 112-181)
+     - Added checkpoint dispatch for phases 4, 6, 8, 9 returning `QA_BLOCKED` structured error
+     - Added `qa_warnings` to success response
+     - Removed `PlannedAnalysis` import, added checkpoint imports + `Citation` type + `QCReport` type
+
+   - **`apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`** (Change 7 - LOCKED file, modified with approval)
+     - Added state: `qaReport`, `qaDialogOpen`, `verifyProgress`
+     - Fixed `doApprove`: Added `else` branch for 400/other errors, parses `QA_BLOCKED` response
+     - Modified `handleApprove`: Phase 9 branch runs SSE verification first, then calls `doApprove()`
+     - Added QA Failure Dialog JSX with "Fix with AI" buttons mapping `fixAction` to refine instructions
+     - Added Phase 9 Reference Verification Overlay with live progress bar
+     - Added `AlertTriangle, Search` to lucide-react imports
+     - **ISSUE**: `isApproving` not set during Phase 9 SSE verification phase - button could be double-clicked
+
+4. Errors and Fixes:
+   - **No runtime errors encountered** - TypeScript compilation passed with 0 errors after initial implementation
+   - **Audit identified but NOT YET FIXED**:
+     - Unused imports in `checkpoint-references.ts` (`extractHints`, `parseBibtexEntries`)
+     - Unused imports in `checkpoint-results.ts` (`Figure`, `countLatexWords`)
+     - Progress counter overflow in `verifyAllCitations()` - `current` exceeds `total`
+     - Scattered duplicate imports in `checkpoint-utils.ts`
+     - No DB persistence of upgraded citations in verify-references SSE endpoint
+     - Redundant DB queries in `checkpointResults()`
+     - Missing `isApproving` guard during Phase 9 SSE verification
+     - Redundant `.toLowerCase()` + `/i` regex flag in `checkpoint-conclusions.ts`
+
+5. Problem Solving:
+   - Successfully consolidated Phase 6 inline approve gates into `checkpointResults()` without breaking the existing logic
+   - Reused existing infrastructure: `QCReport`/`QCCheck` types from `final-qc.ts`, `resolveEntry` from `resolve.ts`, `lookupDOI` from `crossref.ts`, `recordTokenUsage` from `token-budget.ts`
+   - All 9 implementation tasks were completed and TypeScript compiles clean
+   - The audit phase was started (all files read) but fixes not yet applied
+
+6. All User Messages:
+   - **Message 1**: "Implement the following plan: [detailed 8-change implementation plan for BibTeX Model Fix + 4 Pipeline QA Checkpoints]"
+   - **Message 2**: "now audit the changes made, find any and all errors. Fix them."
+
+7. Pending Tasks:
+   - **Complete the audit**: Report all identified issues and fix them. The user explicitly asked to "find any and all errors. Fix them."
+   - Key fixes needed:
+     1. Remove unused imports in `checkpoint-references.ts` and `checkpoint-results.ts`
+     2. Fix `total` counter in `verifyAllCitations()` to account for all three loops
+     3. Consolidate scattered imports in `checkpoint-utils.ts`
+     4. Remove unused `splitBibtex` re-export from `checkpoint-utils.ts`
+     5. Deduplicate analyses DB query in `checkpointResults()`
+     6. Add `isApproving` guard during Phase 9 SSE verification
+     7. Remove redundant `.toLowerCase()` in `checkpoint-conclusions.ts`
+     8. Address empty citation upgrade persistence in verify-references endpoint
+   - Re-run TypeScript compilation after fixes
+
+8. Current Work:
+   I had just finished reading all 9 modified/created files as part of the audit requested by the user ("now audit the changes made, find any and all errors. Fix them."). I identified multiple issues across the files but had not yet reported findings to the user or made any fixes. The summary was requested at this exact point.
+
+9. Optional Next Step:
+   Report the audit findings and apply fixes for all identified issues. The user's exact request was: **"now audit the changes made, find any and all errors. Fix them."** I completed the read phase of the audit but need to now fix the issues found: unused imports, progress counter overflow bug, scattered imports, redundant DB queries, missing `isApproving` guard, empty citation persistence block, and redundant code patterns. After fixes, re-run `pnpm --filter apollo-web exec tsc --noEmit` to verify.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+now push and commit and watch CI
