@@ -124,3 +124,11 @@ give me the code block to properly redeploy on the vps.till now for simple redep
 
 it works now, but the font size needs to be larger
 
+### Prompt 24
+
+now we need to do some innovative and artistic stuf, not just raw code. We need to redesign the overlay tour for the 1st time user. Think ultra hard. websearch fro awward winning overlay tours and onboardings .. then come up with a plan
+
+### Prompt 25
+
+[Request interrupted by user for tool use]
+
