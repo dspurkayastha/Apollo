@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "b66fd679-dbac-42f2-bc96-96cff385ee7c",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-22T10:43:36.442837Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/app/api/projects/[id]/sections/[phase]/fix-latex/route.ts",
+    "apps/web/lib/latex/assemble.ts",
+    "apps/web/lib/latex/compile.ts",
+    "apps/web/lib/latex/fix-latex-helpers.test.ts",
+    "apps/web/lib/latex/fix-latex-helpers.ts",
+    "apps/web/lib/latex/parse-log.test.ts",
+    "apps/web/lib/latex/parse-log.ts",
+    "apps/web/supabase/.temp/cli-latest",
+    "sciscribe-ssh",
+    "sciscribe-ssh.pub"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 52,
+    "cache_creation_tokens": 83727,
+    "cache_read_tokens": 3822662,
+    "output_tokens": 9372,
+    "api_call_count": 46
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-22T10:43:36.299851Z",
+    "agent_lines": 851,
+    "human_added": 9,
+    "human_modified": 10,
+    "human_removed": 0,
+    "total_committed": 870,
+    "agent_percentage": 97.816091954023
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/b66fd679-dbac-42f2-bc96-96cff385ee7c.jsonl"
+}

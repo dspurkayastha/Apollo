@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 205,
+  "checkpoints_count": 207,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -231,6 +231,8 @@
     "apps/web/lib/latex/compile.ts",
     "apps/web/lib/latex/escape.test.ts",
     "apps/web/lib/latex/escape.ts",
+    "apps/web/lib/latex/fix-latex-helpers.test.ts",
+    "apps/web/lib/latex/fix-latex-helpers.ts",
     "apps/web/lib/latex/front-matter.test.ts",
     "apps/web/lib/latex/front-matter.ts",
     "apps/web/lib/latex/generate-tex.test.ts",
@@ -643,13 +645,20 @@
       "context": "/bd/84f5776d75/39/context.md",
       "content_hash": "/bd/84f5776d75/39/content_hash.txt",
       "prompt": "/bd/84f5776d75/39/prompt.txt"
+    },
+    {
+      "metadata": "/bd/84f5776d75/40/metadata.json",
+      "transcript": "/bd/84f5776d75/40/full.jsonl",
+      "context": "/bd/84f5776d75/40/context.md",
+      "content_hash": "/bd/84f5776d75/40/content_hash.txt",
+      "prompt": "/bd/84f5776d75/40/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 121677,
-    "cache_creation_tokens": 8654857,
-    "cache_read_tokens": 291536091,
-    "output_tokens": 631835,
-    "api_call_count": 3025
+    "input_tokens": 121729,
+    "cache_creation_tokens": 8738584,
+    "cache_read_tokens": 295358753,
+    "output_tokens": 641207,
+    "api_call_count": 3071
   }
 }
