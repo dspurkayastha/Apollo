@@ -81,7 +81,7 @@ async function mockCompile(texContent: string): Promise<CompileResult> {
   return {
     success,
     pdfPath,
-    log: { errors, warnings: [], errorCount: errors.length, warningCount: 0 },
+    log: { errors, warnings: [], errorCount: errors.length, warningCount: 0, structuredErrors: [] },
     rawLog: success ? "Mock compilation successful" : errors.join("\n"),
     compileTimeMs: 1,
   };
@@ -400,6 +400,7 @@ async function localCompile(
         warnings: [],
         errorCount: 1,
         warningCount: 0,
+        structuredErrors: [],
       },
       rawLog: err instanceof Error ? err.message : "Unknown error",
       compileTimeMs: Date.now() - start,

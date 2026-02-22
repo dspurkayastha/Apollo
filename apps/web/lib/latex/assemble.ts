@@ -6,7 +6,7 @@ import type { Project, Section, Citation, Abbreviation } from "@/lib/types/datab
 
 // ── Phase → chapter file mapping ────────────────────────────────────────────
 
-const PHASE_CHAPTER_MAP: Record<number, string> = {
+export const PHASE_CHAPTER_MAP: Record<number, string> = {
   2: "chapters/introduction.tex",
   3: "chapters/aims.tex",
   4: "chapters/literature.tex",

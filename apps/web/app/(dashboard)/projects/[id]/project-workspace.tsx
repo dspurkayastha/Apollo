@@ -147,6 +147,7 @@ export function ProjectWorkspace({
   const [compileError, setCompileError] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [isFixingLatex, setIsFixingLatex] = useState(false);
+  const [isAutoCompiling, setIsAutoCompiling] = useState(false);
 
   // QA checkpoint state
   const [qaReport, setQaReport] = useState<QCReport | null>(null);
@@ -222,6 +223,7 @@ export function ProjectWorkspace({
 
   // Compile and refresh the PDF preview
   const compileAndRefreshPdf = useCallback(async () => {
+    setIsAutoCompiling(true);
     try {
       const res = await fetch(`/api/projects/${project.id}/compile`, {
         method: "POST",
@@ -237,6 +239,8 @@ export function ProjectWorkspace({
       }
     } catch {
       // Compile failure is non-blocking
+    } finally {
+      setIsAutoCompiling(false);
     }
   }, [project.id]);
 
@@ -304,7 +308,8 @@ export function ProjectWorkspace({
       if (res.ok) {
         setCompileError(null);
         router.refresh();
-        void compileAndRefreshPdf();
+        // No auto-recompile — let the user review the fix in the editor,
+        // then manually click "Compile PDF" when ready.
       } else {
         const body = await res.json().catch(() => ({}));
         setCompileError((body as { error?: { message?: string } })?.error?.message ?? "Failed to fix LaTeX errors");
@@ -314,7 +319,7 @@ export function ProjectWorkspace({
     } finally {
       setIsFixingLatex(false);
     }
-  }, [project.id, viewingPhase, compileError, isFixingLatex, router, compileAndRefreshPdf]);
+  }, [project.id, viewingPhase, compileError, isFixingLatex, router]);
 
   const handleApprove = useCallback(async () => {
     if (isApproving) return;
@@ -668,6 +673,7 @@ export function ProjectWorkspace({
         <CompileButton
           projectId={project.id}
           disabled={
+            isAutoCompiling ||
             !sections.some(
               (s) => s.status === "approved" || s.status === "review"
             )

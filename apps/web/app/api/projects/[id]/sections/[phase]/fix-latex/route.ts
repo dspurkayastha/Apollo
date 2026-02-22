@@ -15,9 +15,44 @@ import { extractCiteKeys } from "@/lib/citations/extract-keys";
 import { sanitiseLatexOutput } from "@/lib/ai/sanitise-latex";
 import { checkTokenBudget, recordTokenUsage } from "@/lib/ai/token-budget";
 import { checkLicenceForPhase } from "@/lib/api/licence-phase-gate";
+import { parseLatexLog } from "@/lib/latex/parse-log";
+import { PHASE_CHAPTER_MAP, splitBibtex } from "@/lib/latex/assemble";
+import {
+  extractErrorContexts,
+  buildTargetedUserMessage,
+  parseFixResponse,
+  applyLineFixes,
+} from "@/lib/latex/fix-latex-helpers";
 import type { Section } from "@/lib/types/database";
 
-const FIX_LATEX_SYSTEM_PROMPT = `You are a LaTeX syntax repair tool. Your ONLY job is to fix LaTeX compilation errors.
+// ── System prompts ──────────────────────────────────────────────────────────
+
+const TARGETED_SYSTEM_PROMPT = `You are a LaTeX syntax repair tool. Return ONLY the fixed lines.
+
+OUTPUT FORMAT — one line per fix:
+NN| fixed line content
+
+Where NN is the original line number. Only include lines you changed.
+If no changes are needed, respond with exactly: NO_CHANGES_NEEDED
+
+COMMON FIXES:
+- Bare subscripts/superscripts outside math mode: wrap in $...$ (e.g., x_1 → $x_1$, p<0.05 → $p<0.05$)
+- Double subscript errors: use braces (e.g., $x_a_b$ → $x_{a_b}$)
+- Unmatched braces: add missing { or }
+- Bare & outside tabular: escape as \\&
+- Bare # outside macro definition: escape as \\#
+- Bare % not intended as comment: escape as \\%
+- Unicode characters: replace with LaTeX equivalents (— → ---, " " → \`\` '', é → \\'e)
+- Missing $ inserted: find mathematical expressions and wrap in $...$
+- Undefined control sequence: fix typos in command names or remove unknown commands
+
+RULES:
+1. Fix ONLY the syntax errors described in the error messages.
+2. Do NOT change any academic content, wording, or meaning.
+3. Do NOT add or remove sentences.
+4. Return ONLY changed lines in the NN| format. Nothing else.`;
+
+const FALLBACK_SYSTEM_PROMPT = `You are a LaTeX syntax repair tool. Your ONLY job is to fix LaTeX compilation errors.
 
 RULES:
 1. Fix ONLY the syntax errors described in the error messages.
@@ -39,6 +74,9 @@ COMMON FIXES:
 - Undefined control sequence: fix typos in command names or remove unknown commands
 
 IMPORTANT: Only fix what the error messages point to. Do not "improve" anything else.`;
+
+// ── Phases that inject into main.tex — line numbers don't map to section content
+const NON_CHAPTER_PHASES = new Set([0, 1, 9, 10, 11]);
 
 export async function POST(
   request: NextRequest,
@@ -98,41 +136,33 @@ export async function POST(
       return badRequest(budgetCheck.reason ?? "Token budget exhausted");
     }
 
-    // Call Claude Haiku to fix LaTeX errors
-    const client = getAnthropicClient();
-    const userMessage = `Here is the LaTeX source that failed to compile:\n\n${currentLatex}\n\n---COMPILE ERRORS---\n${errors.trim()}`;
+    // ── Try targeted fix path ───────────────────────────────────────────────
+    const targetedResult = await tryTargetedFix(
+      supabase,
+      id,
+      phaseNumber,
+      currentLatex
+    );
 
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 16000,
-      system: [
-        {
-          type: "text" as const,
-          text: FIX_LATEX_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" as const },
-        },
-      ],
-      messages: [{ role: "user", content: userMessage }],
-    });
+    let fixedLatex: string;
 
-    // Record token usage
-    const inputTokens = message.usage?.input_tokens ?? 0;
-    const outputTokens = message.usage?.output_tokens ?? 0;
-    void recordTokenUsage(id, phaseNumber, inputTokens, outputTokens, "claude-haiku-4-5-20251001").catch(console.error);
-
-    // Extract text from response
-    const textBlock = message.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      return internalError("AI returned no text response");
+    if (targetedResult) {
+      fixedLatex = targetedResult.fixedLatex;
+      void recordTokenUsage(
+        id, phaseNumber,
+        targetedResult.inputTokens, targetedResult.outputTokens,
+        "claude-haiku-4-5-20251001"
+      ).catch(console.error);
+    } else {
+      // ── Fallback: full-document approach ──────────────────────────────────
+      const fallbackResult = await fullDocumentFix(currentLatex, errors);
+      fixedLatex = fallbackResult.fixedLatex;
+      void recordTokenUsage(
+        id, phaseNumber,
+        fallbackResult.inputTokens, fallbackResult.outputTokens,
+        "claude-haiku-4-5-20251001"
+      ).catch(console.error);
     }
-    const rawResponse = textBlock.text;
-
-    if (!rawResponse.trim()) {
-      return internalError("AI returned empty response");
-    }
-
-    // Post-process AI output
-    const fixedLatex = sanitiseLatexOutput(rawResponse);
 
     // Extract citation keys
     const citationKeys = extractCiteKeys(fixedLatex);
@@ -179,6 +209,7 @@ export async function POST(
         fixed: true,
         wordCount,
         citationKeys,
+        targeted: !!targetedResult,
       },
     });
   } catch (err) {
@@ -188,4 +219,155 @@ export async function POST(
     );
     return internalError();
   }
+}
+
+// ── Targeted fix: snippet-based ─────────────────────────────────────────────
+
+interface FixResult {
+  fixedLatex: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+async function tryTargetedFix(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  projectId: string,
+  phaseNumber: number,
+  currentLatex: string
+): Promise<FixResult | null> {
+  // Non-chapter phases always use fallback
+  if (NON_CHAPTER_PHASES.has(phaseNumber)) return null;
+
+  // Get the chapter file for this phase
+  const chapterFile = PHASE_CHAPTER_MAP[phaseNumber];
+  if (!chapterFile) return null;
+
+  // Fetch latest failed compilation's log_text
+  const { data: compilation } = await supabase
+    .from("compilations")
+    .select("log_text")
+    .eq("project_id", projectId)
+    .eq("status", "failed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  const logText = (compilation?.log_text as string) ?? null;
+  if (!logText) return null;
+
+  // Parse structured errors
+  const parsed = parseLatexLog(logText);
+  if (parsed.structuredErrors.length === 0) return null;
+
+  // Filter errors relevant to this phase's chapter file
+  const relevantErrors = parsed.structuredErrors.filter((e) => {
+    if (!e.line) return false;
+    // Include errors from this chapter's file
+    if (e.file && e.file === chapterFile) return true;
+    // Include errors with no file attribution (may be from this chapter)
+    if (!e.file) return true;
+    return false;
+  });
+
+  // Must have at least one error with a line number
+  const errorsWithLines = relevantErrors.filter((e) => e.line !== undefined);
+  if (errorsWithLines.length === 0) return null;
+
+  // Extract the chapter body (before ---BIBTEX--- separator)
+  const { body } = splitBibtex(currentLatex);
+  if (!body.trim()) return null;
+
+  // Extract context windows around each error
+  const contexts = extractErrorContexts(body, errorsWithLines);
+  if (contexts.length === 0) return null;
+
+  // Build the focused prompt
+  const userMessage = buildTargetedUserMessage(contexts, errorsWithLines);
+
+  // Call AI with focused prompt
+  const client = getAnthropicClient();
+  const message = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 4096,
+    system: [
+      {
+        type: "text" as const,
+        text: TARGETED_SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" as const },
+      },
+    ],
+    messages: [{ role: "user", content: userMessage }],
+  });
+
+  const inputTokens = message.usage?.input_tokens ?? 0;
+  const outputTokens = message.usage?.output_tokens ?? 0;
+
+  const textBlock = message.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") return null;
+
+  const rawResponse = textBlock.text;
+  if (!rawResponse.trim()) return null;
+
+  // Parse the response as line fixes
+  const fixes = parseFixResponse(rawResponse);
+  if (fixes === null) return null; // Unparseable → fallback
+
+  if (fixes.length === 0) {
+    // AI says no changes needed — return content as-is
+    return { fixedLatex: currentLatex, inputTokens, outputTokens };
+  }
+
+  // Apply line fixes to the body only
+  const fixedBody = applyLineFixes(body, fixes);
+
+  // Reconstruct full content with BibTeX trailer
+  const bibSepIdx = currentLatex.indexOf("---BIBTEX---");
+  const fixedLatex =
+    bibSepIdx >= 0
+      ? fixedBody + "\n" + currentLatex.slice(bibSepIdx)
+      : fixedBody;
+
+  return { fixedLatex, inputTokens, outputTokens };
+}
+
+// ── Fallback: full-document approach ────────────────────────────────────────
+
+async function fullDocumentFix(
+  currentLatex: string,
+  errors: string
+): Promise<FixResult> {
+  const client = getAnthropicClient();
+  const userMessage = `Here is the LaTeX source that failed to compile:\n\n${currentLatex}\n\n---COMPILE ERRORS---\n${errors.trim()}`;
+
+  const message = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 16000,
+    system: [
+      {
+        type: "text" as const,
+        text: FALLBACK_SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" as const },
+      },
+    ],
+    messages: [{ role: "user", content: userMessage }],
+  });
+
+  const inputTokens = message.usage?.input_tokens ?? 0;
+  const outputTokens = message.usage?.output_tokens ?? 0;
+
+  const textBlock = message.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("AI returned no text response");
+  }
+
+  const rawResponse = textBlock.text;
+  if (!rawResponse.trim()) {
+    throw new Error("AI returned empty response");
+  }
+
+  return {
+    fixedLatex: sanitiseLatexOutput(rawResponse),
+    inputTokens,
+    outputTokens,
+  };
 }

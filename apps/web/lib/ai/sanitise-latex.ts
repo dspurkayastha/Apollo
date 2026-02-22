@@ -19,6 +19,17 @@ export function sanitiseLatexOutput(content: string): string {
   let body = markerIdx >= 0 ? content.slice(0, markerIdx) : content;
   const trailer = markerIdx >= 0 ? content.slice(markerIdx) : "";
 
+  // Strip AI preamble — prose lines before the first LaTeX command/comment/blank line.
+  // Chapter content always starts with \section{}, a LaTeX command, or a % comment.
+  // Any preceding lines are AI analysis text (e.g. "I've carefully analyzed...").
+  const bodyLines = body.split("\n");
+  const firstLatexLine = bodyLines.findIndex((l) =>
+    /^\s*(\\(section|subsection|subsubsection|chapter|paragraph|begin|documentclass|usepackage|newcommand|renewcommand|label|input|include|def|let|setlength|vspace|hspace|noindent|textbf|textit|emph|centering|raggedright)|%|$)/.test(l)
+  );
+  if (firstLatexLine > 0) {
+    body = bodyLines.slice(firstLatexLine).join("\n");
+  }
+
   // 1. Convert markdown headings to LaTeX sections
   //    Must be done BEFORE escaping bare # (so we don't escape heading markers)
   body = body.replace(/^######\s+(.+)$/gm, (_m, title) => `\\subparagraph{${title.trim()}}`);
