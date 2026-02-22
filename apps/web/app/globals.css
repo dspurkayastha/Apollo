@@ -230,6 +230,12 @@
   overflow-x: auto;
 }
 
+/* ── Tour spotlight breathing glow ── */
+@keyframes tour-breathe {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(139,157,119,0.08), 0 0 20px 4px rgba(139,157,119,0.05); }
+  50%      { box-shadow: 0 0 0 2px rgba(139,157,119,0.22), 0 0 40px 12px rgba(139,157,119,0.10); }
+}
+
 /* Zen focus rings */
 *:focus-visible {
   outline: 2px solid rgba(47, 47, 47, 0.1);
