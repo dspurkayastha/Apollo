@@ -41,3 +41,11 @@ also check the git diff, fix all issues. also i did add tat block with cat, but 
 
 yes
 
+### Prompt 9
+
+check this!
+
+### Prompt 10
+
+[Image source: REDACTED 2026-02-22 at 1.19.10 PM.png]
+

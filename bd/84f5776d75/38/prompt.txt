@@ -197,3 +197,11 @@ also check the git diff, fix all issues. also i did add tat block with cat, but 
 ---
 
 yes
+
+---
+
+check this!
+
+---
+
+[Image source: REDACTED 2026-02-22 at 1.19.10 PM.png]
