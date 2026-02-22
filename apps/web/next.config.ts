@@ -48,10 +48,10 @@ try {
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       silent: !process.env.CI,
-      disableLogger: true,
       widenClientFileUpload: true,
       sourcemaps: { deleteSourcemapsAfterUpload: true },
       tunnelRoute: "/monitoring",
+      webpack: { treeshake: { removeDebugLogging: true } },
     });
   }
 } catch {

@@ -53,6 +53,15 @@ export function queueFull(estimatedWaitSeconds?: number) {
   });
 }
 
-export function internalError(message = "Internal server error") {
+export function internalError(message = "Internal server error", cause?: unknown) {
+  if (cause) {
+    import("@sentry/nextjs")
+      .then((Sentry) => {
+        Sentry.captureException(cause, { extra: { message } });
+      })
+      .catch(() => {
+        /* Sentry not available */
+      });
+  }
   return errorResponse(ERROR_CODES.INTERNAL_ERROR, message, 500);
 }

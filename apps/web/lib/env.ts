@@ -22,7 +22,6 @@ const requiredSchema = z.object({
 });
 
 const optionalKeys = [
-  "SENTRY_DSN",
   "NEXT_PUBLIC_SENTRY_DSN",
   "POSTHOG_KEY",
   "NEXT_PUBLIC_POSTHOG_KEY",

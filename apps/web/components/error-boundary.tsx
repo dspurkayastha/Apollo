@@ -23,6 +23,19 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info.componentStack);
+    if (typeof window !== "undefined") {
+      import("@sentry/nextjs")
+        .then((Sentry) => {
+          Sentry.captureException(error, {
+            contexts: {
+              react: { componentStack: info.componentStack ?? "" },
+            },
+          });
+        })
+        .catch(() => {
+          /* Sentry not available */
+        });
+    }
   }
 
   handleReset = () => {
