@@ -1,0 +1,170 @@
+Implement the following plan:
+
+# Fix LaTeX Auto-Fix + Pipeline Phase Sync
+
+## Context
+
+After AI generates chapter content (e.g., Phase 2 Introduction), compilation often fails with LaTeX syntax errors like "Missing $ inserted", "Double subscript", "Missing } inserted". Medical students can't fix LaTeX — they're stuck. We need an AI-powered "Fix with AI" button that repairs syntax errors and auto-recompiles.
+
+Additionally, after approving a phase, the pipeline dot advances but the workspace content doesn't refresh until the user clicks the new dot. The `viewingPhase` state needs to be optimistically advanced inside `doApprove()`.
+
+---
+
+## Change 1: Optimistic Phase Advance in `doApprove()`
+
+**File**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+**Problem**: After approval, `router.refresh()` eventually updates `project.current_phase` prop, but there's a timing gap. The pipeline dot (reads `project.current_phase`) advances immediately, but the editor (reads `viewingPhase` state) stays on the old phase.
+
+**Fix**: In `doApprove()` (lines ~242-263), parse the approve response JSON and optimistically set `viewingPhase` to the new phase before `router.refresh()`. The approve route already returns `advanced_to_phase` at line 443.
+
+```typescript
+if (response.ok) {
+  const body = await response.json();
+  const nextPhase = body?.data?.advanced_to_phase;
+  if (typeof nextPhase === "number") {
+    setViewingPhase(nextPhase);
+    prevPhaseRef.current = nextPhase;  // prevent useEffect double-fire
+  }
+  router.refresh();
+  void compileAndRefreshPdf();
+}
+```
+
+Keep the existing `useEffect` (lines 122-129) as a fallback for other code paths.
+
+---
+
+## Change 2: New "Fix with AI" API Route
+
+**File (NEW)**: `apps/web/app/api/projects/[id]/sections/[phase]/fix-latex/route.ts`
+
+**Pattern**: Mirrors the refine route (`refine/route.ts`) for auth/rate-limit/licence/save flow, but simpler (no SSE streaming — Haiku is fast enough for a JSON response).
+
+**Implementation**:
+1. Auth + rate limit + licence gate (operation: `"refine"`)
+2. Token budget check via `checkTokenBudget()`
+3. Read section content: `ai_generated_latex` fallback `latex_content`
+4. Call Claude Haiku (`claude-haiku-4-5-20251001`, max_tokens: 8000) with:
+   - System prompt: fix ONLY syntax errors, preserve content/meaning/citations
+   - User message: LaTeX source + compile error strings
+5. Post-process: `sanitiseLatexOutput()` on AI response
+6. Extract citation keys, calculate word count (exclude BibTeX trailer)
+7. Save to both `latex_content` and `ai_generated_latex`
+8. Record token usage via `recordTokenUsage()`
+9. Return `{ data: { fixed: true, wordCount, citationKeys } }`
+
+**Key**: Does NOT change section status — keeps existing `review`/`draft`.
+
+**AI System Prompt** (key rules):
+- Fix ONLY LaTeX syntax errors from the compile error messages
+- Do NOT change academic content, wording, citations, or structure
+- Return the COMPLETE fixed chapter (not just changed parts)
+- Preserve `---BIBTEX---` separator and BibTeX entries
+- Common fixes: bare subscripts→`$x_1$`, unmatched braces, `&`→`\&`, Unicode→ASCII
+
+**Imports** (same as refine route):
+- `getAuthenticatedUser`, error helpers, `checkRateLimit`, `createAdminSupabaseClient`
+- `isValidPhase`, `getAnthropicClient`, `extractCiteKeys`, `sanitiseLatexOutput`
+- `checkTokenBudget`, `recordTokenUsage`, `checkLicenceForPhase`
+
+---
+
+## Change 3: "Fix with AI" Button in Workspace UI
+
+**File**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+### 3a. New state + import
+- Add `Wand2` to lucide-react import (line 28)
+- Add state: `const [isFixingLatex, setIsFixingLatex] = useState(false);` (after line ~148)
+
+### 3b. `doFixLatex` callback (after `doApprove`)
+```typescript
+const doFixLatex = useCallback(async () => {
+  if (isFixingLatex || !compileError) return;
+  setIsFixingLatex(true);
+  try {
+    const res = await fetch(
+      `/api/projects/${project.id}/sections/${viewingPhase}/fix-latex`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ errors: compileError }),
+      }
+    );
+    if (res.ok) {
+      setCompileError(null);
+      router.refresh();
+      void compileAndRefreshPdf();  // auto-recompile
+    } else {
+      const body = await res.json().catch(() => ({}));
+      setCompileError(body?.error?.message ?? "Failed to fix LaTeX errors");
+    }
+  } catch {
+    setCompileError("Failed to fix LaTeX errors — please try again");
+  } finally {
+    setIsFixingLatex(false);
+  }
+}, [project.id, viewingPhase, compileError, isFixingLatex, router, compileAndRefreshPdf]);
+```
+
+### 3c. Updated compile error bar (lines ~437-446)
+Replace the current clickable error div with a bar that includes both the error text and a "Fix with AI" button:
+
+- "Fix with AI" button: only shown when `compileError.startsWith("Compilation failed:")` (filters out validation failures, licence errors, network errors)
+- Button requires `currentSection` to exist
+- Uses `Wand2` icon, shows `Loader2` spinner + "Fixing..." while in progress
+- Separate dismiss `X` button (instead of whole-bar clickable, since bar now has interactive content)
+
+### Flow:
+1. Compile fails → red error bar with "Fix with AI" button
+2. User clicks button → "Fixing..." state
+3. API calls Haiku → fixes LaTeX → saves
+4. `router.refresh()` → editor updates with fixed content
+5. Auto-recompile fires → if success: green bar; if fails again: new error bar with "Fix with AI"
+
+---
+
+## Files Modified (Summary)
+
+| # | File | What Changes |
+|---|------|-------------|
+| 1 | `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` | Optimistic phase advance in `doApprove`, `isFixingLatex` state, `doFixLatex` callback, updated error bar with "Fix with AI" button, `Wand2` import |
+| 2 | `apps/web/app/api/projects/[id]/sections/[phase]/fix-latex/route.ts` | **NEW** — AI-powered LaTeX error fixing endpoint |
+
+---
+
+## Implementation Order
+
+1. **Change 1**: Optimistic phase advance in `doApprove()` — quick fix
+2. **Change 2**: Create fix-latex API route — new file
+3. **Change 3**: Wire up "Fix with AI" button in workspace UI
+
+---
+
+## Verification
+
+1. **TypeScript**: `pnpm --filter apollo-web exec tsc --noEmit` — 0 errors
+2. **Lint**: `pnpm --filter apollo-web exec next lint` — 0 warnings
+3. **Phase sync**: Approve Phase N → workspace immediately shows Phase N+1 content (no need to click dot)
+4. **Compile error + fix**: Generate Phase 2 content → compile → if errors appear → click "Fix with AI" → see "Fixing..." → editor refreshes → auto-recompile fires
+5. **Edge cases**: Fix button only appears for `"Compilation failed:"` errors, not for validation or licence errors
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+OK, NOW AUDIT THE CHANGES YOU MADE, FIND ERRORS IF ANY
+
+---
+
+Now audit the AI model calls. ie are specific models being called for specific purposes? I need to be sure, otherwise we will run out of tokens fast
+
+---
+
+lets put haiku here for now. But we need more calls for the final QA after each major Phase . eg after ROL, after Results, after Conclusions, after final bibtex and references compile. At QA after ROL. the QA needs to be of the generated content. IF the chapters generated are upto the mark. If any chapter got truncated etc. QA after Results needs to check whether the results found and calculations done in the analysis sub phase actually answer the objectives of the Thesis, and also have standard content like demographics etc properly. whether all figures and plots are properly generated and placed in the chapter. QA after Conclusions needs to check chapters post last QA to conclusions, for content, truncation if any, if Discusssions chapter is properly aligned and well cited, and conclusions answers the aims and objective chapters. QA after bibtex needs to ensure that all entires are actual and proper (match doi to title) and if not find alternatives. This last one would benefit from subagents i feel like. And the last and final QA is after compile which we already have lined up i think?
+
+---
+
+[Request interrupted by user for tool use]

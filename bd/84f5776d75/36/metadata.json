@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "0cb2a9e8-f727-4c7f-b2f2-997d5fd51fbf",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-22T06:31:09.901544Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
+    "apps/web/app/api/projects/[id]/sections/[phase]/fix-latex/route.ts",
+    "apps/web/supabase/.temp/cli-latest",
+    "sciscribe-ssh",
+    "sciscribe-ssh.pub"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 8285,
+    "cache_creation_tokens": 149729,
+    "cache_read_tokens": 5315617,
+    "output_tokens": 23395,
+    "api_call_count": 59
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-22T06:31:08.614801Z",
+    "agent_lines": 335,
+    "human_added": 1536,
+    "human_modified": 201,
+    "human_removed": 0,
+    "total_committed": 2072,
+    "agent_percentage": 16.167953667953668
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/0cb2a9e8-f727-4c7f-b2f2-997d5fd51fbf.jsonl"
+}
