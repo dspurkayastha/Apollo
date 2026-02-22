@@ -106,8 +106,11 @@ async function dockerCompile(
   try {
     await mkdir(workDir, { recursive: true });
 
-    // Write tex content — inject watermark/draft footer via LaTeX package
-    await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, options));
+    // Write tex content.
+    // Sandbox watermark is handled post-compile by Ghostscript (watermark.sh in Docker),
+    // so only inject LaTeX watermark for draft_footer mode.
+    const dockerTexOptions = { watermark: false, draftFooter: options.draftFooter ?? false };
+    await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, dockerTexOptions));
 
     // Copy CLS and BST files from templates
     const templatesDir = path.resolve(process.cwd(), "../../templates");
@@ -186,6 +189,8 @@ async function dockerCompile(
       "--pids-limit=256",
       "-v", `${workDir}:/thesis:rw`,
       containerName,
+      // Sandbox watermark: Ghostscript overlay (uses built-in PostScript Palatino)
+      ...(options.watermark ? ["--watermark"] : []),
     ];
 
     const { stdout, stderr } = await execFileAsync("docker", args, {
@@ -270,17 +275,17 @@ function injectWatermarkPackage(
 
   let cmds: string;
   if (options.watermark) {
-    // Sandbox: diagonal "Apollo" watermark in Palatino italic
+    // Sandbox: diagonal "Apollo" watermark (uses document font — mathptmx/Times)
     cmds = "\n" + [
-      "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont\\itshape Apollo}",
+      "\\SetWatermarkText{\\textit{Apollo}}",
       "\\SetWatermarkColor[gray]{0.85}",
       "\\SetWatermarkScale{2.5}",
       "\\SetWatermarkAngle{45}",
     ].join("\n") + "\n";
   } else {
-    // Licensed draft: diagonal "Generated with Apollo" watermark
+    // Licensed draft: smaller diagonal footer watermark
     cmds = "\n" + [
-      "\\SetWatermarkText{\\fontfamily{ppl}\\selectfont Generated with Apollo}",
+      "\\SetWatermarkText{\\textit{Generated with Apollo}}",
       "\\SetWatermarkColor[gray]{0.88}",
       "\\SetWatermarkScale{0.5}",
       "\\SetWatermarkAngle{45}",

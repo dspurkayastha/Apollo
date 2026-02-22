@@ -19,9 +19,10 @@ cat > "$STAMP" << 'WATERMARK_PS'
   /EndPage {
     2 eq { pop false } {
       gsave
-      0.92 setgray
+      0.85 setgray
       /Palatino-Italic findfont 120 scalefont setfont
       306 396 translate
+      45 rotate
       (Apollo) dup stringwidth pop 2 div neg 0 moveto show
       grestore
       true

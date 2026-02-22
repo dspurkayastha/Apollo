@@ -100,10 +100,10 @@ export function PdfViewer({ url, isSandbox, projectId }: PdfViewerProps) {
 
   return (
     <div className="relative flex flex-col gap-2 p-4">
-      {/* Sandbox watermark */}
+      {/* Sandbox watermark overlay (matches Ghostscript watermark in compiled PDF) */}
       {isSandbox && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="rotate-[-30deg] select-none text-6xl font-bold tracking-[0.3em] text-red-500/[0.07]">
+          <div className="rotate-[-45deg] select-none font-serif text-8xl italic tracking-[0.2em] text-black/[0.15]">
             Apollo
           </div>
         </div>

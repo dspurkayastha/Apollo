@@ -55,11 +55,15 @@ if [ ! -f /tmp/main.pdf ]; then
   exit 1
 fi
 
-# Apply watermark for sandbox projects
+# Apply watermark for sandbox projects (non-fatal — serve unwatermarked if GS fails)
 if [ "$WATERMARK" = true ] && [ -f /usr/local/bin/watermark.sh ]; then
   echo "=== Applying watermark ==="
-  /usr/local/bin/watermark.sh /tmp/main.pdf /tmp/main-watermarked.pdf
-  cp /tmp/main-watermarked.pdf "$OUTPUT_DIR/main.pdf"
+  if /usr/local/bin/watermark.sh /tmp/main.pdf /tmp/main-watermarked.pdf 2>/dev/null; then
+    cp /tmp/main-watermarked.pdf "$OUTPUT_DIR/main.pdf"
+  else
+    echo "WARNING: Watermark failed, serving unwatermarked PDF"
+    cp /tmp/main.pdf "$OUTPUT_DIR/main.pdf"
+  fi
 else
   cp /tmp/main.pdf "$OUTPUT_DIR/main.pdf"
 fi
