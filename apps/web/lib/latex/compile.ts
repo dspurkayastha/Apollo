@@ -311,7 +311,10 @@ async function localCompile(
 
   try {
     await mkdir(workDir, { recursive: true });
-    await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, options));
+    // Sandbox watermark is handled by Ghostscript in Docker; local mode skips it
+    // to stay consistent. Only inject LaTeX watermark for draft_footer mode.
+    const localTexOptions = { watermark: false, draftFooter: options.draftFooter ?? false };
+    await writeFile(path.join(workDir, "main.tex"), injectWatermarkPackage(texContent, localTexOptions));
 
     // Copy templates
     const templatesDir = path.resolve(process.cwd(), "../../templates");

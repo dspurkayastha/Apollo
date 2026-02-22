@@ -13,6 +13,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 
 interface PdfViewerProps {
   url: string | null;
+  /** @deprecated Watermark is now applied by Ghostscript in the compiled PDF */
   isSandbox?: boolean;
   projectId?: string;
 }
@@ -69,7 +70,9 @@ function LazyThumbnail({
   );
 }
 
-export function PdfViewer({ url, isSandbox, projectId }: PdfViewerProps) {
+export function PdfViewer({ url, projectId }: PdfViewerProps) {
+  // isSandbox prop kept for backwards compat but no longer used —
+  // watermark is now solely applied by Ghostscript in the compiled PDF.
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
@@ -100,15 +103,6 @@ export function PdfViewer({ url, isSandbox, projectId }: PdfViewerProps) {
 
   return (
     <div className="relative flex flex-col gap-2 p-4">
-      {/* Sandbox watermark overlay (matches Ghostscript watermark in compiled PDF) */}
-      {isSandbox && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="rotate-[-45deg] select-none font-serif text-9xl italic tracking-[0.2em] text-black/[0.15]">
-            Apollo
-          </div>
-        </div>
-      )}
-
       {/* Glass pill controls */}
       <div className="flex items-center justify-between rounded-full border border-white/30 bg-white/80 px-4 py-2 backdrop-blur-[20px]">
         <div className="flex items-center gap-1">
