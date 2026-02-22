@@ -1,0 +1,199 @@
+Implement the following plan:
+
+# Enable Sentry Error Monitoring
+
+## Context
+
+Production errors are invisible — the "Failed to fix LaTeX errors" 404 was only caught because the user happened to screenshot the console. Sentry is already 80% configured (`@sentry/nextjs ^10.38.0` installed, 3 config files with PII scrubbing, `withSentryConfig` in `next.config.ts` gated on `NEXT_PUBLIC_SENTRY_DSN`). We just need to wire the last 4 gaps so that setting the DSN env var "turns on" full error capture.
+
+---
+
+## Change 1: `instrumentation.ts` (NEW)
+
+**File**: `apps/web/instrumentation.ts`
+
+Next.js 15 requires this file for server-side Sentry SDK initialisation. Without it, `sentry.server.config.ts` never runs.
+
+```typescript
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config");
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("./sentry.edge.config");
+  }
+}
+
+export { onRequestError } from "@sentry/nextjs";
+```
+
+The `onRequestError` export auto-captures unhandled errors in API routes and RSC.
+
+---
+
+## Change 2: `app/global-error.tsx` (NEW)
+
+**File**: `apps/web/app/global-error.tsx`
+
+Root-level error boundary that Sentry hooks into. Catches errors in the root layout itself (which the normal `error.tsx` cannot).
+
+```typescript
+"use client";
+
+import * as Sentry from "@sentry/nextjs";
+import { useEffect } from "react";
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
+  return (
+    <html lang="en">
+      <body>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "system-ui, sans-serif", padding: "2rem" }}>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.5rem" }}>Something went wrong</h2>
+          <p style={{ color: "#6B6B6B", marginBottom: "1rem" }}>An unexpected error occurred. Please try again.</p>
+          <button onClick={reset} style={{ padding: "0.5rem 1rem", border: "1px solid #d1d5db", borderRadius: "0.5rem", cursor: "pointer" }}>
+            Try Again
+          </button>
+        </div>
+      </body>
+    </html>
+  );
+}
+```
+
+Inline styles only (no Tailwind) — this renders when the root layout itself fails.
+
+---
+
+## Change 3: Wire `ErrorBoundary.componentDidCatch`
+
+**File**: `apps/web/components/error-boundary.tsx` (line 24-26)
+
+Add `Sentry.captureException` alongside the existing `console.error`:
+
+```typescript
+// Before:
+componentDidCatch(error: Error, info: ErrorInfo) {
+  console.error("ErrorBoundary caught:", error, info.componentStack);
+}
+
+// After:
+componentDidCatch(error: Error, info: ErrorInfo) {
+  console.error("ErrorBoundary caught:", error, info.componentStack);
+  if (typeof window !== "undefined") {
+    import("@sentry/nextjs").then((Sentry) => {
+      Sentry.captureException(error, { contexts: { react: { componentStack: info.componentStack ?? "" } } });
+    }).catch(() => { /* Sentry not available */ });
+  }
+}
+```
+
+Dynamic import avoids adding Sentry to the bundle if DSN is not set. No-ops gracefully.
+
+---
+
+## Change 4: `internalError()` — capture server errors
+
+**File**: `apps/web/lib/api/errors.ts` (line 56-58)
+
+Add optional `cause` parameter. When provided, capture to Sentry before returning the 500 response:
+
+```typescript
+// Before:
+export function internalError(message = "Internal server error") {
+  return errorResponse(ERROR_CODES.INTERNAL_ERROR, message, 500);
+}
+
+// After:
+export function internalError(message = "Internal server error", cause?: unknown) {
+  if (cause) {
+    import("@sentry/nextjs").then((Sentry) => {
+      Sentry.captureException(cause, { extra: { message } });
+    }).catch(() => { /* Sentry not available */ });
+  }
+  return errorResponse(ERROR_CODES.INTERNAL_ERROR, message, 500);
+}
+```
+
+Dynamic import so Sentry is never a hard dependency. Callers that already catch errors can pass the original error as `cause`:
+
+```typescript
+// Example usage in API routes:
+} catch (err) {
+  return internalError("Failed to generate chapter", err);
+}
+```
+
+No existing callers need to change (the `cause` param is optional).
+
+---
+
+## Files Summary
+
+| # | File | Action |
+|---|------|--------|
+| 1 | `apps/web/instrumentation.ts` | **NEW** — server/edge SDK init + onRequestError |
+| 2 | `apps/web/app/global-error.tsx` | **NEW** — root error boundary |
+| 3 | `apps/web/components/error-boundary.tsx` | Add Sentry capture in componentDidCatch |
+| 4 | `apps/web/lib/api/errors.ts` | Add optional `cause` to `internalError()` |
+
+---
+
+## Env Vars (user action in Coolify)
+
+| Variable | Scope | Notes |
+|----------|-------|-------|
+| `NEXT_PUBLIC_SENTRY_DSN` | Build + Runtime | Enables the SDK (already gated everywhere) |
+| `SENTRY_ORG` | Build only | For source map upload |
+| `SENTRY_PROJECT` | Build only | For source map upload |
+| `SENTRY_AUTH_TOKEN` | Build only | For source map upload |
+
+Source maps are uploaded at build time and deleted from the deploy artifact (`deleteSourcemapsAfterUpload: true` in `next.config.ts`).
+
+---
+
+## Verification
+
+1. `pnpm --filter apollo-web exec tsc --noEmit` — 0 errors
+2. Without DSN set: app builds and runs normally, no Sentry calls made (all guarded by `enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN`)
+3. With DSN set: errors in API routes auto-captured via `onRequestError`, client errors captured by ErrorBoundary + global-error, `internalError(msg, err)` captures to Sentry
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+I am not using Coolify, using hetzner, And sentry DSN is to be inout in .env? or where ? what else creds do i need, Also check the SENTRY webpage requirement to check integratiion.
+
+---
+
+[Image source: REDACTED 2026-02-22 at 12.42.43 PM.png]
+
+---
+
+See i have sciscribesolutions.co for a separate servce website and apollo.sciscribesolutions.com for APollo. I have created the sentry account with sciscribe solutions as org name. now what?
+
+---
+
+I want help with hetzner deploy. normally I run cd /opt/apollo && git pull origin main && pnpm --filter apollo-web build && pm2 restart apollo-web to redeloy on hetzner. I use docker for compartmentalised latex and R plumber, not apolloas a whole
+
+---
+
+also check the git diff, fix all issues. also i did add tat block with cat, but it still says sentry dsn missing?
+
+---
+
+[Image source: REDACTED 2026-02-22 at 1.10.50 PM.png]
+
+---
+
+yes

@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "48b469a4-6e28-403e-8cd4-e2776efda493",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-22T07:44:48.174837Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/app/global-error.tsx",
+    "apps/web/components/error-boundary.tsx",
+    "apps/web/instrumentation-client.ts",
+    "apps/web/instrumentation.ts",
+    "apps/web/lib/api/errors.ts",
+    "apps/web/lib/env.ts",
+    "apps/web/next.config.ts",
+    "apps/web/sentry.client.config.ts",
+    "apps/web/supabase/.temp/cli-latest",
+    "sciscribe-ssh",
+    "sciscribe-ssh.pub"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 38940,
+    "cache_read_tokens": 1818549,
+    "output_tokens": 1062,
+    "api_call_count": 34
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-22T07:44:47.957307Z",
+    "agent_lines": 127,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 10,
+    "total_committed": 127,
+    "agent_percentage": 100
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/48b469a4-6e28-403e-8cd4-e2776efda493.jsonl"
+}
