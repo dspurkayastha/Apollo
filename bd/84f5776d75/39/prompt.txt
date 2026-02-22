@@ -1,0 +1,100 @@
+Implement the following plan:
+
+# Fix LaTeX Fix-with-AI Preamble Bug + Compile Button Race Condition
+
+## Context
+
+Three bugs observed in production on `apollo.sciscribesolutions.com`:
+
+1. **Fix-with-AI prepends analysis text**: When "Fix with AI" runs, the AI sometimes prepends `"I've carefully analyzed the document and identified all LaTeX syntax errors"` as actual content into the editor. Despite the system prompt forbidding this, Haiku sometimes adds preamble.
+2. **Fixed LaTeX errors return after save**: After fix-latex saves and the user deletes the preamble text manually, the same errors reappear on recompile — because the auto-recompile (`compileAndRefreshPdf`) fires immediately after fix-latex saves, BEFORE the user's manual editor save reaches the DB. So the compile uses the old (preamble-included) content.
+3. **409 Conflict spam + no visual feedback during compile**: `compileAndRefreshPdf()` bypasses the `CompileButton` entirely (makes its own fetch), so the button stays enabled and unaware. User clicks Compile PDF → 409 because a background compile is already running.
+
+---
+
+## Fix 1: Strip AI preamble from fix-latex response
+
+**File**: `apps/web/lib/ai/sanitise-latex.ts`
+
+Add a preamble stripper at the top of `sanitiseLatexOutput()`. If the response starts with non-LaTeX prose (lines before the first `\section`, `\chapter`, `\subsection`, `\begin{`, or `%` comment), strip those lines. This catches any AI analysis text.
+
+```typescript
+// At the start of sanitiseLatexOutput(), before splitting body/trailer:
+// Strip AI preamble — lines before the first LaTeX command
+const lines = body.split("\n");
+const firstLatexLine = lines.findIndex(
+  (l) => /^\s*(\\(section|subsection|subsubsection|chapter|paragraph|begin|documentclass|usepackage|newcommand|renewcommand|label|input|include|%)|$)/.test(l)
+);
+if (firstLatexLine > 0) {
+  body = lines.slice(firstLatexLine).join("\n");
+}
+```
+
+This is safe because chapter content always starts with `\section{...}` — any lines before that are AI preamble.
+
+---
+
+## Fix 2: Remove auto-recompile from doFixLatex
+
+**File**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` (line ~304-307)
+
+Currently after fix-latex succeeds:
+```typescript
+if (res.ok) {
+  setCompileError(null);
+  router.refresh();
+  void compileAndRefreshPdf();  // ← Remove this
+}
+```
+
+Remove the `compileAndRefreshPdf()` call. The fix-latex response already saves to DB. The user should review the fix in the editor, then manually click "Compile PDF" when ready. This also eliminates the 409 spam from competing compile requests.
+
+---
+
+## Fix 3: Unify compile state — disable button during background compiles
+
+**File**: `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx`
+
+Lift a `isCompiling` state flag to the parent (`project-workspace.tsx`) and pass it down to `CompileButton` as the `disabled` prop. Also wrap `compileAndRefreshPdf` to set this flag.
+
+Changes:
+1. Add `const [isAutoCompiling, setIsAutoCompiling] = useState(false);` state
+2. In `compileAndRefreshPdf`, set `setIsAutoCompiling(true)` at start and `false` in finally
+3. Pass `isAutoCompiling` as additional disable condition to `CompileButton`:
+   ```typescript
+   <CompileButton
+     disabled={isAutoCompiling || !sections.some(...)}
+     ...
+   />
+   ```
+
+This way, when `handleGenerateComplete`, `handleSaveSuccess`, or `doApprove` trigger a background compile, the Compile PDF button shows as disabled.
+
+---
+
+## Files Summary
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `apps/web/lib/ai/sanitise-latex.ts` | Strip AI preamble lines before first LaTeX command |
+| 2 | `apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx` | Remove auto-recompile from doFixLatex, add `isAutoCompiling` state to disable CompileButton during background compiles |
+
+---
+
+## Verification
+
+1. `pnpm --filter apollo-web exec tsc --noEmit` — 0 errors
+2. Test fix-latex: trigger a compile error → click "Fix with AI" → verify no preamble text appears in editor
+3. Test no auto-recompile: after "Fix with AI" succeeds, verify no 409 Conflict in console (compile should not auto-trigger)
+4. Test compile button disable: click "Generate with AI" → verify Compile PDF button shows disabled/spinning until the auto-compile finishes
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+and what about the main bug, that the FIX with AI doesnt actually work!, it needs to parse the Error log from latex first, find the line numbers and then fix those. not a just a generic checkall.
+
+---
+
+[Request interrupted by user for tool use]
