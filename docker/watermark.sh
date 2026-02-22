@@ -20,7 +20,7 @@ cat > "$STAMP" << 'WATERMARK_PS'
     2 eq { pop false } {
       gsave
       0.85 setgray
-      /Palatino-Italic findfont 120 scalefont setfont
+      /Palatino-Italic findfont 180 scalefont setfont
       306 396 translate
       45 rotate
       (Apollo) dup stringwidth pop 2 div neg 0 moveto show
