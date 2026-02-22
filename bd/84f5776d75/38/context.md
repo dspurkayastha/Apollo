@@ -49,3 +49,49 @@ check this!
 
 [Image source: REDACTED 2026-02-22 at 1.19.10 PM.png]
 
+### Prompt 11
+
+ok, so sentry has been configured on th evps now. now how to check?
+
+### Prompt 12
+
+i am trying but it still asks for me to do this , where as i have already done this ?? now what? can we try some other way?
+
+### Prompt 13
+
+[Image source: REDACTED 2026-02-22 at 1.39.28 PM.png]
+
+[Image source: REDACTED 2026-02-22 at 1.39.48 PM.png]
+
+### Prompt 14
+
+got this
+
+### Prompt 15
+
+[Image source: REDACTED 2026-02-22 at 1.43.38 PM.png]
+
+### Prompt 16
+
+Look at the sequence if errors on APollo. Also Sentry still doesnt pick up anything.
+
+### Prompt 17
+
+[Image source: /Users/devs/Desktop/Screenshot 2026-02-22 at 1.58.11 PM.png]
+
+[Image source: /Users/devs/Desktop/Screenshot 2026-02-22 at 1.57.12 PM.png]
+
+[Image source: /Users/devs/Desktop/Screenshot 2026-02-22 at 1.56.13 PM.png]
+
+[Image source: /Users/devs/Desktop/Screenshot 2026-02-22 at 1.55.20 PM.png]
+
+[Image source: REDACTED 2026-02-22 at 1.59.19 PM.png]
+
+### Prompt 18
+
+but even after the fix with Ai is run, and the prepended text is deleted and content saved, the latex error returns again! (the whole exercise becomes futile. Also to acoid compile conflicts, the compile button should remain greyed out or show a spinning circle indicator whnever a compile is running.
+
+### Prompt 19
+
+[Request interrupted by user for tool use]
+

@@ -3,30 +3,36 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "48b469a4-6e28-403e-8cd4-e2776efda493",
   "strategy": "manual-commit",
-  "created_at": "2026-02-22T07:51:04.084687Z",
+  "created_at": "2026-02-22T10:40:20.783619Z",
   "branch": "main",
-  "checkpoints_count": 1,
+  "checkpoints_count": 0,
   "files_touched": [
-    "apps/web/instrumentation-client.ts"
+    "apps/web/app/global-error.tsx",
+    "apps/web/components/error-boundary.tsx",
+    "apps/web/instrumentation-client.ts",
+    "apps/web/instrumentation.ts",
+    "apps/web/lib/api/errors.ts",
+    "apps/web/lib/env.ts",
+    "apps/web/next.config.ts"
   ],
   "agent": "Claude Code",
   "transcript_identifier_at_start": "cfe53550-041b-45f6-94dd-dceebbff07c4",
-  "checkpoint_transcript_start": 193,
-  "transcript_lines_at_start": 193,
+  "checkpoint_transcript_start": 224,
+  "transcript_lines_at_start": 224,
   "token_usage": {
-    "input_tokens": 8,
-    "cache_creation_tokens": 3501,
-    "cache_read_tokens": 405983,
-    "output_tokens": 83,
-    "api_call_count": 6
+    "input_tokens": 28,
+    "cache_creation_tokens": 35941,
+    "cache_read_tokens": 1429723,
+    "output_tokens": 1944,
+    "api_call_count": 16
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-22T07:51:03.763573Z",
+    "calculated_at": "2026-02-22T10:40:20.058972Z",
     "agent_lines": 0,
-    "human_added": 2,
+    "human_added": 870,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 2,
+    "total_committed": 870,
     "agent_percentage": 0
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/48b469a4-6e28-403e-8cd4-e2776efda493.jsonl"

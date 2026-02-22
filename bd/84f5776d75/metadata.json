@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 205,
+  "checkpoints_count": 204,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -87,6 +87,7 @@
     "apps/web/app/api/webhooks/razorpay/route.ts",
     "apps/web/app/api/webhooks/stripe/route.ts",
     "apps/web/app/apple-icon.svg",
+    "apps/web/app/global-error.tsx",
     "apps/web/app/globals.css",
     "apps/web/app/icon.svg",
     "apps/web/app/layout.tsx",
@@ -166,6 +167,7 @@
     "apps/web/e2e/dataset-upload.spec.ts",
     "apps/web/hooks/use-sse.ts",
     "apps/web/instrumentation-client.ts",
+    "apps/web/instrumentation.ts",
     "apps/web/lib/ai/analysis-explanations.ts",
     "apps/web/lib/ai/bibtex-completion.test.ts",
     "apps/web/lib/ai/bibtex-completion.ts",
@@ -181,6 +183,7 @@
     "apps/web/lib/ai/sanitise-metadata.test.ts",
     "apps/web/lib/ai/sanitise-metadata.ts",
     "apps/web/lib/ai/token-budget.ts",
+    "apps/web/lib/api/errors.ts",
     "apps/web/lib/api/licence-expiry.ts",
     "apps/web/lib/api/licence-gate.ts",
     "apps/web/lib/api/licence-phase-gate.ts",
@@ -636,10 +639,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 121624,
-    "cache_creation_tokens": 8537687,
-    "cache_read_tokens": 288457980,
-    "output_tokens": 623925,
-    "api_call_count": 2986
+    "input_tokens": 121644,
+    "cache_creation_tokens": 8570127,
+    "cache_read_tokens": 289481720,
+    "output_tokens": 625786,
+    "api_call_count": 2996
   }
 }
