@@ -116,3 +116,11 @@ audit these changes
 
 commit and push
 
+### Prompt 22
+
+give me the code block to properly redeploy on the vps.till now for simple redeploys i was using this cd /opt/apollo && git pull origin main && pnpm --filter apollo-web build && pm2 restart apollo-web
+
+### Prompt 23
+
+it works now, but the font size needs to be larger
+

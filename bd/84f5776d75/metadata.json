@@ -3,7 +3,7 @@
   "checkpoint_id": "bd84f5776d75",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 207,
+  "checkpoints_count": 206,
   "files_touched": [
     ".claude/settings.local.json",
     ".env.example",
@@ -231,8 +231,6 @@
     "apps/web/lib/latex/compile.ts",
     "apps/web/lib/latex/escape.test.ts",
     "apps/web/lib/latex/escape.ts",
-    "apps/web/lib/latex/fix-latex-helpers.test.ts",
-    "apps/web/lib/latex/fix-latex-helpers.ts",
     "apps/web/lib/latex/front-matter.test.ts",
     "apps/web/lib/latex/front-matter.ts",
     "apps/web/lib/latex/generate-tex.test.ts",
@@ -655,10 +653,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 121735,
-    "cache_creation_tokens": 8749529,
-    "cache_read_tokens": 296302680,
-    "output_tokens": 635001,
-    "api_call_count": 3071
+    "input_tokens": 121686,
+    "cache_creation_tokens": 8656426,
+    "cache_read_tokens": 292175451,
+    "output_tokens": 632054,
+    "api_call_count": 3030
   }
 }
