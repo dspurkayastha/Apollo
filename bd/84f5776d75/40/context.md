@@ -23,3 +23,33 @@ now audit the cahnges you just made
 
 ok, now push to remote and watch CI
 
+### Prompt 4
+
+Ok, so now Check this. the Inngest API is taking so long! is it the model output taking the time, or is the API itself slow? is it me , cluade or inngest is the question?
+
+### Prompt 5
+
+[Image source: REDACTED 2026-02-22 at 4.17.28 PM.png]
+
+### Prompt 6
+
+yes check the supabase region
+
+### Prompt 7
+
+so what can i do without switching db or vps provider?
+
+### Prompt 8
+
+audit yourself again, think ultra hard, did you break anything?
+
+### Prompt 9
+
+Your upsert change in thesis-workflow.ts is excellent. Compressing a SELECT and an INSERT into a single atomic operation is the textbook way to handle high-latency database connections. Keep that exactly as is.
+
+However, your proposed changes to ai-generate.ts misunderstand the core issue. The bottleneck is the 600ms physical network latency to Mumbai, not Inngest's ~8ms execution overhead. Merging steps to save a few milliseconds of Inngest overhead while degrading the app's UX and reliability ...
+
+### Prompt 10
+
+push and watch CI
+
