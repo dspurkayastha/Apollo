@@ -214,6 +214,20 @@ export function ProjectWorkspace({
       void supabase.removeChannel(channel);
     };
   }, [currentSection?.status, project.id, viewingPhase, supabase, router]);
+
+  // Polling fallback — Realtime on free tier may miss events
+  // (geographic latency, subscription race, RLS delivery issues).
+  // Polls every 5s while generating; stops when status changes.
+  useEffect(() => {
+    if (currentSection?.status !== "generating") return;
+
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [currentSection?.status, router]);
+
   const phaseDef = PHASES.find((p) => p.number === viewingPhase);
   const isCurrentPhase = viewingPhase === project.current_phase;
   const isEditable =
