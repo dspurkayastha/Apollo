@@ -57,3 +57,15 @@ Unknown skill: commit
 
 commit and push and watch ci
 
+### Prompt 11
+
+the rendered pdf shopws double waermark and the downloaded pdf shows same old size watermark.
+
+### Prompt 12
+
+[Image source: REDACTED 2026-02-22 at 8.54.05 PM.png]
+
+[Image source: REDACTED 2026-02-22 at 8.55.32 PM.png]
+
+[Image source: REDACTED 2026-02-22 at 8.55.46 PM.png]
+
