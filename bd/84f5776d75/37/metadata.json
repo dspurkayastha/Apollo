@@ -3,14 +3,13 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "c8f6f890-117f-46b7-8ef4-14d96701558e",
   "strategy": "manual-commit",
-  "created_at": "2026-02-22T06:35:11.053114Z",
+  "created_at": "2026-02-22T07:44:20.47463Z",
   "branch": "main",
-  "checkpoints_count": 2,
+  "checkpoints_count": 0,
   "files_touched": [
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
     "apps/web/app/api/projects/[id]/sections/9/verify-references/route.ts",
     "apps/web/app/api/projects/[id]/sections/[phase]/approve/route.ts",
-    "apps/web/app/api/projects/[id]/sections/[phase]/fix-latex/route.ts",
     "apps/web/app/api/projects/[id]/sections/[phase]/generate/route.ts",
     "apps/web/lib/ai/bibtex-completion.ts",
     "apps/web/lib/inngest/functions/ai-generate.ts",
@@ -18,27 +17,26 @@
     "apps/web/lib/qc/checkpoint-references.ts",
     "apps/web/lib/qc/checkpoint-results.ts",
     "apps/web/lib/qc/checkpoint-rol.ts",
-    "apps/web/lib/qc/checkpoint-utils.ts",
-    "apps/web/supabase/.temp/cli-latest",
-    "sciscribe-ssh",
-    "sciscribe-ssh.pub"
+    "apps/web/lib/qc/checkpoint-utils.ts"
   ],
   "agent": "Claude Code",
+  "checkpoint_transcript_start": 531,
+  "transcript_lines_at_start": 531,
   "token_usage": {
-    "input_tokens": 4498,
-    "cache_creation_tokens": 228321,
-    "cache_read_tokens": 8260675,
-    "output_tokens": 20400,
-    "api_call_count": 77
+    "input_tokens": 27,
+    "cache_creation_tokens": 70995,
+    "cache_read_tokens": 2423568,
+    "output_tokens": 1598,
+    "api_call_count": 19
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-22T06:35:04.891619Z",
-    "agent_lines": 2072,
-    "human_added": 0,
+    "calculated_at": "2026-02-22T07:44:19.658149Z",
+    "agent_lines": 0,
+    "human_added": 318,
     "human_modified": 0,
-    "human_removed": 201,
-    "total_committed": 2072,
-    "agent_percentage": 100
+    "human_removed": 0,
+    "total_committed": 318,
+    "agent_percentage": 0
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/c8f6f890-117f-46b7-8ef4-14d96701558e.jsonl"
 }
