@@ -87,3 +87,32 @@ check the logs again...
 
 ok
 
+### Prompt 17
+
+now check logs
+
+### Prompt 18
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. **Context from previous session**: The conversation is a continuation from a previous session that implemented:
+   - Targeted line-number-based LaTeX fixing ("Fix with AI")
+   - Non-blocking streaming writes in Inngest ai-generate function
+   - Upsert optimization in thesis-workflow
+...
+
+### Prompt 19
+
+now only one error persists till p3. The pdf compiled. still shows apollo watermark (wrong font and size)  on render, and no watermark persists on download.
+
+### Prompt 20
+
+audit these changes
+
+### Prompt 21
+
+commit and push
+

@@ -3,12 +3,13 @@
   "checkpoint_id": "bd84f5776d75",
   "session_id": "b66fd679-dbac-42f2-bc96-96cff385ee7c",
   "strategy": "manual-commit",
-  "created_at": "2026-02-22T11:59:57.624088Z",
+  "created_at": "2026-02-22T12:53:36.879187Z",
   "branch": "main",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "apps/web/app/(dashboard)/projects/[id]/project-workspace.tsx",
     "apps/web/app/api/projects/[id]/sections/[phase]/fix-latex/route.ts",
+    "apps/web/components/viewer/pdf-viewer.tsx",
     "apps/web/lib/inngest/functions/ai-generate.ts",
     "apps/web/lib/inngest/functions/thesis-workflow.ts",
     "apps/web/lib/latex/assemble.ts",
@@ -16,26 +17,29 @@
     "apps/web/lib/latex/fix-latex-helpers.test.ts",
     "apps/web/lib/latex/fix-latex-helpers.ts",
     "apps/web/lib/latex/parse-log.test.ts",
-    "apps/web/lib/latex/parse-log.ts"
+    "apps/web/lib/latex/parse-log.ts",
+    "docker/Dockerfile.latex",
+    "docker/compile.sh",
+    "docker/watermark.sh"
   ],
   "agent": "Claude Code",
-  "transcript_identifier_at_start": "92d5a882-093b-4533-86f2-6c56e2e289d1",
-  "checkpoint_transcript_start": 484,
-  "transcript_lines_at_start": 484,
+  "transcript_identifier_at_start": "a228c1b3-1d1a-4334-8db8-88f14c561b4f",
+  "checkpoint_transcript_start": 660,
+  "transcript_lines_at_start": 660,
   "token_usage": {
-    "input_tokens": 35,
-    "cache_creation_tokens": 134282,
-    "cache_read_tokens": 2592603,
-    "output_tokens": 669,
-    "api_call_count": 21
+    "input_tokens": 58,
+    "cache_creation_tokens": 94672,
+    "cache_read_tokens": 4766589,
+    "output_tokens": 3166,
+    "api_call_count": 46
   },
   "initial_attribution": {
-    "calculated_at": "2026-02-22T11:59:57.021333Z",
-    "agent_lines": 14,
+    "calculated_at": "2026-02-22T12:53:36.155081Z",
+    "agent_lines": 23,
     "human_added": 0,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 14,
+    "total_committed": 23,
     "agent_percentage": 100
   },
   "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/b66fd679-dbac-42f2-bc96-96cff385ee7c.jsonl"
