@@ -1,0 +1,397 @@
+Implement the following plan:
+
+# Redesign: "The Lens" — Morphing Spotlight Onboarding Tour
+
+## Context
+
+The current `tour-overlay.tsx` is a generic modal slideshow — a centered card with fade animations. It defines `target` selectors (`data-tour="pipeline"`, etc.) but **never uses them**. The overlay doesn't actually highlight any UI elements; it's just 5 identical centered modals with different text. For a platform called Apollo (god of knowledge, space exploration), the onboarding should feel like a lens bringing the workspace into focus.
+
+**Research sources**: [Awwwards onboarding inspiration](https://www.awwwards.com/inspiration/onboarding), [Figma's animated onboarding](https://goodux.appcues.com/blog/figmas-animated-onboarding-flow), [Appcues product tour UI patterns](https://www.appcues.com/blog/product-tours-ui-patterns), [NNGroup on onboarding tutorials](https://www.nngroup.com/articles/onboarding-tutorials/), [Motion (Framer Motion) docs](https://motion.dev/docs/react-animation), [Aceternity spotlight components](https://www.aceternity.com/components), [UX Collective onboarding patterns](https://uxdesign.cc/menu-of-ux-onboarding-patterns-and-when-to-use-them-3df2e3880fd1)
+
+---
+
+## Concept: Morphing Spotlight with Glass Cards
+
+An SVG mask creates a soft-edged cutout that **morphs fluidly between target elements** using spring physics. A frosted glass tooltip floats near each target. The spotlight has a breathing sage-green glow ring matching Apollo's cursor-tracking glow DNA.
+
+### What Makes It Special
+
+| Technique | Description |
+|-----------|-------------|
+| **SVG mask morph** | The spotlight GLIDES between targets — no cut, no fade. Spring physics make it feel alive |
+| **Feathered edge** | SVG `feGaussianBlur` on the mask cutout creates a soft, cinematic vignette |
+| **Breathing glow** | Sage-green ring pulses gently around the spotlight (3s cycle, opacity 0.08→0.20) |
+| **Glass tooltip** | Frosted card (`backdrop-blur-[20px] bg-white/85`) positioned smartly near target |
+| **Aperture open/close** | Entry: spotlight scales from zero. Exit: expands to reveal everything |
+| **Pipeline-style dots** | Progress uses 3-tier dot hierarchy matching the pipeline timeline component |
+| **Keyboard nav** | ArrowRight/Enter = next, ArrowLeft = back, Escape = dismiss |
+
+---
+
+## Tour Steps (5 steps)
+
+| # | Target | Card Position | Title | Copy |
+|---|--------|---------------|-------|------|
+| 0 | None (welcome) | Center | Welcome to Apollo | "Let's take a quick look around your thesis workspace." |
+| 1 | `[data-tour='pipeline']` | Below | The Pipeline | "Your thesis follows 12 phases. Complete each milestone to progress." |
+| 2 | `[data-tour='compile']` | Below | Generate & Approve | "AI generates each chapter. You review, refine, and approve before advancing." |
+| 3 | `[data-tour='editor']` | Right | The Editor | "Full LaTeX editing power. The AI's output is your starting point --- make it yours." |
+| 4 | None (finish) | Center | You're Ready | "That's all you need. Let's build something remarkable." |
+
+---
+
+## Technical Architecture
+
+### Layer Stack (z-index)
+
+```
+z-[102]  Glass Tooltip Card (DOM div)       ← Positioned near cutout
+z-[101]  Glow Ring (DOM div, CSS @keyframes) ← Sage pulse around cutout
+z-[100]  SVG Mask Overlay (full viewport)    ← Dark scrim + feathered cutout
+         Workspace (existing UI)             ← data-tour targets
+```
+
+### Core: SVG Mask Spotlight
+
+```tsx
+<svg className="pointer-events-none fixed inset-0 z-[100]" style={{ width: "100vw", height: "100vh" }}>
+  <defs>
+    <filter id="spotlight-feather">
+      <feGaussianBlur stdDeviation="10" />
+    </filter>
+    <mask id="spotlight-mask">
+      <rect width="100%" height="100%" fill="white" />
+      <motion.rect
+        animate={{ x, y, width, height }}
+        transition={{ type: "spring", stiffness: 170, damping: 26 }}
+        rx="16" fill="black"
+        filter="url(#spotlight-feather)"
+      />
+    </mask>
+  </defs>
+  <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#spotlight-mask)" />
+</svg>
+```
+
+`motion.rect` (Framer Motion for SVG) animates the cutout position/size with spring physics.
+
+### Glow Ring (breathing sage pulse)
+
+DOM div with animated `box-shadow`, positioned to match the spotlight cutout:
+
+```css
+/* globals.css */
+@keyframes tour-breathe {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(139,157,119,0.08), 0 0 20px 4px rgba(139,157,119,0.05); }
+  50%      { box-shadow: 0 0 0 2px rgba(139,157,119,0.22), 0 0 40px 12px rgba(139,157,119,0.10); }
+}
+```
+
+### Glass Tooltip Card
+
+- `bg-white/85 backdrop-blur-[20px] border border-white/40 rounded-2xl shadow-xl`
+- Progress dots: 3-tier sizing (current=`h-2 w-2 bg-[#2F2F2F]`, done=`h-1.5 w-1.5 bg-[#8B9D77]`, future=`h-1.5 w-1.5 bg-[#D1D1D1]`)
+- Typography: `font-serif text-base font-semibold text-[#2F2F2F]` title, `text-[13px] text-[#6B6B6B]` body
+- Nav: ghost "Skip tour" left, solid "Next"/"Get Started" right
+
+### Smart Card Positioning
+
+```typescript
+function computeCardPosition(
+  targetRect: DOMRect | null,
+  preference: "bottom" | "top" | "right" | "left" | "center"
+): { x: number; y: number }
+  // 1. Try preferred direction with 16px gap from target
+  // 2. Clamp to viewport with 20px edge padding
+  // 3. For "center" (welcome/finish): viewport center
+```
+
+### Animation Timeline
+
+| Event | Animation |
+|-------|-----------|
+| Tour opens | Overlay: opacity 0→1 (400ms). Welcome card: scale 0.92→1 + fade (spring) |
+| Step → Step | SVG rect + glow ring morph to new target (~500ms spring). Card: exit up 8px (200ms), enter down 12px (300ms, 150ms delay) |
+| Tour closes | Spotlight rect scales to viewport size (400ms spring), then overlay fades out (300ms) |
+
+### Responsive
+
+- **Desktop (≥768px)**: Full spotlight tour with SVG mask
+- **Mobile (<768px)**: Glass cards only (centered, no spotlight) — the workspace layout differs on mobile so spotlighting specific elements doesn't work well
+
+### Keyboard
+
+`useEffect` with `keydown` listener: `ArrowRight`/`Enter` → next, `ArrowLeft` → back, `Escape` → dismiss.
+
+### Window Resize
+
+`useEffect` with `resize` + `ResizeObserver` on active target element → recalculate spotlight rect on layout changes.
+
+---
+
+## Files to Modify
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `apps/web/components/onboarding/tour-overlay.tsx` | **REWRITE** — morphing spotlight with SVG mask, glass cards, glow ring, keyboard nav, responsive fallback |
+| 2 | `apps/web/app/globals.css` | **ADD** — `@keyframes tour-breathe` animation |
+
+**No new files. No new dependencies.** Uses existing `motion/react` + SVG + Tailwind.
+
+`project-workspace.tsx` needs **no changes** — the `data-tour` attributes and `<TourOverlay />` integration are already in place.
+
+---
+
+## Verification
+
+1. `pnpm --filter apollo-web exec tsc --noEmit` — 0 errors
+2. Clear localStorage: `localStorage.removeItem("apollo_onboarding_complete")` → refresh → tour appears
+3. Desktop: spotlight morphs between all targets, glass card positions correctly
+4. Keyboard: arrows navigate, escape dismisses
+5. Mobile (<768px): glass cards centered, no spotlight
+6. Dismiss → refresh → tour does NOT reappear
+7. Window resize during tour → spotlight repositions
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/devs/.REDACTED.jsonl
+
+---
+
+[Request interrupted by user]
+
+---
+
+Suggested Upgrades & Flourishes (The "Award" Polish)
+While the plan is already excellent, here are a few upgrades to push it into true "Awwwards" territory:
+
+1. Parallax Tooltip Drift
+Instead of the tooltip card remaining perfectly static while the user reads, add a microscopic, continuous multi-directional drift using framer-motion.
+
+Implementation: Wrap the tooltip card in a <motion.div> that slowly translates 2-3px on X/Y over a 10-second repeating, reverse animation loop. It makes the UI feel suspended in liquid rather than bolted to the screen.
+2. Audio Design (Micro-Interactions)
+Premium experiences engage more than just the eyes.
+
+Implementation: Add a very soft, satisfying, muffled "click" or "whoosh" audio file that plays exactly as the spring animation resolves on a new target. It dramatically increases the tactile feel of the software. (Think of the sound design in products like Linear or Arc Browser).
+3. The "Lens Flare" Transition
+When jumping from one target to another that is physically far away (e.g., from the bottom-left Sidebar to the top-right Compile button), the spotlight has to travel a long distance.
+
+Implementation: During long morphs, temporarily increase the width and height of the SVG rect mask by ~20% during the middle of the spring transit, then settle back to the exact target size. This creates an "aperture breathing" effect, making the transition feel dynamic rather than just a linear slide.
+4. Interactive Target Elements
+Currently, the spotlight highlights an element, but the user clicks "Next" on the tooltip.
+
+Implementation: Allow the user to actually click through the spotlight cutout to interact with the target element (e.g., actually clicking the "Compile" button inside the spotlight to advance the tour). You can achieve this using pointer-events: none on the overlay, but pointer-events: auto on the tooltip card.
+ Doable?
+
+---
+
+[Request interrupted by user]
+
+---
+
+│
+│ Redesign: "The Lens" — Morphing Spotlight Onboarding Tour                                                                                                                                                   │
+│                                                                                                                                                                                                             │
+│ Context                                                                                                                                                                                                     │
+│                                                                                                                                                                                                             │
+│ The current tour-overlay.tsx is a generic modal slideshow — a centered card with fade animations. It defines target selectors (data-tour="pipeline", etc.) but never uses them. The overlay doesn't         │
+│ actually highlight any UI elements; it's just 5 identical centered modals with different text. For a platform called Apollo (god of knowledge, space exploration), the onboarding should feel like a lens   │
+│ bringing the workspace into focus.                                                                                                                                                                          │
+│                                                                                                                                                                                                             │
+│ Research sources: https://www.awwwards.com/inspiration/onboarding, https://goodux.appcues.com/blog/figmas-animated-onboarding-flow, https://www.appcues.com/blog/product-tours-ui-patterns,                 │
+│ https://www.nngroup.com/articles/onboarding-tutorials/, https://motion.dev/docs/react-animation, https://www.aceternity.com/components,                                                                     │
+│ https://uxdesign.cc/menu-of-ux-onboarding-patterns-and-when-to-use-them-3df2e3880fd1                                                                                                                        │
+│                                                                                                                                                                                                             │
+│ ---                                                                                                                                                                                                         │
+│ Concept: Morphing Spotlight with Glass Cards                                                                                                                                                                │
+│                                                                                                                                                                                                             │
+│ An SVG mask creates a soft-edged cutout that morphs fluidly between target elements using spring physics. A frosted glass tooltip floats near each target. The spotlight has a breathing sage-green glow    │
+│ ring matching Apollo's cursor-tracking glow DNA.                                                                                                                                                            │
+│                                                                                                                                                                                                             │
+│ What Makes It Special                                                                                                                                                                                       │
+│                                                                                                                                                                                                             │
+│ ┌─────────────────────┬───────────────────────────────────────────────────────────────────────────────────────────┐                                                                                         │
+│ │      Technique      │                                        Description                                        │                                                                                         │
+│ ├─────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────┤                                                                                         │
+│ │ SVG mask morph      │ The spotlight GLIDES between targets — no cut, no fade. Spring physics make it feel alive │                                                                                         │
+│ ├─────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────┤                                                                                         │
+│ │ Feathered edge      │ SVG feGaussianBlur on the mask cutout creates a soft, cinematic vignette                  │                                                                                         │
+│ ├─────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────┤                                                                                         │
+│ │ Breathing glow      │ Sage-green ring pulses gently around the spotlight (3s cycle, opacity 0.08→0.20)          │                                                                                         │
+│ ├─────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────┤                                                                                         │
+│ │ Glass tooltip       │ Frosted card (backdrop-blur-[20px] bg-white/85) positioned smartly near target            │                                                                                         │
+│ ├─────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────┤                                                                                         │
+│ │ Aperture open/close │ Entry: spotlight scales from zero. Exit: expands to reveal everything                     │                                                                                         │
+│ ├─────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────┤                                                                                         │
+│ │ Pipeline-style dots │ Progress uses 3-tier dot hierarchy matching the pipeline timeline component               │                                                                                         │
+│ ├─────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────┤                                                                                         │
+│ │ Keyboard nav        │ ArrowRight/Enter = next, ArrowLeft = back, Escape = dismiss                               │                                                                                         │
+│ └─────────────────────┴───────────────────────────────────────────────────────────────────────────────────────────┘                                                                                         │
+│                                                                                                                                                                                                             │
+│ ---                                                                                                                                                                                                         │
+│ Tour Steps (5 steps)                                                                                                                                                                                        │
+│                                                                                                                                                                                                             │
+│ ┌─────┬────────────────────────┬───────────────┬────────────────────┬───────────────────────────────────────────────────────────────────────────────────────┐                                               │
+│ │  #  │         Target         │ Card Position │       Title        │                                         Copy                                          │                                               │
+│ ├─────┼────────────────────────┼───────────────┼────────────────────┼───────────────────────────────────────────────────────────────────────────────────────┤                                               │
+│ │ 0   │ None (welcome)         │ Center        │ Welcome to Apollo  │ "Let's take a quick look around your thesis workspace."                               │                                               │
+│ ├─────┼────────────────────────┼───────────────┼────────────────────┼───────────────────────────────────────────────────────────────────────────────────────┤                                               │
+│ │ 1   │ [data-tour='pipeline'] │ Below         │ The Pipeline       │ "Your thesis follows 12 phases. Complete each milestone to progress."                 │                                               │
+│ ├─────┼────────────────────────┼───────────────┼────────────────────┼───────────────────────────────────────────────────────────────────────────────────────┤                                               │
+│ │ 2   │ [data-tour='compile']  │ Below         │ Generate & Approve │ "AI generates each chapter. You review, refine, and approve before advancing."        │                                               │
+│ ├─────┼────────────────────────┼───────────────┼────────────────────┼───────────────────────────────────────────────────────────────────────────────────────┤                                               │
+│ │ 3   │ [data-tour='editor']   │ Right         │ The Editor         │ "Full LaTeX editing power. The AI's output is your starting point --- make it yours." │                                               │
+│ ├─────┼────────────────────────┼───────────────┼────────────────────┼───────────────────────────────────────────────────────────────────────────────────────┤                                               │
+│ │ 4   │ None (finish)          │ Center        │ You're Ready       │ "That's all you need. Let's build something remarkable."                              │                                               │
+│ └─────┴────────────────────────┴───────────────┴────────────────────┴───────────────────────────────────────────────────────────────────────────────────────┘                                               │
+│                                                                                                                                                                                                             │
+│ ---                                                                                                                                                                                                         │
+│ Technical Architecture                                                                                                                                                                                      │
+│                                                                                                                                                                                                             │
+│ Layer Stack (z-index)                                                                                                                                                                                       │
+│                                                                                                                                                                                                             │
+│ z-[102]  Glass Tooltip Card (DOM div)       ← Positioned near cutout                                                                                                                                        │
+│ z-[101]  Glow Ring (DOM div, CSS @keyframes) ← Sage pulse around cutout                                                                                                                                     │
+│ z-[100]  SVG Mask Overlay (full viewport)    ← Dark scrim + feathered cutout                                                                                                                                │
+│          Workspace (existing UI)             ← data-tour targets                                                                                                                                            │
+│                                                                                                                                                                                                             │
+│ Core: SVG Mask Spotlight                                                                                                                                                                                    │
+│                                                                                                                                                                                                             │
+│ <svg className="pointer-events-none fixed inset-0 z-[100]" style={{ width: "100vw", height: "100vh" }}>                                                                                                     │
+│   <defs>                                                                                                                                                                                                    │
+│     <filter id="spotlight-feather">                                                                                                                                                                         │
+│       <feGaussianBlur stdDeviation="10" />                                                                                                                                                                  │
+│     </filter>                                                                                                                                                                                               │
+│     <mask id="spotlight-mask">                                                                                                                                                                              │
+│       <rect width="100%" height="100%" fill="white" />                                                                                                                                                      │
+│       <motion.rect                                                                                                                                                                                          │
+│         animate={{ x, y, width, height }}                                                                                                                                                                   │
+│         transition={{ type: "spring", stiffness: 170, damping: 26 }}                                                                                                                                        │
+│         rx="16" fill="black"                                                                                                                                                                                │
+│         filter="url(#spotlight-feather)"                                                                                                                                                                    │
+│       />                                                                                                                                                                                                    │
+│     </mask>                                                                                                                                                                                                 │
+│   </defs>                                                                                                                                                                                                   │
+│   <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#spotlight-mask)" />                                                                                                                   │
+│ </svg>                                                                                                                                                                                                      │
+│                                                                                                                                                                                                             │
+│ motion.rect (Framer Motion for SVG) animates the cutout position/size with spring physics.                                                                                                                  │
+│                                                                                                                                                                                                             │
+│ Glow Ring (breathing sage pulse)                                                                                                                                                                            │
+│                                                                                                                                                                                                             │
+│ DOM div with animated box-shadow, positioned to match the spotlight cutout:                                                                                                                                 │
+│                                                                                                                                                                                                             │
+│ /* globals.css */                                                                                                                                                                                           │
+│ @keyframes tour-breathe {                                                                                                                                                                                   │
+│   0%, 100% { box-shadow: 0 0 0 2px rgba(139,157,119,0.08), 0 0 20px 4px rgba(139,157,119,0.05); }                                                                                                           │
+│   50%      { box-shadow: 0 0 0 2px rgba(139,157,119,0.22), 0 0 40px 12px rgba(139,157,119,0.10); }                                                                                                          │
+│ }                                                                                                                                                                                                           │
+│                                                                                                                                                                                                             │
+│ Glass Tooltip Card                                                                                                                                                                                          │
+│                                                                                                                                                                                                             │
+│ - bg-white/85 backdrop-blur-[20px] border border-white/40 rounded-2xl shadow-xl                                                                                                                             │
+│ - Progress dots: 3-tier sizing (current=h-2 w-2 bg-[#2F2F2F], done=h-1.5 w-1.5 bg-[#8B9D77], future=h-1.5 w-1.5 bg-[#D1D1D1])                                                                               │
+│ - Typography: font-serif text-base font-semibold text-[#2F2F2F] title, text-[13px] text-[#6B6B6B] body                                                                                                      │
+│ - Nav: ghost "Skip tour" left, solid "Next"/"Get Started" right                                                                                                                                             │
+│                                                                                                                                                                                                             │
+│ Smart Card Positioning                                                                                                                                                                                      │
+│                                                                                                                                                                                                             │
+│ function computeCardPosition(                                                                                                                                                                               │
+│   targetRect: DOMRect | null,                                                                                                                                                                               │
+│   preference: "bottom" | "top" | "right" | "left" | "center"                                                                                                                                                │
+│ ): { x: number; y: number }                                                                                                                                                                                 │
+│   // 1. Try preferred direction with 16px gap from target                                                                                                                                                   │
+│   // 2. Clamp to viewport with 20px edge padding                                                                                                                                                            │
+│   // 3. For "center" (welcome/finish): viewport center                                                                                                                                                      │
+│                                                                                                                                                                                                             │
+│ Animation Timeline                                                                                                                                                                                          │
+│                                                                                                                                                                                                             │
+│ ┌─────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐                                                                 │
+│ │    Event    │                                                         Animation                                                         │                                                                 │
+│ ├─────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤                                                                 │
+│ │ Tour opens  │ Overlay: opacity 0→1 (400ms). Welcome card: scale 0.92→1 + fade (spring)                                                  │                                                                 │
+│ ├─────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤                                                                 │
+│ │ Step → Step │ SVG rect + glow ring morph to new target (~500ms spring). Card: exit up 8px (200ms), enter down 12px (300ms, 150ms delay) │                                                                 │
+│ ├─────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤                                                                 │
+│ │ Tour closes │ Spotlight rect scales to viewport size (400ms spring), then overlay fades out (300ms)                                     │                                                                 │
+│ └─────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘                                                                 │
+│                                                                                                                                                                                                             │
+│ Responsive                                                                                                                                                                                                  │
+│                                                                                                                                                                                                             │
+│ - Desktop (≥768px): Full spotlight tour with SVG mask                                                                                                                                                       │
+│ - Mobile (<768px): Glass cards only (centered, no spotlight) — the workspace layout differs on mobile so spotlighting specific elements doesn't work well                                                   │
+│                                                                                                                                                                                                             │
+│ Keyboard                                                                                                                                                                                                    │
+│                                                                                                                                                                                                             │
+│ useEffect with keydown listener: ArrowRight/Enter → next, ArrowLeft → back, Escape → dismiss.                                                                                                               │
+│                                                                                                                                                                                                             │
+│ Window Resize                                                                                                                                                                                               │
+│                                                                                                                                                                                                             │
+│ useEffect with resize + ResizeObserver on active target element → recalculate spotlight rect on layout changes.                                                                                             │
+│                                                                                                                                                                                                             │
+│ ---                                                                                                                                                                                                         │
+│ Files to Modify                                                                                                                                                                                             │
+│                                                                                                                                                                                                             │
+│ ┌─────┬─────────────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────┐                                           │
+│ │  #  │                      File                       │                                                Change                                                 │                                           │
+│ ├─────┼─────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤                                           │
+│ │ 1   │ apps/web/components/onboarding/tour-overlay.tsx │ REWRITE — morphing spotlight with SVG mask, glass cards, glow ring, keyboard nav, responsive fallback │                                           │
+│ ├─────┼─────────────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────┤                                           │
+│ │ 2   │ apps/web/app/globals.css                        │ ADD — @keyframes tour-breathe animation                                                               │                                           │
+│ └─────┴─────────────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────┘                                           │
+│                                                                                                                                                                                                             │
+│ No new files. No new dependencies. Uses existing motion/react + SVG + Tailwind.                                                                                                                             │
+│                                                                                                                                                                                                             │
+│ project-workspace.tsx needs no changes — the data-tour attributes and <TourOverlay /> integration are already in place.                                                                                     │
+│                                                                                                                                                                                                             │
+│ ---                                                                                                                                                                                                         │
+│ Verification                                                                                                                                                                                                │
+│                                                                                                                                                                                                             │
+│ 1. pnpm --filter apollo-web exec tsc --noEmit — 0 errors                                                                                                                                                    │
+│ 2. Clear localStorage: localStorage.removeItem("apollo_onboarding_complete") → refresh → tour appears                                                                                                       │
+│ 3. Desktop: spotlight morphs between all targets, glass card positions correctly                                                                                                                            │
+│ 4. Keyboard: arrows navigate, escape dismisses                                                                                                                                                              │
+│ 5. Mobile (<768px): glass cards centered, no spotlight                                                                                                                                                      │
+│ 6. Dismiss → refresh → tour does NOT reappear                                                                                                                                                               │
+│ 7. Window resize during tour → spotlight repositions   plus Suggested Upgrades & Flourishes (The "Award" Polish)                                                                                                                                                         
+  While the plan is already excellent, here are a few upgrades to push it into true "Awwwards" territory:                                                                                                      
+                                                                                                                                                                                                               
+  1. Parallax Tooltip Drift                                                                                                                                                                                    
+  Instead of the tooltip card remaining perfectly static while the user reads, add a microscopic, continuous multi-directional drift using framer-motion.                                                      
+                                                                                                                                                                                                           
+  Implementation: Wrap the tooltip card in a <motion.div> that slowly translates 2-3px on X/Y over a 10-second repeating, reverse animation loop. It makes the UI feel suspended in liquid rather than         
+  bolted to the screen.                                                                                                                                                                                        
+  2. Audio Design (Micro-Interactions)                                                                                                                                                                         
+  Premium experiences engage more than just the eyes.                                                                                                                                                          
+                                                                                                                                                                                                               
+  Implementation: Add a very soft, satisfying, muffled "click" or "whoosh" audio file that plays exactly as the spring animation resolves on a new target. It dramatically increases the tactile feel of       
+  the software. (Think of the sound design in products like Linear or Arc Browser).                                                                                                                            
+  3. The "Lens Flare" Transition                                                                                                                                                                               
+  When jumping from one target to another that is physically far away (e.g., from the bottom-left Sidebar to the top-right Compile button), the spotlight has to travel a long distance.                       
+                                                                                                                                                                                                               
+  Implementation: During long morphs, temporarily increase the width and height of the SVG rect mask by ~20% during the middle of the spring transit, then settle back to the exact target size. This          
+  creates an "aperture breathing" effect, making the transition feel dynamic rather than just a linear slide.                                                                                                  
+  4. Interactive Target Elements                                                                                                                                                                               
+  Currently, the spotlight highlights an element, but the user clicks "Next" on the tooltip.                                                                                                                   
+                                                                                                                                                                                                               
+  Implementation: Allow the user to actually click through the spotlight cutout to interact with the target element (e.g., actually clicking the "Compile" button inside the spotlight to advance the          
+  tour). You can achieve this using pointer-events: none on the overlay, but pointer-events: auto on the tooltip card. This is the entire plan context and vision. Now proceed
+
+---
+
+[Request interrupted by user]
+
+---
+
+retry, break down the plan into two parts, one basic tour implementation, and the next the upgrades
+
+---
+
+audit the files changed again
+
+---
+
+Unknown skill: commit
+
+---
+
+commit and push and watch ci

@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "bd84f5776d75",
+  "session_id": "ba265057-ba45-4117-b25a-3f6efc060c22",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-22T15:09:46.073793Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/app/globals.css",
+    "apps/web/components/onboarding/tour-overlay.tsx"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "50a7bc28-cb89-4501-ad3c-1e67ac80ad51",
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 83626,
+    "cache_read_tokens": 2892954,
+    "output_tokens": 5459,
+    "api_call_count": 39
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-22T15:09:45.387299Z",
+    "agent_lines": 506,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 506,
+    "agent_percentage": 100
+  },
+  "transcript_path": ".claude/projects/-Users-devs-Downloads-Apollo/ba265057-ba45-4117-b25a-3f6efc060c22.jsonl"
+}
